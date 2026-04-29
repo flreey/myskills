@@ -8,54 +8,59 @@
 | --- | --- |
 | [prompt-builder-agent-skill](./prompt-builder-agent-skill) | 把模糊、随意、不完整的需求，通过引导式提问 + 合理默认值 + 自评 + 模型适配，转换为高质量的结构化 prompt。覆盖 image / product / writing / code / business / research / agent 七大类型。 |
 
-## 一键安装（推荐：让你的 agent 自己装）
+## 📋 一键安装（复制下面整段 prompt 粘给你的 agent 即可）
 
-把下面这段 prompt 粘给 Claude Code **或** Codex CLI（两边都能用），把 `<SKILL_NAME>` 换成上表里的 skill 目录名：
+适用于 Claude Code、Codex CLI、以及任何能执行 shell 的 coding agent。**直接复制，不用改任何东西。**
 
-```text
-请帮我安装这个 Skill：
+### prompt-builder-agent-skill
 
-- 仓库：https://github.com/flreey/myskills
-- Skill 名：<SKILL_NAME>
+````text
+请帮我从 GitHub 安装并启用 prompt-builder-agent-skill 这个 skill。仓库地址 https://github.com/flreey/myskills
 
-请按以下步骤执行（自动判断当前是 Claude Code 还是 Codex CLI）：
+请按以下步骤执行（你需要自动判断当前是 Claude Code 还是 Codex CLI 或其他 agent，并选用对应路径）：
 
 1. 确定目标安装目录：
-   - 如果你是 Claude Code，目标是 ~/.claude/skills/<SKILL_NAME>/
-   - 如果你是 Codex CLI，目标是 ~/.codex/skills/<SKILL_NAME>/
-   - 父目录不存在则创建（mkdir -p）
+   - Claude Code → ~/.claude/skills/prompt-builder-agent-skill/
+   - Codex CLI   → ~/.codex/skills/prompt-builder-agent-skill/
+   - 其他 agent  → 询问我目标目录
+   父目录不存在就 mkdir -p。如果目标目录已存在，备份成 <name>.bak.<timestamp> 再继续。
 
-2. 用 git sparse-checkout 只下载这一个 skill 子目录，避免拉整仓库：
-   - mktemp -d 一个临时目录
-   - cd 进去，git clone --filter=blob:none --sparse https://github.com/flreey/myskills.git
-   - cd myskills && git sparse-checkout set <SKILL_NAME>
-   - 把 <SKILL_NAME>/ 完整 cp -R 到上一步的目标目录
-   - 清理临时目录
+2. 用 git sparse-checkout 只拉这一个 skill 子目录（避免下载整仓库）：
+   - 创建一个临时目录（mktemp -d）
+   - 在临时目录里：git clone --depth=1 --filter=blob:none --sparse https://github.com/flreey/myskills.git
+   - cd myskills && git sparse-checkout set prompt-builder-agent-skill
+   - 把 prompt-builder-agent-skill/ 完整 cp -R 到第 1 步确定的目标目录
+   - 删掉临时目录
 
-3. 校验 <目标目录>/SKILL.md 存在，且 YAML frontmatter 含 name + description 字段。
+3. 校验：
+   - <目标目录>/SKILL.md 存在
+   - YAML frontmatter 含 name 和 description 字段
+   - references/templates/ 下有 7 个 .md 模板文件
 
 4. 安装完成后，告诉我：
-   - 安装到了哪个路径
-   - 这个 skill 的触发条件（即什么样的请求会激活它）
+   - 实际安装路径
+   - 这个 skill 的触发条件（哪些请求会激活它）
    - 是否需要重启会话才能识别
-```
 
-## 手动安装
+如果任何一步失败，停下来报告错误，不要静默继续。
+````
+
+> 要装到**项目内**而不是全局？把第 1 步路径改成 `<repo>/.claude/skills/` 或 `<repo>/.codex/skills/` 即可。
+
+## 手动安装（不想让 agent 代劳）
 
 ```bash
 # 方式 1：克隆整仓库再复制
 git clone https://github.com/flreey/myskills.git
-cp -R myskills/<SKILL_NAME> ~/.claude/skills/   # Claude Code
-cp -R myskills/<SKILL_NAME> ~/.codex/skills/    # Codex CLI
+cp -R myskills/prompt-builder-agent-skill ~/.claude/skills/   # Claude Code
+cp -R myskills/prompt-builder-agent-skill ~/.codex/skills/    # Codex CLI
 
 # 方式 2：sparse-checkout 只拉一个 skill
-git clone --filter=blob:none --sparse https://github.com/flreey/myskills.git
+git clone --depth=1 --filter=blob:none --sparse https://github.com/flreey/myskills.git
 cd myskills
-git sparse-checkout set <SKILL_NAME>
-cp -R <SKILL_NAME> ~/.claude/skills/   # 或 ~/.codex/skills/
+git sparse-checkout set prompt-builder-agent-skill
+cp -R prompt-builder-agent-skill ~/.claude/skills/   # 或 ~/.codex/skills/
 ```
-
-项目级安装：把 skill 目录复制到仓库的 `.claude/skills/` 或 `.codex/skills/`（Codex 也支持 `.agents/skills/`）。
 
 安装后开新会话，agent 会通过 `SKILL.md` 的 frontmatter 自动发现。
 
@@ -80,9 +85,9 @@ cp -R <SKILL_NAME> ~/.claude/skills/   # 或 ~/.codex/skills/
 
 ## 添加新 Skill
 
-1. 在仓库根目录新建 `<skill-name>/`
-2. 至少放一个带 frontmatter 的 `SKILL.md`
-3. 在本 README 的 "当前 Skills" 表格中加一行
+1. 在仓库根目录新建 `<skill-name>/`，至少放一个带 frontmatter 的 `SKILL.md`
+2. 在本 README 的 "当前 Skills" 表格里加一行
+3. 在 "📋 一键安装" 区里复制 `prompt-builder-agent-skill` 那段 prompt，把所有 `prompt-builder-agent-skill` 替换成新 skill 的目录名
 4. push（或开 PR）
 
 ## License
