@@ -6,38 +6,22 @@ Turns vague, casual, or incomplete requests into clear, copy-ready prompts — t
 
 Image, product, writing, code, business, research, agent/automation, learning, and general tasks. Each type has a dedicated reference template under `references/templates/` showing a vague input → final prompt.
 
-## 📋 一键安装（复制下面整段粘给你的 agent）
+## 📋 一键安装（直接复制粘贴）
 
-````text
-请帮我从 GitHub 安装并启用 prompt-builder-agent-skill 这个 skill。仓库地址 https://github.com/flreey/myskills
+```text
+帮我装这个 skill：https://github.com/flreey/myskills/tree/main/prompt-builder-agent-skill
+```
 
-请按以下步骤执行（你需要自动判断当前是 Claude Code 还是 Codex CLI 或其他 agent，并选用对应路径）：
+就这一行粘给 Claude Code 或 Codex CLI 即可。详细兜底版见仓库根目录 [README](../README.md#详细安装-prompt兜底版)。
 
-1. 确定目标安装目录：
-   - Claude Code → ~/.claude/skills/prompt-builder-agent-skill/
-   - Codex CLI   → ~/.codex/skills/prompt-builder-agent-skill/
-   - 其他 agent  → 询问我目标目录
-   父目录不存在就 mkdir -p。如果目标目录已存在，备份成 <name>.bak.<timestamp> 再继续。
+## 与 superpowers / brainstorming 类 skill 的区别
 
-2. 用 git sparse-checkout 只拉这一个 skill 子目录（避免下载整仓库）：
-   - 创建一个临时目录（mktemp -d）
-   - 在临时目录里：git clone --depth=1 --filter=blob:none --sparse https://github.com/flreey/myskills.git
-   - cd myskills && git sparse-checkout set prompt-builder-agent-skill
-   - 把 prompt-builder-agent-skill/ 完整 cp -R 到第 1 步确定的目标目录
-   - 删掉临时目录
+| Skill | 输出 | 用途 |
+| --- | --- | --- |
+| `superpowers:brainstorming` | 设计文档 + spec | 探索需求，准备写代码 |
+| `prompt-builder`（本 skill） | 可复制的 LLM prompt | 发给另一个 LLM 执行 |
 
-3. 校验：
-   - <目标目录>/SKILL.md 存在
-   - YAML frontmatter 含 name 和 description 字段
-   - references/templates/ 下有 7 个 .md 模板文件
-
-4. 安装完成后，告诉我：
-   - 实际安装路径
-   - 这个 skill 的触发条件（哪些请求会激活它）
-   - 是否需要重启会话才能识别
-
-如果任何一步失败，停下来报告错误，不要静默继续。
-````
+如果想要 prompt 但被 brainstorming 抢走了，显式说：`用 prompt-builder 帮我把 X 整理成 prompt`。
 
 ## 手动安装
 
