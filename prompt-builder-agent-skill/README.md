@@ -1,47 +1,71 @@
 # Prompt Builder Agent Skill
 
-This package is structured as a standard agent skill folder.
+Turns vague, casual, or incomplete requests into clear, copy-ready prompts — through guided choices, sensible defaults, self-critique, and model-aware adaptation.
 
-## Claude / Claude Code
+## What it covers
 
-A skill is a folder containing `SKILL.md` with YAML frontmatter.  
-Place this folder in your Claude skills directory, for example:
+Image, product, writing, code, business, research, agent/automation, learning, and general tasks. Each type has a dedicated reference template under `references/templates/` showing a vague input → final prompt.
+
+## Install
+
+This skill follows the universal `SKILL.md` standard, so the same folder works for both Claude Code and Codex CLI. Just put it in the right place.
+
+### Claude Code
 
 ```bash
 mkdir -p ~/.claude/skills
 cp -R prompt-builder-agent-skill ~/.claude/skills/
 ```
 
-Then in Claude Code you can use:
-
-```text
-/prompt-builder
-```
-
-or simply ask something vague like:
-
-```text
-I want to build a tariff calculator. Help me turn it into a strong prompt.
-```
-
-## Codex
-
-Codex Agent Skills also use a folder with `SKILL.md`, plus optional `scripts/`, `references/`, and `assets/`.
-
-Install location may depend on your Codex setup. If your Codex environment supports skills, copy this folder into the configured skills directory.
-
-For a normal project repo, you can also add an `AGENTS.md` file that tells Codex when to use this skill or to read this folder.
-
-## Optional helper
-
-`scripts/prompt_builder_helper.py` is a small CLI helper. It is optional.
-
-Run:
+### Codex CLI
 
 ```bash
-python scripts/prompt_builder_helper.py
+mkdir -p ~/.codex/skills
+cp -R prompt-builder-agent-skill ~/.codex/skills/
 ```
 
-## What this skill does
+For project-scoped use, drop it under `.claude/skills/` or `.codex/skills/` (or `.agents/skills/`) inside your repo.
 
-It turns rough ideas into structured prompts through guided choices and reasonable defaults.
+After install, start a new session — the agent will auto-discover the skill from `SKILL.md`'s frontmatter.
+
+## Trigger
+
+Anything vague that benefits from being turned into a structured prompt. Examples:
+
+- "I want to build a tariff calculator"
+- "Make a depressing image"
+- "Help me write something about anxiety"
+- "Research what's happening with small modular reactors"
+- "I want an agent that triages my GitHub issues"
+
+You can also just say `/prompt-builder` (Claude Code) or invoke by name in Codex.
+
+## What you get back
+
+A copy-ready prompt with:
+
+- Goal / Context / Audience / Inputs / Outputs / Constraints / Structure / Mechanism / Quality bar / Avoid / Acceptance criteria
+- Self-critique on specificity, actionability, robustness — issues fixed inline
+- Adapted to your target model (Claude / GPT / portable) if specified
+
+## Files
+
+```
+prompt-builder-agent-skill/
+├── SKILL.md                    # main skill instructions (auto-loaded)
+├── AGENTS.md                   # Codex-style usage hint
+├── README.md                   # this file
+└── references/
+    └── templates/
+        ├── image.md
+        ├── product.md
+        ├── writing.md
+        ├── code.md
+        ├── business.md
+        ├── research.md
+        └── agent.md
+```
+
+## License
+
+MIT
