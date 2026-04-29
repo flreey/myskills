@@ -4,7 +4,7 @@
 
 When the user gives a vague, short, casual, or incomplete request and wants help turning it into a useful prompt, use the local skill in:
 
-`prompt-builder-agent-skill/SKILL.md`
+`prompt-builder/SKILL.md`
 
 Workflow:
 
