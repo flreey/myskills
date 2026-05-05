@@ -9,6 +9,7 @@
 | Skill | 描述 |
 | --- | --- |
 | [prompt-builder](./prompt-builder) | 把模糊、随意、不完整的需求，通过引导式提问 + 合理默认值 + 自评 + 模型适配，转换为高质量的结构化 prompt。覆盖 image / product / writing / code / business / research / agent 七大类型。 |
+| [system-evolution-skill](./system-evolution-skill) | 用 "System → Information → Energy → Feedback → Evolution" 框架做系统级分析。把模糊的复杂问题（产品/获客/策略/学习/工作流/AI agent 设计）拆成系统边界、失败点、可度量反馈，再给出最小可验证实验。配套 templates 和 examples。 |
 
 ## 📋 一键安装（直接复制粘贴）
 
