@@ -1,6 +1,6 @@
 ---
 name: prompt-builder
-description: Use this skill when the user gives a vague request AND specifically wants a copy-ready prompt to send to another LLM (Claude/GPT/Gemini/image models/etc.). Turns rough ideas into structured prompts via guided choices, sensible defaults, self-critique, and model-aware adaptation. Covers image, product, writing, code/automation, business, research, and agent/automation tasks. NOT for design/planning workflows that produce engineering specs or implementation plans — use brainstorming-style skills for those.
+description: Use this skill when the user gives a vague request AND specifically wants a copy-ready prompt to send to another LLM (Claude/GPT/Gemini/image models/etc.). Turns rough ideas into structured prompts via guided choices, sensible defaults, self-critique, and model-aware adaptation. Covers image, product, writing, code/automation, business, research, and agent/automation tasks. NOT for design/planning workflows that produce engineering specs or implementation plans (use brainstorming-style skills), and NOT for system-level diagnosis, feedback-loop design, or smallest-experiment analysis (use system-evolution-skill).
 ---
 
 # Prompt Builder Skill
@@ -73,8 +73,6 @@ Classify into one of these types (load the matching template from `references/te
 - Business / strategy
 - Research / analysis
 - Agent / automation system
-- Learning / explanation
-- General task
 
 Say:
 
@@ -155,9 +153,9 @@ Common fixes when an axis is weak:
 
 Ask or infer the target model. Apply the matching style:
 
-- **Claude (4.x / latest)** — Use XML tags (`<context>`, `<task>`, `<format>`) for sectioning. Put stable instructions/system info first (cache-friendly), variable user input last. Use explicit role framing only when needed.
-- **GPT-5 / o-series** — Markdown headings work well. Be explicit about reasoning effort if applicable. JSON schema in `Outputs:` if structured output is needed.
-- **Gemini / others** — Markdown + clear numbered steps. Avoid heavy XML.
+- **Claude (latest Anthropic model)** — Use XML tags (`<context>`, `<task>`, `<format>`) for sectioning. Put stable instructions/system info first (cache-friendly), variable user input last. Use explicit role framing only when needed.
+- **GPT (latest OpenAI flagship + o-series reasoning models)** — Markdown headings work well. Be explicit about reasoning effort if applicable. JSON schema in `Outputs:` if structured output is needed.
+- **Gemini / other modern LLMs** — Markdown + clear numbered steps. Avoid heavy XML.
 - **Unknown / portable** — Markdown headings, plain language, no platform-specific tokens. This is the default.
 
 If the user didn't specify a model, default to portable + offer to optimize for a specific model.
@@ -207,11 +205,6 @@ For each type below, ask the listed clarifications, then ensure the final prompt
 
 **Clarify:** trigger, state, available tools, loop termination condition, error recovery, observability/logging, human-in-the-loop checkpoints.
 **Must include:** agent goal, trigger conditions, state model, tool list with usage rules, decision policy, termination rule, error/retry policy, logging requirements, escalation path.
-
-### Learning / explanation
-
-**Clarify:** prior knowledge, goal (intuition vs exam-pass vs working ability), depth, examples needed.
-**Must include:** learner profile, target understanding, scaffolding order, examples, check-for-understanding questions.
 
 ## Template library
 

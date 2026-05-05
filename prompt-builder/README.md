@@ -4,7 +4,7 @@ Turns vague, casual, or incomplete requests into clear, copy-ready prompts — t
 
 ## What it covers
 
-Image, product, writing, code, business, research, agent/automation, learning, and general tasks. Each type has a dedicated reference template under `references/templates/` showing a vague input → final prompt.
+Image, product, writing, code, business, research, and agent/automation tasks. Each type has a dedicated reference template under `references/templates/` showing a vague input → final prompt.
 
 ## 📋 一键安装（直接复制粘贴）
 

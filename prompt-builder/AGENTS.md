@@ -8,7 +8,7 @@ When the user gives a vague, short, casual, or incomplete request and wants help
 
 Workflow:
 
-1. Classify the task type (image / product / writing / code / business / research / agent / general).
+1. Classify the task type (image / product / writing / code / business / research / agent).
 2. Restate the likely goal in plain language.
 3. Ask up to 3 guided multiple-choice questions; always include "Not sure, choose for me."
 4. Use defaults when the user is unsure.
