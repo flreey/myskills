@@ -72,6 +72,26 @@ Use current web research for competitor and market facts. Do not rely on memory 
 
 If sources are blocked or weak, mark the conclusion as `partial` or `low confidence`. Never fabricate quotes, URLs, prices, install counts, or review claims.
 
+## Reliability Boundary
+
+Competitor evidence proves that a broad workflow has demand. It does **not** prove that users will pay for the narrow wedge.
+
+Treat every shortlist as a validation hypothesis unless the specific wedge has direct payment evidence. Say this explicitly when the evidence is only competitor-adjacent.
+
+### Anti-Laziness Rules
+
+Use these rules to prevent optimistic scoring:
+
+- No source, artifact, or concrete sample = score that gate `no` or `unknown`; do not infer `yes`.
+- `unknown` always counts as not passed for verdict math.
+- If competitor pricing/features were not checked from current sources, final verdict cannot exceed `OBSERVE`.
+- If no user complaint, workaround, review, forum post, or support question is found for the specific pain, final verdict cannot exceed `OBSERVE`.
+- If no sample input can be obtained or constructed from public docs, final verdict cannot exceed `OBSERVE`.
+- If direct incumbent coverage for the wedge was not checked, final verdict cannot exceed `OBSERVE`.
+- If distribution is only "SEO", "Reddit", or "marketplace" without one exact keyword, community, listing path, or post angle, score Distribution `no`.
+- If the tool would require repeated manual interpretation per customer at the proposed price, score Pricing `no` unless the MVP explicitly limits scope.
+- Use `partial` when blocked sources or search snippets are used. Do not upgrade `partial` evidence into a confident verdict.
+
 ## Core Workflow
 
 ### 1. Restate the user's boundary
@@ -166,7 +186,7 @@ Do not default to Chrome. Choose the shape closest to the data:
 | Code/docs/CI workflow | CLI or GitHub Action |
 | Needs history, monitoring, teams, scheduled reports | Light SaaS |
 
-### 7. Score and decide
+### 7. Score opportunity fit
 
 Score each opportunity on 7 yes/no gates. Each gate maps to a Hard Constraint:
 
@@ -181,6 +201,28 @@ Score each opportunity on 7 yes/no gates. Each gate maps to a Hard Constraint:
 | 7-10 day demo | #7 Solo MVP | Demo scope cuts auth, payment, multi-tenant, scraping — under 10 dev-days |
 
 Constraints #1 (overseas) and #2 (global workflow) are pre-filters, not scored gates — failing either kills the idea before scoring.
+
+Allowed gate values are `yes`, `no`, and `unknown`. Treat `unknown` as not passed. Use `unknown` when the source may exist but has not been checked; use `no` when checked evidence fails the gate.
+
+### 8. Score demand-validation readiness
+
+This second scorecard answers: "Is the narrow wedge itself ready for a strict validation test?"
+
+Do not skip this scorecard. It is the guard against confusing competitor demand with wedge demand.
+
+| Gate | Pass criterion |
+|---|---|
+| Buying moment | One sentence naming the exact moment the user would pay now, not a vague persona need |
+| Specific pain evidence | 3+ recent or linkable user complaints, reviews, forum posts, issues, or visible workarounds about the narrow pain |
+| Sample inputs | 5 real, public, exported, synthetic-from-docs, or user-provided sample inputs can be collected before building |
+| Incumbent coverage check | The top 2-3 competitors were checked for the exact wedge; if they already solve it well, fail |
+| Current workaround | A spreadsheet/manual export/freelancer/full-suite workaround is visible and materially worse than the proposed tool |
+| Payment test | MVP includes a real payment or payment-intent action: paid report, paid unlock, pre-order, or "send file, pay for full report" |
+| Support-cost bound | V1 scope is narrow enough that most outputs can be automated without bespoke consulting |
+
+Mandatory pass gates for a `DO` verdict: Buying moment, Sample inputs, Incumbent coverage check, and Payment test.
+
+For Specific pain evidence, list at least 3 items before scoring `yes`. For Sample inputs, list 5 inputs before scoring `yes`; mark each as `real`, `public`, `doc-derived`, `user-provided`, or `synthetic`. Synthetic inputs only pass when they are derived from public docs or official examples.
 
 #### Distribution channel cheatsheet
 
@@ -201,11 +243,11 @@ Use this when scoring the Distribution gate. Pick **one** primary channel; bonus
 
 Verdict:
 
-- `DO` = 6-7 gates pass.
-- `OBSERVE` = 4-5 pass, needs more evidence.
-- `KILL` = 0-3 pass or violates a hard constraint.
+- `DO` = 6-7 opportunity gates pass, 5-7 demand-validation gates pass, and all mandatory demand-validation gates pass. This means "worth a 7-10 day paid validation test", not "proven business".
+- `OBSERVE` = 4-5 opportunity gates pass, or opportunity gates pass but demand-validation evidence is incomplete.
+- `KILL` = 0-3 opportunity gates pass, violates a hard constraint, or direct incumbent coverage already solves the wedge well.
 
-### 8. Validation MVP
+### 9. Validation MVP
 
 For each `DO` candidate, define a 7-10 day validation:
 
@@ -247,8 +289,17 @@ Competitor evidence:
 - <competitor> — <pricing/users/features> — <URL>
 - <free/cheap alternative> — <why it is not enough> — <URL>
 
-User/workaround evidence:
-- "<short quote or paraphrase>" — <URL> — <date if available>
+User/workaround evidence (3 required):
+- 1. "<short quote or paraphrase>" — <URL> — <date if available> — source: direct/search-snippet/blocked
+- 2. ...
+- 3. ...
+
+Sample inputs (5 required):
+- 1. <input/source> — type: real/public/doc-derived/user-provided/synthetic
+- 2. ...
+- 3. ...
+- 4. ...
+- 5. ...
 
 Wedge:
 Competitor does X. This product only does Y for Z user at W moment.
@@ -257,13 +308,25 @@ Why not a clone:
 ...
 
 7-gate score:
-Competitor demand: yes/no
-Wedge: yes/no
-Visible data: yes/no
-Low domain knowledge: yes/no
-Distribution: yes/no
-Pricing: yes/no
-7-10 day demo: yes/no
+Competitor demand: yes/no/unknown
+Wedge: yes/no/unknown
+Visible data: yes/no/unknown
+Low domain knowledge: yes/no/unknown
+Distribution: yes/no/unknown
+Pricing: yes/no/unknown
+7-10 day demo: yes/no/unknown
+
+Demand-validation score:
+Buying moment: yes/no/unknown
+Specific pain evidence: yes/no/unknown — count: 0/3
+Sample inputs: yes/no/unknown — count: 0/5
+Incumbent coverage check: yes/no/unknown
+Current workaround: yes/no/unknown
+Payment test: yes/no/unknown
+Support-cost bound: yes/no/unknown
+
+Evidence gaps:
+- <missing source/sample/check that prevents higher confidence>
 
 MVP:
 - ...
@@ -281,12 +344,12 @@ Risks:
 - ...
 ```
 
-For comparing two or more directions, lead with a table:
+For comparing two or more directions, lead with a summary table, then include the full opportunity template above for every `DO` candidate and every finalist `OBSERVE` candidate. Do not let the comparison table replace the scorecards.
 
-| Direction | Competitor pressure | Differentiation | Data fit | MVP speed | Verdict |
-|---|---|---|---|---|---|
+| Direction | Competitor pressure | Differentiation | Data fit | Opportunity gates | Demand gates | Mandatory gaps | Verdict |
+|---|---|---|---|---|---|---|---|
 
-Then explain the final pick briefly.
+Then explain the final pick briefly, grounded in the gate counts and mandatory gaps.
 
 ## Tone
 
