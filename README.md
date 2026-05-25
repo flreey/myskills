@@ -10,13 +10,18 @@
 | --- | --- |
 | [prompt-builder](./prompt-builder) | 把模糊、随意、不完整的需求，通过引导式提问 + 合理默认值 + 自评 + 模型适配，转换为高质量的结构化 prompt。覆盖 image / product / writing / code / business / research / agent 七大类型。 |
 | [system-evolution-skill](./system-evolution-skill) | 用 "System → Information → Energy → Feedback → Evolution" 框架做系统级分析。把模糊的复杂问题（产品/获客/策略/学习/工作流/AI agent 设计）拆成系统边界、失败点、可度量反馈，再给出最小可验证实验。配套 templates 和 examples。 |
+| [cross-cli-review](./cross-cli-review) | 让 Claude Code 调用 Codex CLI 做 review，或反过来。把每次都做不好的跨 CLI review 固化成模板：正确的命令（sandbox / cwd / reasoning effort / base branch）+ 正确的 prompt（文件系统边界 / 焦点 / 输出格式 / DO NOT）+ 输出原样呈现。覆盖 general / security / performance / architecture / plan / challenge 六种 review 类型。 |
+| [overseas-micro-product-scout](./overseas-micro-product-scout) | 挖掘和评估海外微型产品机会的硬过滤器：先查付费/免费竞品，再找未满足的小动作，只保留数据源可见、业务浅、能 7-10 天验证的工具站 / 插件 / 平台 app / QA preflight / converter / report generator。 |
 
 ## 📋 一键安装（直接复制粘贴）
 
-把下面这行粘给 Claude Code 或 Codex CLI，agent 会自动识别 skill 子目录、选对应平台路径、用 sparse-checkout 拉下来：
+把下面任意一行粘给 Claude Code 或 Codex CLI，agent 会自动识别 skill 子目录、选对应平台路径、用 sparse-checkout 拉下来：
 
 ```text
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/prompt-builder
+帮我装这个 skill：https://github.com/flreey/myskills/tree/main/system-evolution-skill
+帮我装这个 skill：https://github.com/flreey/myskills/tree/main/cross-cli-review
+帮我装这个 skill：https://github.com/flreey/myskills/tree/main/overseas-micro-product-scout
 ```
 
 > **就这一行。** 现代 coding agent 已经原生理解 GitHub `tree/main/<subdir>` 这种子目录 URL + `SKILL.md` 标准 + skills 目录约定，不需要手把手写步骤。
