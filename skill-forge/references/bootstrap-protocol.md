@@ -16,6 +16,12 @@ Self-research first (read the project if it exists: manifests, engine version, t
 
 Do not ask about genre/features/architecture — the primer is about agent-environment fit, not product design.
 
+**Then run the opportunity scan.** Most users can only name 2–3 kinds of skill because they don't know the other kinds exist (Anthropic's internal finding across hundreds of skills). Walk the user through this menu and ask which exist in their workflow:
+
+library/API reference · product verification (how to prove a change works) · data fetching & analysis · business-process automation (recurring multi-step chores) · scaffolding & templates · code quality/review rules · CI/CD & deploy · runbooks (symptom → response) · infrastructure operations
+
+Menu hits do NOT get built now — record them as a harvest watch-list in the primer's notes, unless one is an immediate recurring need the user confirms. The scan converts "unknown unknowns" into named candidates; the thin-primer stance still applies.
+
 ## Step 2 — Research the predictable failure modes
 
 For the named stack and version, research (docs + known issues) specifically:

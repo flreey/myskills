@@ -50,6 +50,7 @@ Write the SKILL.md applying every Iron Rule from the main skill. Additionally:
 
 - **Decision rules, not advice.** Quality test per line: "if I deleted this sentence, would an agent behave differently?" Delete every line that fails. "Be careful with serialized files" fails; "never edit a line containing `__uuid__`; if your diff touches one, stop and propose the editor workflow instead" passes.
 - **Forbidden + alternative, in pairs.** Every "never do X" needs "do Y instead" — a blocked agent without an alternative will rationalize its way through the block.
+- **Degrees-of-freedom matching.** Judgment calls where context matters → prose rules. Fragile deterministic procedures (exact ordered steps, zero tolerance for variation: recovery sequences, paired-file moves, environment setup) → an executable script in `scripts/`, with the body saying only WHEN to run it. A script executes identically every time and its source never enters context; the same steps as prose get re-interpreted — and eventually mis-interpreted — every session.
 - **Premises block** near the top:
   ```markdown
   ## Premises

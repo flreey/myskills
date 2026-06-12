@@ -19,3 +19,15 @@ Method: RED-GREEN-REFACTOR per superpowers:writing-skills, applied to skill-forg
 **REFACTOR**: codified the observed non-interactive fallback into forge-protocol Step 2 (assumptions table with "which answer changes what"; silently assuming is the violation).
 
 **Known limitation**: with-skill test agents had the superpowers plugin in context (same as baseline, so the comparison is controlled), but compliance on a bare environment without superpowers is untested.
+
+## 2026-06-12 — edit round: negative scenarios, degrees-of-freedom, opportunity scan
+
+**Edits under test** (sourced from Anthropic internal-practice research): validation-protocol light tier gains a mandatory negative (should-NOT-trigger) scenario; forge-protocol Step 3 gains degrees-of-freedom matching (fragile deterministic procedures → `scripts/`); bootstrap-protocol Step 1 gains the 9-category opportunity scan (menu → harvest watch-list, no upfront building).
+
+**Pre-registered deltas**: A-run validation plan includes an executed negative scenario; A-run weighs script vs prose for the recovery procedure; B-run presents the opportunity scan with watch-list framing; thin-primer stance retained.
+
+**Result: PASS — all deltas hit on re-runs of both original scenarios.**
+- A: negative scenario (same project, .ts edit) pre-registered and executed, no false blocking; recovery steps explicitly triaged per degrees-of-freedom (verdict: judgment steps stay prose, git-restore steps optional script — reasoning, not just compliance). Bonus: its own full-tier loop caught Codex treating the exception clause as an authorization checklist; fixed via two-step informed consent + rationalization table, re-passed on both CLIs.
+- B: negative scenario (pure TS utility) executed clean; opportunity-scan menu surfaced with candidates recorded as harvest watch-list, primer stayed thin. Its validation also caught and fixed a "user said it's fine" bypass in Codex.
+
+**Side findings**: claude CLI 2.0.64 headless + tool calls → API 400 `tool_use ids must be unique` (fixed in 2.1.173); validation runs should use a current CLI.

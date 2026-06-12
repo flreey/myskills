@@ -22,13 +22,13 @@ Pre-registration prevents grading on vibes after the fact. The deltas come strai
 
 ## Step 3 — Light tier (knowledge skills): A/B run
 
-1. Build ONE realistic task scenario from the original incident/domain. The scenario prompt must NOT hint at the expected behaviors (no "be careful with uuids").
-2. **Run A** — fresh agent session, scenario only, no skill.
-3. **Run B** — fresh agent session, instructed to read the skill file first, then the same scenario.
-4. Compare against pre-registered deltas. **Pass = every critical delta present in B, and A demonstrates the failure the skill exists to prevent.** (If A already behaves perfectly, the skill may be covering model-known ground — shrink it per the delta principle.)
-5. **Trigger check** (separate from behavior check): does the description alone catch the scenario? Verify the scenario's natural wording shares keywords/symptoms with the description. If the user's likely phrasing wouldn't match, fix the description.
+1. Build TWO scenarios. **Positive**: a realistic task from the original incident/domain; the prompt must NOT hint at expected behaviors (no "be careful with uuids"). **Negative**: an adjacent task where the skill must NOT change behavior (e.g. for a serialized-asset guard: a plain TypeScript gameplay edit in the same project). False triggering is the main pollution source as a skill library grows.
+2. **Run A** — fresh agent session, positive scenario only, no skill.
+3. **Run B** — fresh agent session, instructed to read the skill file first, then the same scenario. Run the negative scenario with the skill too.
+4. Compare against pre-registered deltas. **Pass = every critical delta present in B's positive run, A demonstrates the failure the skill exists to prevent, AND the negative run shows no behavior change** (no refusals, warnings, or detours the task didn't need). (If A already behaves perfectly, the skill may be covering model-known ground — shrink it per the delta principle. If the negative run gets blocked or lectured, the skill's rules are scoped too wide — tighten the triggers and NOT-for clause.)
+5. **Trigger check** (separate from behavior check): does the description alone catch the positive scenario — and stay silent on the negative one? Verify the positive scenario's natural wording shares keywords/symptoms with the description, and the negative scenario's wording does not.
 
-Cost: ~10–20 minutes. This tier is deliberately cheap so it never gets skipped.
+Cost: ~15–25 minutes. This tier is deliberately cheap so it never gets skipped.
 
 ## Step 4 — Full tier (discipline skills)
 
