@@ -12,6 +12,7 @@
 | [system-evolution-skill](./system-evolution-skill) | 用 "System → Information → Energy → Feedback → Evolution" 框架做系统级分析。把模糊的复杂问题（产品/获客/策略/学习/工作流/AI agent 设计）拆成系统边界、失败点、可度量反馈，再给出最小可验证实验。配套 templates 和 examples。 |
 | [cross-cli-review](./cross-cli-review) | 让 Claude Code 调用 Codex CLI 做 review，或反过来。把每次都做不好的跨 CLI review 固化成模板：正确的命令（sandbox / cwd / reasoning effort / base branch）+ 正确的 prompt（文件系统边界 / 焦点 / 输出格式 / DO NOT）+ 输出原样呈现。覆盖 general / security / performance / architecture / plan / challenge 六种 review 类型。 |
 | [overseas-micro-product-scout](./overseas-micro-product-scout) | 挖掘和评估海外微型产品机会的硬过滤器：先查付费/免费竞品，再找未满足的小动作，只保留数据源可见、业务浅、能 7-10 天验证的工具站 / 插件 / 平台 app / QA preflight / converter / report generator。 |
+| [skill-forge](./skill-forge) | 构建"效果经过验证"的领域 skill，而不是通用货。三模式：bootstrap（新领域薄引导 skill）/ forge（完整构建：搜现有 → 定位分诊 → 萃取访谈 → 生成 → 验证）/ harvest（从 lessons.md 把重复纠正结晶成 skill）。两道硬门禁：生成前必须访谈，交付前必须跑分级 A/B 验证；产出 skill 工具无关，Claude Code / Codex 双侧可用。 |
 
 ## 📋 一键安装（直接复制粘贴）
 
@@ -22,6 +23,7 @@
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/system-evolution-skill
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/cross-cli-review
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/overseas-micro-product-scout
+帮我装这个 skill：https://github.com/flreey/myskills/tree/main/skill-forge
 ```
 
 > **就这一行。** 现代 coding agent 已经原生理解 GitHub `tree/main/<subdir>` 这种子目录 URL + `SKILL.md` 标准 + skills 目录约定，不需要手把手写步骤。
