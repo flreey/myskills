@@ -31,3 +31,11 @@ Method: RED-GREEN-REFACTOR per superpowers:writing-skills, applied to skill-forg
 - B: negative scenario (pure TS utility) executed clean; opportunity-scan menu surfaced with candidates recorded as harvest watch-list, primer stayed thin. Its validation also caught and fixed a "user said it's fine" bypass in Codex.
 
 **Side findings**: claude CLI 2.0.64 headless + tool calls → API 400 `tool_use ids must be unique` (fixed in 2.1.173); validation runs should use a current CLI.
+
+## 2026-06-12 — edit round: artifact placement rules
+
+**Edits under test**: forge-protocol Step 3 gains artifact placement (premises-driven: project-pinned → project skills dir; cross-project → skills repo + symlink to both global dirs; one-layer-only rule; promotion path). bootstrap-protocol Step 3 gains primer placement (project dir by construction, pollution rationale).
+
+**Pre-registered delta**: deliverable states the save path WITH the reason; scenario A expected to choose the cross-project branch, scenario B the project-level branch.
+
+**Result: PASS — both scenarios hit the correct branch.** A: repo path + symlink both globals, reason "engine-level, applies to all of the user's Cocos projects", plus explicit "do not also copy into project layer". B: project skills dir, reason "premises pin this project; global placement pollutes unrelated sessions' prompts". Cost-constrained runs (told to reuse prior validation) stayed honest on both sides: pre-registered the deltas their generated skills still need and declared them not-done until run — no fabricated validation claims. Bonus: A's self-research found an overlapping rule in an existing user skill and proposed pointer-based dedup unprompted (harvest hygiene surfacing in forge mode).

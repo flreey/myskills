@@ -43,6 +43,8 @@ One thin skill, four skeleton sections — and nothing else:
 
 Resist completeness. If a section is speculative ("they might use physics..."), cut it — harvest will add it the day it is actually needed. A primer over ~150 lines is probably padding.
 
+**Placement**: a primer is pinned to one project by construction (its premises name that project's versions and platforms) → it goes in the project's skills directory (`<project>/.claude/skills/<name>/`; Codex: `.codex/skills/` or `.agents/skills/`), NOT the global one — global descriptions sit in every session's prompt and a project-pinned primer would pollute unrelated projects. State the path and this reason in the deliverable. If the primer later generalizes, promote it via the placement rule in [forge-protocol.md](forge-protocol.md).
+
 All Iron Rules from the main skill apply (description, tool-agnostic body, premises).
 
 ## Step 4 — Validate
