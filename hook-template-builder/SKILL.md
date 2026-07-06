@@ -26,6 +26,20 @@ When the user asks for hooks, decide the hook type before doing anything else:
 
 If the intent is agent hooks, scan first, propose second, generate/install only after confirmation.
 
+## Hard Rule: Installed Means Loaded
+
+Do not call generated files "installed" unless they are placed in a hook location that the target agent actually loads and the installed config references the generated scripts.
+
+Use these labels precisely:
+
+| Label | Meaning |
+|---|---|
+| Template generated | Files exist in a docs/temp/generated folder only; no agent will run them automatically. |
+| Project-installed | Files are written into the current repo's agent hook location and merged into the repo-level hook config or settings that the target agent reads. |
+| Global-installed | Files are written into the user's global agent config/plugin/skill location and affect more than one repo. Requires second confirmation. |
+
+After project or global install, run the activation checks in this skill. If the agent cannot prove the hook is referenced by a loaded config, say "generated but not active" and do not claim success.
+
 ## Workflow
 
 ### 1. Read-Only Project Scan
@@ -47,12 +61,40 @@ If the skill is installed elsewhere, use the absolute path to the script. The sc
 
 If the script cannot run, manually inspect only these sources: manifests, lockfiles, CI files, existing hook configs, `AGENTS.md`, `CLAUDE.md`, and package scripts. Do not scan unrelated large directories.
 
-### 2. Produce a Decision Table
+### 2. Existing Hook Audit
+
+Before proposing install changes, inspect existing hook surfaces and summarize them. Never overwrite an existing hook config without merging.
+
+Check at minimum:
+
+| Platform | Project-level surfaces | Global surfaces |
+|---|---|---|
+| Codex | `.codex/hooks.json`, `.codex/hooks/`, repo-local plugin/skill hook files if present | `~/.codex/config.toml`, `~/.codex/skills/`, `~/.codex/plugins/cache/*/*/*/hooks/` |
+| Claude Code | `.claude/settings.json`, `.claude/settings.local.json`, `.claude/hooks/`, skill frontmatter `hooks:` | `~/.claude/settings.json`, `~/.claude/skills/`, `~/.claude/plugins/cache/*/*/*/hooks/` |
+| Git | `.git/hooks/*`, `.husky/*`, `lefthook.yml`, `.pre-commit-config.yaml`, package manager hook config | n/a |
+
+For every existing hook, report:
+
+- event name
+- matcher
+- command
+- behavior if obvious: reminder, blocker, logger, notifier
+- whether it overlaps a proposed hook
+
+Conflict rules:
+
+- Same event + same matcher + same command: duplicate; do not add another copy.
+- Same event + same matcher + different command: merge by appending, preserving existing order.
+- Existing blocking hook on the same event: high-risk; stop and ask unless the new hook is reminder-only and clearly independent.
+- Invalid JSON/TOML/YAML or unreadable config: stop and ask before modifying.
+- Unknown schema: generate a template and ask for confirmation before install.
+
+### 3. Produce a Decision Table
 
 Before writing hook files or installing anything, show a table with these columns:
 
-| Hook | Event | Behavior | Evidence | False-positive risk | Recommendation |
-|---|---|---|---|---|---|
+| Hook | Event | Behavior | Evidence | Existing-hook impact | False-positive risk | Recommendation |
+|---|---|---|---|---|---|---|
 
 Group candidates as:
 
@@ -61,7 +103,7 @@ Group candidates as:
 - **High-risk confirmation required:** anything that blocks a command, blocks a file edit, changes global config, or sends data outside the machine.
 - **Do not use hooks:** rules better handled by CI, git hooks, tests, or project instructions.
 
-### 3. Confirmation Gate
+### 4. Confirmation Gate
 
 Never silently install hooks. Ask the user to choose:
 
@@ -73,19 +115,20 @@ Never silently install hooks. Ask the user to choose:
 Defaults when the user says "use the defaults":
 
 - Enable reminder/logging hooks only.
-- Generate project-local templates.
+- Project-install the selected reminder hooks when the user explicitly asked for usable hooks.
+- Generate templates only when the user asks for templates, preview, dry-run, or "do not install".
 - Do not modify global config.
 - Do not enable blocking hooks.
 - Do not send network requests.
 
-### 4. Generate Templates
+### 5. Generate or Install
 
 Use the reference templates:
 
 - Codex: `references/codex-hook-templates.md`
 - Claude Code: `references/claude-hook-templates.md`
 
-Generated output must include:
+Template output must include:
 
 - hook config snippet or file
 - script body
@@ -94,7 +137,31 @@ Generated output must include:
 - install and uninstall commands
 - note explaining whether the hook is reminder, blocker, logger, or notifier
 
+Project install output must additionally:
+
+- write scripts to the repo-local hook script directory (`.codex/hooks/` or `.claude/hooks/`)
+- merge hook entries into the repo-local loaded config/settings instead of replacing existing entries
+- preserve all existing hook entries and formatting as much as practical
+- report exactly which file now loads each hook
+- run dry-runs for every installed script
+- run an activation proof: parse config, verify commands point to existing executable scripts, and explain whether a new agent session or trust prompt is required before first run
+
 Prefer small scripts over long inline commands. Scripts must be deterministic, portable to macOS/Linux, and safe when expected environment variables are missing.
+
+### 6. Activation Checks
+
+After install, check:
+
+| Check | Required result |
+|---|---|
+| Config parse | Hook config/settings parse successfully. |
+| Reference check | Every generated command in config points to an existing script. |
+| Permission check | Scripts are executable or invoked with `bash`. |
+| Duplicate check | No identical hook command was added twice to the same event/matcher. |
+| Dry-run | Positive sample emits the expected reminder/block; negative sample stays quiet. |
+| Load caveat | If the agent requires a new session, trust approval, or settings reload, say so explicitly. |
+
+Only after all checks pass may you say "installed and ready for next agent session." If any check fails, fix it or downgrade the result to "generated but not active."
 
 ## Default Hook Candidates
 

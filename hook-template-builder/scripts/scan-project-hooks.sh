@@ -22,6 +22,22 @@ find_first() {
   find . -maxdepth 3 -path './.git' -prune -o -name "$1" -print 2>/dev/null | sed -n '1p'
 }
 
+print_json_hook_commands() {
+  file="$1"
+  if command -v jq >/dev/null 2>&1; then
+    jq -r '
+      .hooks // {} |
+      to_entries[] as $event |
+      ($event.value // [])[]? as $entry |
+      ($entry.matcher // "*") as $matcher |
+      ($entry.hooks // [])[]? |
+      "- " + $event.key + " / " + $matcher + " / " + (.type // "command") + " / " + (.command // "<no command>")
+    ' "$file" 2>/dev/null
+  else
+    grep -En '"(PreToolUse|PostToolUse|Stop|SessionStart|Notification|UserPromptSubmit|PermissionRequest|command|matcher)"' "$file" 2>/dev/null | sed 's/^/- /'
+  fi
+}
+
 package_script_exists() {
   script="$1"
   has_file package.json && grep -Eq "\"$script\"[[:space:]]*:" package.json
@@ -99,6 +115,53 @@ if [ "$signals" -eq 0 ]; then
 fi
 echo
 
+echo "## Existing Hook Surfaces"
+echo
+hook_surfaces=0
+for file in .codex/hooks.json hooks.json .claude/settings.json .claude/settings.local.json; do
+  if has_file "$file"; then
+    hook_surfaces=$((hook_surfaces + 1))
+    echo "### \`$file\`"
+    echo
+    if grep -q '"hooks"' "$file" 2>/dev/null; then
+      print_json_hook_commands "$file" | sed -n '1,40p'
+    else
+      echo "- No top-level hooks object found"
+    fi
+    echo
+  fi
+done
+if has_dir .codex/hooks; then
+  hook_surfaces=$((hook_surfaces + 1))
+  echo "### \`.codex/hooks/\`"
+  find .codex/hooks -maxdepth 1 -type f -print 2>/dev/null | sort | sed 's/^/- /' | sed -n '1,40p'
+  echo
+fi
+if has_dir .claude/hooks; then
+  hook_surfaces=$((hook_surfaces + 1))
+  echo "### \`.claude/hooks/\`"
+  find .claude/hooks -maxdepth 1 -type f -print 2>/dev/null | sort | sed 's/^/- /' | sed -n '1,40p'
+  echo
+fi
+if has_dir .husky; then
+  hook_surfaces=$((hook_surfaces + 1))
+  echo "### \`.husky/\`"
+  find .husky -maxdepth 1 -type f -print 2>/dev/null | sort | sed 's/^/- /' | sed -n '1,40p'
+  echo
+fi
+for file in lefthook.yml lefthook.yaml .pre-commit-config.yaml; do
+  if has_file "$file"; then
+    hook_surfaces=$((hook_surfaces + 1))
+    echo "### \`$file\`"
+    grep -En '(^[[:space:]]*[a-zA-Z0-9_-]+:|command:|run:)' "$file" 2>/dev/null | sed 's/^/- /' | sed -n '1,40p'
+    echo
+  fi
+done
+if [ "$hook_surfaces" -eq 0 ]; then
+  echo "- No project hook surfaces detected."
+  echo
+fi
+
 echo "## Detected Commands"
 
 detected=0
@@ -140,48 +203,48 @@ echo
 
 echo "## Default Recommended Hooks"
 echo
-echo "| Hook | Event | Behavior | Evidence | False-positive risk | Recommendation |"
-echo "|---|---|---|---|---|---|"
-echo "| dangerous-shell-command | PreToolUse / shell command | remind by default; block only after confirmation | universal safety default | medium | recommended reminder |"
-echo "| secret-edit-warning | PreToolUse / file edit | remind on real secret files or key-like values | universal safety default | medium | recommended reminder |"
-echo "| large-artifact-warning | PostToolUse / file change | remind on large files, archives, logs, DB files, build outputs | universal repo hygiene default | low | recommended reminder |"
-echo "| stop-status-reminder | Stop | remind about dirty diff, unrun tests, stale plan files | universal handoff default | low | recommended reminder |"
+echo "| Hook | Event | Behavior | Evidence | Existing-hook impact | False-positive risk | Recommendation |"
+echo "|---|---|---|---|---|---|---|"
+echo "| dangerous-shell-command | PreToolUse / shell command | remind by default; block only after confirmation | universal safety default | audit existing PreToolUse/Bash before install | medium | recommended reminder |"
+echo "| secret-edit-warning | PreToolUse / file edit | remind on real secret files or key-like values | universal safety default | audit existing PreToolUse Edit/Write before install | medium | recommended reminder |"
+echo "| large-artifact-warning | PostToolUse / file change | remind on large files, archives, logs, DB files, build outputs | universal repo hygiene default | audit existing PostToolUse before install | low | recommended reminder |"
+echo "| stop-status-reminder | Stop | remind about dirty diff, unrun tests, stale plan files | universal handoff default | append to existing Stop hooks; do not replace | low | recommended reminder |"
 echo
 
 echo "## Project-Specific Candidates"
 echo
-echo "| Hook | Event | Behavior | Evidence | False-positive risk | Recommendation |"
-echo "|---|---|---|---|---|---|"
+echo "| Hook | Event | Behavior | Evidence | Existing-hook impact | False-positive risk | Recommendation |"
+echo "|---|---|---|---|---|---|---|"
 project_rows=0
 if has_file package.json || has_file pyproject.toml || has_file Cargo.toml || has_file go.mod; then
-  echo "| dependency-change-reminder | PostToolUse / file change | remind to install deps and run relevant tests after manifest or lockfile changes | manifest detected | low | recommended reminder |"
+  echo "| dependency-change-reminder | PostToolUse / file change | remind to install deps and run relevant tests after manifest or lockfile changes | manifest detected | merge with existing PostToolUse hooks | low | recommended reminder |"
   project_rows=$((project_rows + 1))
 fi
 if [ "$detected" -eq 1 ]; then
-  echo "| test-command-reminder | Stop | print inferred test/lint/build commands if source changed | commands detected above | low | recommended reminder |"
+  echo "| test-command-reminder | Stop | print inferred test/lint/build commands if source changed | commands detected above | append to existing Stop hooks | low | recommended reminder |"
   project_rows=$((project_rows + 1))
 fi
 if has_dir .github/workflows; then
-  echo "| ci-parity-reminder | Stop | remind to mirror CI commands locally before handoff | .github/workflows detected | low | optional reminder |"
+  echo "| ci-parity-reminder | Stop | remind to mirror CI commands locally before handoff | .github/workflows detected | append to existing Stop hooks | low | optional reminder |"
   project_rows=$((project_rows + 1))
 fi
 if has_file .codex/hooks.json || has_file hooks.json || has_file .claude/settings.json || has_file .claude/settings.local.json; then
-  echo "| existing-hook-audit | SessionStart / manual | summarize existing hooks before adding new ones | existing hook/settings config | low | recommended review before changes |"
+  echo "| existing-hook-audit | install preflight | summarize existing hooks before adding new ones | existing hook/settings config | required before modifying hook config | low | required review before changes |"
   project_rows=$((project_rows + 1))
 fi
 if [ "$project_rows" -eq 0 ]; then
-  echo "| none | n/a | no project-specific hook inferred | no manifests, CI, or hook config detected | low | default hooks only |"
+  echo "| none | n/a | no project-specific hook inferred | no manifests, CI, or hook config detected | no existing hook impact detected | low | default hooks only |"
 fi
 echo
 
 echo "## High-Risk Confirmation Required"
 echo
-echo "| Hook | Event | Behavior | Evidence | False-positive risk | Recommendation |"
-echo "|---|---|---|---|---|---|"
-echo "| destructive-command-blocker | PreToolUse / shell command | block destructive shell commands | user must opt in | high | require confirmation |"
-echo "| secret-edit-blocker | PreToolUse / file edit | block edits to real secret files | user must opt in | high | require confirmation |"
-echo "| global-hook-install | install mode | modify global Codex or Claude config | affects all projects | high | require second confirmation |"
-echo "| network-notifier | Stop / Notification | send local status externally | may leak paths or prompts | high | avoid unless explicitly requested |"
+echo "| Hook | Event | Behavior | Evidence | Existing-hook impact | False-positive risk | Recommendation |"
+echo "|---|---|---|---|---|---|---|"
+echo "| destructive-command-blocker | PreToolUse / shell command | block destructive shell commands | user must opt in | may conflict with existing Bash blockers | high | require confirmation |"
+echo "| secret-edit-blocker | PreToolUse / file edit | block edits to real secret files | user must opt in | may conflict with existing Edit/Write blockers | high | require confirmation |"
+echo "| global-hook-install | install mode | modify global Codex or Claude config | affects all projects | may affect every repo hook chain | high | require second confirmation |"
+echo "| network-notifier | Stop / Notification | send local status externally | may leak paths or prompts | conflicts with privacy defaults | high | avoid unless explicitly requested |"
 echo
 
 echo "## Better Outside Agent Hooks"
@@ -196,4 +259,4 @@ echo
 
 echo "## Next Step"
 echo
-echo "Choose hooks to enable, target platform (Codex, Claude Code, or both), and install mode (template only, project install, or global install). Reminder hooks are safe defaults; blocking/global/network hooks need explicit confirmation."
+echo "Choose hooks to enable, target platform (Codex, Claude Code, or both), and install mode (template only, project install, or global install). If you choose install, existing hooks must be merged and activation-checked before success is claimed. Reminder hooks are safe defaults; blocking/global/network hooks need explicit confirmation."

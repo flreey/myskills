@@ -11,6 +11,8 @@ Use this reference when the target platform is Codex.
 
 ## Minimal Project `hooks.json`
 
+Use this only as the target shape for a new file. If `.codex/hooks.json` already exists, merge the new entries into its `hooks` object instead of replacing it.
+
 ```json
 {
   "hooks": {
@@ -40,6 +42,37 @@ Use this reference when the target platform is Codex.
   }
 }
 ```
+
+## Project Install Contract
+
+A Codex project install is complete only when:
+
+- scripts exist under `.codex/hooks/`
+- `.codex/hooks.json` exists and references those scripts
+- any previous `.codex/hooks.json` entries are preserved
+- duplicate commands were not added twice to the same event/matcher
+- JSON parses successfully
+- dry-run positive and negative samples pass
+
+Install pattern for a new project:
+
+```bash
+mkdir -p .codex/hooks
+cp generated-hooks/*.sh .codex/hooks/
+cp generated-hooks/hooks.json .codex/hooks.json
+chmod +x .codex/hooks/*.sh
+```
+
+Install pattern for a project with existing hooks:
+
+1. Back up `.codex/hooks.json`.
+2. Parse existing JSON. Stop if it is invalid.
+3. Append new hook entries to the matching event/matcher list.
+4. Skip an entry if the same command already exists for that event/matcher.
+5. Keep existing hooks in their original order.
+6. Run the activation checks below.
+
+Do not call this installed if you only wrote files under `generated-hooks/`, `docs/`, or `/tmp`.
 
 ## Dangerous Shell Warning Script
 
@@ -116,22 +149,34 @@ Dry-run:
 printf '{}' | bash .codex/hooks/stop-status-reminder.sh
 ```
 
-## Install / Uninstall Pattern
+## Activation Checks
 
-Project install:
+After install:
 
 ```bash
-mkdir -p .codex/hooks
-cp generated-hooks/*.sh .codex/hooks/
-cp generated-hooks/hooks.json .codex/hooks.json
-chmod +x .codex/hooks/*.sh
+test -f .codex/hooks.json
+test -d .codex/hooks
+python3 -m json.tool .codex/hooks.json >/dev/null
+grep -R "hook-template-builder" .codex/hooks.json .codex/hooks
+printf '{"command":"git push --force origin main"}' | bash .codex/hooks/dangerous-shell-warning.sh
+printf '{"command":"git push origin main"}' | bash .codex/hooks/dangerous-shell-warning.sh
 ```
 
-Uninstall:
+Then report:
+
+- `installed config`: `.codex/hooks.json`
+- `installed scripts`: `.codex/hooks/*.sh`
+- `activation caveat`: whether Codex needs a new session, hook trust approval, or config reload before first automatic execution
+
+## Uninstall Pattern
+
+Uninstall only the hook-template-builder entries and scripts. Do not remove unrelated hooks.
 
 ```bash
-rm -f .codex/hooks.json
-rm -rf .codex/hooks
+rm -f .codex/hooks/dangerous-shell-warning.sh \
+      .codex/hooks/dependency-change-reminder.sh \
+      .codex/hooks/stop-status-reminder.sh
+# Then remove only the matching hook-template-builder commands from .codex/hooks.json.
 ```
 
 Global install is not a default. If requested, show the generated config first and ask for a second confirmation because it affects every Codex project.
