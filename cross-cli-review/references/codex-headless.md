@@ -2,7 +2,7 @@
 
 Reviewer = Codex. You are inside Claude Code.
 
-Verified against `codex-cli 0.130.0`. Re-check if the user reports a different major version.
+Verified against `codex-cli 0.46.0`, `0.130.0`, and `0.142.5`. Versions differ in important ways (see below — notably `codex review` does not exist in 0.46.0). Run `codex --version` first and re-check `codex exec --help` if anything errors.
 
 ## Binary check
 
@@ -14,23 +14,25 @@ which codex || { echo "install: npm i -g @openai/codex"; exit 1; }
 
 For headless codex (any subcommand), **`-a never` (`--ask-for-approval never`) is required to prevent hangs waiting for tool approval**. Without it, when the reviewer tries to call a tool the model isn't sure about, Codex pauses waiting for human input that will never come (no human, no TTY). With `-a never`, sandbox-blocked operations return failures to the model instead, and the model adapts.
 
-Verified against `codex --help` v0.130.0:
-- `-a, --ask-for-approval <APPROVAL_POLICY>` — values: `untrusted`, `on-failure` (deprecated), `on-request`, `never`.
+Verified against `codex --help` (0.46.0, 0.130.0, and 0.142.5):
+- `-a, --ask-for-approval <APPROVAL_POLICY>` — values: `untrusted`, `on-failure`, `on-request`, `never`.
+
+**`-a` is a GLOBAL flag only — it must go BEFORE the subcommand.** `codex -a never ... exec "<prompt>"` works on all verified versions; `codex exec -a never "<prompt>"` fails with `unexpected argument '-a' found` (verified on 0.46.0 — `exec` accepts `-s`/`-C` as subcommand flags but not `-a`).
 
 **Always combine with `-s read-only`**: `-a never` removes the approval gate, `-s read-only` ensures auto-allowed operations still can't write. This is the safe headless pattern.
 
-(Note: third-party docs sometimes mention `--full-auto` — that flag does **not** exist in this codex version. Use `-a never` instead.)
+(Note: some old or third-party docs mention `--full-auto`; do NOT use it for review. It is absent from verified `codex --help` output in 0.142.5, and when a version provides an auto-write convenience mode it is unsafe for review because it can allow workspace writes.)
 
 ## Flag placement — important
 
 Codex has TWO levels of flags:
 
 - **Global flags** (go BEFORE the subcommand): `-a/--ask-for-approval`, `-C/--cd`, `-s/--sandbox`, `--search`, `-c/--config`, `--enable`, `--disable`.
-- **Subcommand flags** (go AFTER the subcommand): `--base`, `--uncommitted`, `--commit`, `--title` (for `review`); `--json`, `--add-dir`, `--ephemeral`, `-i/--image`, `-m/--model` (for `exec`).
+- **Subcommand flags** (go AFTER the subcommand): `--base`, `--uncommitted`, `--commit`, `--title` (for `review`, where it exists); `--json`, `-i/--image`, `-m/--model`, `-o/--output-last-message`, `--skip-git-repo-check` (for `exec`).
 
-`codex review` does NOT accept `-C` or `-s` as subcommand flags — they MUST go before `review`. Same for `codex exec resume` (does not accept `-C/-s/--search`).
+`-a` is global-only on every verified version — `codex exec` rejects it as a subcommand flag (0.46.0: `unexpected argument '-a' found`). `codex review` (where it exists) does NOT accept `-C` or `-s` as subcommand flags either. Same for `codex exec resume`.
 
-`codex exec` accepts both `-C` and `-s` as subcommand flags too, but for consistency we put them at global position throughout this file.
+`codex exec` accepts `-C` and `-s` as subcommand flags too, but NOT `-a` — so put ALL of them at global position throughout this file. One placement rule, no exceptions.
 
 Working dir pin (always):
 
@@ -40,11 +42,29 @@ REPO=$(git rev-parse --show-toplevel) || exit 1
 
 ## Modes
 
-### A. Diff review (use `codex review`)
+### A. Diff review (use `codex review` — NEWER VERSIONS ONLY)
 
 Best for: branch-vs-base diff, uncommitted changes, single commit.
 
-Codex needs more required flags than Claude because its defaults are unsafer for review:
+**Version gate (mandatory before using this mode).** The `review` subcommand does not exist in older versions (e.g. 0.46.0). Worse: on those versions `codex review ...` is NOT an error — "review" is forwarded to the interactive TUI as a prompt, which hangs forever in headless mode. Check first:
+
+```bash
+codex --help 2>/dev/null | grep -qE '^\s+review\b' && echo HAS_REVIEW || echo NO_REVIEW
+```
+
+If `NO_REVIEW` → skip this mode and do diff review via Mode B (`codex exec`), putting the diff scope in the prompt:
+
+```bash
+timeout 300 codex -a never -C "$REPO" -s read-only \
+  -c 'model_reasoning_effort="high"' \
+  exec "<filesystem boundary + ROLE...>
+
+SCOPE: run \`git diff <base-branch>...HEAD\` to see the changes, then review them.
+<FOCUS / OUTPUT FORMAT / DO NOT — per SKILL.md Step 5>" \
+  > /tmp/codex-out.txt 2> /tmp/codex-err.txt
+```
+
+If `HAS_REVIEW`, proceed. Codex needs more required flags than Claude because its defaults are unsafer for review:
 - Default sandbox is `workspace-write` (can modify files) → `-s read-only` is mandatory.
 - `codex review` reviews the entire repo unless you scope it → `--base` / `--uncommitted` / `--commit` is mandatory.
 - Default `model_reasoning_effort` is `medium` → fine for plans, light for code review.
@@ -162,6 +182,48 @@ Always `-s read-only`. The user's shell may default Codex to `--dangerously-bypa
 git status   # should be clean unless the user had uncommitted changes already
 ```
 
+## Background execution (long tasks)
+
+For `xhigh` or very large diffs where blocking the host synchronously is unacceptable:
+
+- **Inside Claude Code**: use the Bash tool's `run_in_background` option on the exact same command — keeps the `> out 2> err` stream split, exit code, and auto-notifies on completion. Preferred.
+- **Any other host**: `nohup` with the same redirections, then poll the PID:
+
+```bash
+nohup timeout 600 codex -a never -C "$REPO" -s read-only \
+  -c 'model_reasoning_effort="high"' \
+  exec "<full prompt>" \
+  > /tmp/codex-out.txt 2> /tmp/codex-err.txt &
+CODEX_PID=$!
+# later: kill -0 "$CODEX_PID" 2>/dev/null && echo running || cat /tmp/codex-out.txt
+```
+
+Do NOT wrap headless codex in tmux for backgrounding. tmux's value is a human-attachable terminal; automation pays its full cost for nothing: `capture-pane` merges stdout/stderr (breaks token parsing), exit codes are lost, orphan sessions accumulate. CLI flag drift isn't mitigated either — the same command line runs inside the pane. For follow-ups, reuse the *conversation*, not a terminal process: `codex exec resume <session-id>` (Mode C) survives process exit at zero residency cost.
+
+### Status check — "is it doing anything?"
+
+**Prerequisite: background runs should use `--json`.** Verified (0.46.0): JSONL events stream to the output file as they happen — each reasoning step, each command (`item.started` with `status: in_progress`, then `item.completed` with exit code), so the file IS the live status. Non-JSON mode prints progress to stderr but less structured.
+
+Three questions, three checks:
+
+```bash
+# 1. Alive?
+kill -0 "$CODEX_PID" 2>/dev/null && echo running || echo exited
+
+# 2. What is it doing right now? (truncate — events can embed whole file contents)
+tail -3 /tmp/codex-out.txt | cut -c1-300
+
+# 3. Stuck? Compare size across two checks ~2-3 min apart.
+ls -l /tmp/codex-out.txt
+```
+
+Interpretation:
+- Last event is `item.started` with a `command` → it's running that command. Long commands (test suites, big greps) legitimately produce no new events for minutes — not stuck.
+- Alive + file size unchanged across two checks several minutes apart AND no `item.started` in flight → likely stuck; let `timeout` reap it or `kill "$CODEX_PID"`.
+- Last event is `turn.completed` → done; collect output (`usage` field has token counts in `--json` mode).
+
+Don't `cat` the whole output file as a status check — `command_execution` events embed full command output (can be tens of KB). `tail | cut` is the right shape.
+
 ## Timeout
 
 - Diff review: 5 min (`timeout 300 codex ...`).
@@ -182,7 +244,9 @@ Pass `--search` (global, before subcommand) only when the review needs live docs
 ## Common command mistakes
 
 - ❌ `codex exec` without `-a never` → hangs waiting for tool approval (no human, no TTY in headless mode).
-- ❌ Using `--full-auto` (from outdated third-party docs) → flag doesn't exist in v0.130.0; use `-a never` instead.
+- ❌ `codex exec -a never "<prompt>"` → `unexpected argument '-a' found`; `-a` is global-only, put it before `exec`.
+- ❌ `codex review ...` on a version without the `review` subcommand (e.g. 0.46.0) → "review" becomes a TUI prompt and hangs forever headless. Run the version gate check first.
+- ❌ Using `--full-auto` for review → flag availability varies and auto-write modes are unsafe for review. Use `-a never -s read-only`.
 - ❌ `codex review -s read-only --base main "<prompt>"` → `-s` not accepted by `review`; must be global.
 - ❌ `codex review` without `--base`/`--uncommitted`/`--commit` → reviews entire repo, not the diff.
 - ❌ `codex exec` without `-C "$REPO"` → may run from wrong cwd, see no source files.

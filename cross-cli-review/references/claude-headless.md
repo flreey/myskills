@@ -129,6 +129,8 @@ wait $PID && jq -r '.result' "$OUT"
 
 Use `disown` if you want to fully detach from the host shell.
 
+**Status check caveat**: with `--output-format json`, claude writes NOTHING until it finishes — an empty `$OUT` mid-run is normal, not stuck. To check liveness: `kill -0 $PID`. If you need real progress visibility (each event as it happens), use `--output-format stream-json --verbose` instead and `tail -3 "$OUT" | cut -c1-300` to peek; the final result is then the last `result`-type JSONL line rather than a single JSON object (`jq -rs 'map(select(.type=="result"))[-1].result' "$OUT"`).
+
 ### D. JSON-schema enforced (programmatic gate)
 
 When downstream code needs to parse findings programmatically (e.g. CI gate, automated triage):

@@ -102,12 +102,13 @@ Both recipes enforce these non-negotiable rules:
 
 1. **No-hang configuration.**
    - Claude (default): use Mode A "stdin pattern" — diff via stdin + `--append-system-prompt` + `--output-format json`. Reviewer has no incentive to use tools, so it can't loop or wander.
-   - Codex: `-a never` (`--ask-for-approval never`, returns failures to model instead of pausing for human approval) + `-s read-only` (sandbox blocks writes anyway).
+   - Codex: `-a never` (`--ask-for-approval never`, returns failures to model instead of pausing for human approval) at the **global position only** — before the subcommand: `codex -a never ... exec`. The `exec` subcommand does NOT accept `-a` (errors with "unexpected argument '-a' found" on e.g. v0.46.0); global position works on all versions. Combine with `-s read-only` (sandbox blocks writes anyway).
 2. **Read-only safety.** Codex: `-s read-only`. Claude: stdin pattern doesn't need this; browse pattern (Mode B) uses `--permission-mode plan` + restricted `--allowedTools`.
 3. **Working directory.** Codex: `-C "$(git rev-parse --show-toplevel)"`. Claude stdin pattern: cwd doesn't matter (no fs access). Claude browse pattern: `cd "$REPO"` first.
 4. **Filesystem boundary in the prompt** (see Step 5) — only matters for browse-mode reviewers that have tools.
 5. **Reasoning effort matches review type** (Step 3 table).
 6. **Hard timeout.** Claude stdin: `timeout 180`. Claude browse / Codex: `timeout 300` (or `600` for plan review). Without it, a stuck process is silent forever.
+7. **Long tasks → background, never tmux.** Same command via the Bash tool's `run_in_background` (inside Claude Code) or `nohup ... > out 2> err &` (any host) — see each recipe's background section. tmux-wrapping headless commands merges the stream split (breaks token parsing), loses exit codes, and leaves orphan sessions; for follow-ups reuse the conversation (`codex exec resume` / `claude --resume`), not a terminal process.
 
 ## Step 5 — Build the prompt
 
@@ -154,7 +155,7 @@ For plan review, embed the plan content verbatim (do NOT pass a file path — th
 Run the command with the timeout from Step 4. Capture stdout AND stderr separately. Token-usage source depends on mode:
 
 - `codex exec --json` → tokens are in stdout JSONL `turn.completed.usage`.
-- `codex review` and `codex exec` (non-JSON) → tokens are in stderr (`tokens used: N`).
+- `codex exec` (non-JSON) → tokens are in stderr (`tokens used: N`). Same for `codex review` where it exists (newer versions only — absent in e.g. v0.46.0; see recipe file).
 - `claude -p --output-format json` → tokens are in stdout `.usage`.
 - `claude -p --output-format text` → tokens are not printed; use `json` mode if you need them.
 

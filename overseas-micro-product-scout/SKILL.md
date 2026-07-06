@@ -1,6 +1,6 @@
 ---
 name: overseas-micro-product-scout
-description: "Use when the user wants to discover, evaluate, or rank overseas micro-product opportunities for a solo indie developer — tool sites, browser extensions, platform plugins, file converters, QA/preflight checkers, diff tools, overlays, report generators. Hard filter: overseas users only (no China), visible data source (URL/file/HTML/CSV/transcript), competitor-adjacent wedge (not a free clone), 7-10 day MVP, no local-regulatory domains."
+description: "Use when the user wants to discover, evaluate, or rank overseas micro-product opportunities for a solo indie developer — tool sites, browser extensions, platform plugins, file converters, QA/preflight checkers, diff tools, overlays, report generators. Hard filter: overseas users only (no China), real-case-accessible input data, competitor-adjacent wedge (not a free clone), 7-10 day MVP, no local-regulatory domains."
 ---
 
 # Overseas Micro Product Scout
@@ -32,7 +32,7 @@ Only keep opportunities that fit all of these:
 
 1. **Overseas users only.** Reject China-user products.
 2. **Global internet workflow.** Reject if the target user cohort is geographically gated (China-only, local-regulatory-only) or requires physical-world ops the user cannot inspect from a laptop.
-3. **Visible data source.** The first version must work from a URL, current webpage, screenshot, HTML, Markdown, CSV/XLSX, transcript, sitemap, public export, or pasted text. Reject if the data lives in a customer's private system we cannot simulate.
+3. **Real-case-accessible input data.** The first version must be based on real examples or reconstructable samples that reveal the input's field meanings, business context, edge cases, and expected output. URLs, webpages, screenshots, HTML, Markdown, CSV/XLSX, transcripts, sitemaps, public exports, or pasted text are only acceptable carriers; the file format alone does not pass this gate. Reject if the data lives in a customer's private system, if only the container format is known, or if we cannot obtain enough real cases/docs/examples to understand what each input field means.
 4. **No deep local business knowledge.** Reject workflows that require tax, legal, medical, insurance, government procurement, construction estimating, landlord law, school administration, or other local-regulatory expertise.
 5. **Competitor-adjacent.** There must be existing paid or widely used free tools proving demand.
 6. **Differentiated action.** The idea must not be "same thing but free." It must do a narrower job better, cheaper, faster, prettier, more local, more private, or closer to the data source.
@@ -45,7 +45,7 @@ When other constraints pass, prefer users in these cohorts because their data an
 
 SaaS founders, creators, marketers, indie hackers, no-code builders, web agencies, Shopify/Etsy sellers, SEO freelancers, sales/product teams, developers, spreadsheet-heavy operators.
 
-If the target persona is outside this list, ask whether their data source and distribution channel are still visible — do not auto-reject.
+If the target persona is outside this list, ask whether real cases, input semantics, and distribution channels are inspectable — do not auto-reject just because the carrier format is unfamiliar.
 
 ## Default Reject List
 
@@ -56,7 +56,7 @@ Reject by default unless the user explicitly overrides:
 - Generic fake data form filler when Fake Data/FakerFill-style tools already cover it.
 - Generic Shopify SEO app, generic YouTube repurposer, generic calendar time tracker.
 - Products depending on LinkedIn/Twitter scraping, account automation, or TOS-gray crawling.
-- Anything where the data format is hidden inside a customer's private system and cannot be simulated.
+- Anything where the real input examples, field meanings, or business semantics are hidden inside a customer's private system and cannot be simulated from public cases, docs, examples, or user-provided samples.
 - Anything where the only wedge is "free version of paid tool."
 
 ## Research Requirements
@@ -86,7 +86,8 @@ Use these rules to prevent optimistic scoring:
 - `unknown` always counts as not passed for verdict math.
 - If competitor pricing/features were not checked from current sources, final verdict cannot exceed `OBSERVE`.
 - If no user complaint, workaround, review, forum post, or support question is found for the specific pain, final verdict cannot exceed `OBSERVE`.
-- If no sample input can be obtained or constructed from public docs, final verdict cannot exceed `OBSERVE`.
+- If only the carrier format is known ("they use CSV/PDF/API") but the field meanings, business context, and expected output are unknown, score input-data fit `unknown` and final verdict cannot exceed `OBSERVE`.
+- If no real-case sample input can be obtained or reconstructed from public docs, official examples, community screenshots, demo exports, or user-provided anonymized data, final verdict cannot exceed `OBSERVE`.
 - If direct incumbent coverage for the wedge was not checked, final verdict cannot exceed `OBSERVE`.
 - If distribution is only "SEO", "Reddit", or "marketplace" without one exact keyword, community, listing path, or post angle, score Distribution `no`.
 - If the tool would require repeated manual interpretation per customer at the proposed price, score Pricing `no` unless the MVP explicitly limits scope.
@@ -100,7 +101,7 @@ Start by anchoring the personal fit:
 
 - overseas users
 - no local-regulatory industries
-- visible data source
+- real-case-accessible input data, not just a visible file type
 - competitor-adjacent wedge
 - low-to-mid pricing the user can realistically sell
 - solo 7-10 day validation
@@ -122,7 +123,37 @@ Ask:
 
 If the wedge is already covered by a strong free product, downgrade or reject.
 
-### 3. Complaint and workaround mining
+### 3. Incumbent-adjacent wedge scan
+
+Use this sub-scan when a large incumbent appears to "own" the category, such as Linktree, Zapier, HubSpot, Shopify apps, Google tools, Canva, Notion, Airtable, Webflow, Figma, or a dominant marketplace app.
+
+Do not ask "Can we copy the incumbent?" Ask:
+
+- What broad demand did the incumbent validate?
+- Which user segments does the incumbent serve only generically?
+- What concrete downstream action still fails before/after using the incumbent?
+- Where do users say "I use X but...", "X is overkill", "X does not support...", "before I send/import/publish/sync through X", "X succeeded but the output is wrong", or "I only need this one part"?
+- Can a small product sit beside the incumbent as a preflight, QA, diff, audit, cleanup, report, template, migration, or companion layer?
+
+Accepted pattern:
+
+> Incumbent does broad X. This product only does narrow Y for Z user at W moment before/after using X.
+
+Examples:
+
+- Linktree validates link-in-bio demand. Do not build "cheaper Linktree"; look for link-in-bio broken-link/UTM audit for creator agencies, affiliate revenue checks, platform-blocking preflight, or post-to-product mapping.
+- Zapier validates automation demand. Do not build "simpler Zapier"; look for domain-specific preflight before data enters Zapier, such as Google Ads offline conversion row QA.
+- HubSpot validates CRM data-management budgets. Do not build "small HubSpot"; look for import duplicate preview, property mapping checks, or association cleanup before HubSpot import.
+
+Reject if the only wedge is:
+
+- cheaper incumbent clone
+- prettier template version
+- same workflow with AI added
+- "for small businesses" without a narrower failing moment
+- dependent on incumbent APIs/OAuth before the user can see value
+
+### 4. Complaint and workaround mining
 
 Look for real user language:
 
@@ -132,12 +163,15 @@ Look for real user language:
 - "manual"
 - "spreadsheet"
 - "before I publish/import/record/share"
+- "before I send/import/publish/sync through X"
+- "I use X but"
+- "X succeeded but"
 - "is there a simple tool"
 - "I don't want a full platform"
 
 Prefer Reddit, HN, Product Hunt comments, Chrome Web Store reviews, GitHub issues, official forums, and platform communities. Keep quotes short and linkable.
 
-### 4. Extract the wedge
+### 5. Extract the wedge
 
 Write the wedge as:
 
@@ -146,6 +180,7 @@ Write the wedge as:
 Good wedge shapes:
 
 - preflight before publish/import/share/record
+- companion check before/after a large incumbent workflow
 - diff before risky change
 - QA report before client handoff
 - converter from one visible export to another
@@ -157,23 +192,26 @@ Bad wedge shapes:
 
 - better AI version
 - cheaper clone
+- incumbent clone
 - all-in-one replacement
 - full workflow platform
 - "for everyone"
 
-### 5. Validate data-source fit
+### 6. Validate input-data fit
 
 Answer explicitly:
 
 - What does the user input?
-- Can we construct sample inputs ourselves?
-- Is there public documentation for the file/page format?
+- Which real cases, screenshots, exports, docs, examples, or anonymized samples show this input?
+- Do we understand the fields, labels, business semantics, and edge cases well enough to process the input without customer-specific interpretation?
+- Can we construct sample inputs ourselves from those real cases or docs?
+- Is there public documentation for the file/page format and the meaning of the key fields?
 - Can V1 work without OAuth/API approval?
 - What will the tool output?
 
-If input/output cannot be stated concretely, reject.
+If input/output cannot be stated concretely, or if the carrier is visible but the real field semantics are not, reject or cap the verdict at `OBSERVE`.
 
-### 6. Choose product form by data location
+### 7. Choose product form by data location
 
 Do not default to Chrome. Choose the shape closest to the data:
 
@@ -186,7 +224,7 @@ Do not default to Chrome. Choose the shape closest to the data:
 | Code/docs/CI workflow | CLI or GitHub Action |
 | Needs history, monitoring, teams, scheduled reports | Light SaaS |
 
-### 7. Score opportunity fit
+### 8. Score opportunity fit
 
 Score each opportunity on 7 yes/no gates. Each gate maps to a Hard Constraint:
 
@@ -194,7 +232,7 @@ Score each opportunity on 7 yes/no gates. Each gate maps to a Hard Constraint:
 |---|---|---|
 | Competitor demand | #5 Competitor-adjacent | At least 1 paid OR widely-used free competitor with current pricing/users visible |
 | Wedge | #6 Differentiated action | Wedge sentence ("Competitor does X. This product only does Y for Z at W moment") that no strong free tool already does |
-| Visible data | #3 Visible data source | Concrete sample input + output statable in one sentence |
+| Input-data fit | #3 Real-case-accessible input data | Concrete sample input + output statable in one sentence, with field meanings learned from real cases/docs/examples rather than guessed from file type |
 | Low domain knowledge | #4 No deep local business knowledge | Solo dev can understand the workflow in < 1 day of research |
 | Distribution | (new) | At least one specific channel from the cheatsheet below with realistic indie reach |
 | Pricing | #8 Conservative pricing | A specific price point in the conservative range, justified by 1+ competitor reference |
@@ -204,7 +242,7 @@ Constraints #1 (overseas) and #2 (global workflow) are pre-filters, not scored g
 
 Allowed gate values are `yes`, `no`, and `unknown`. Treat `unknown` as not passed. Use `unknown` when the source may exist but has not been checked; use `no` when checked evidence fails the gate.
 
-### 8. Score demand-validation readiness
+### 9. Score demand-validation readiness
 
 This second scorecard answers: "Is the narrow wedge itself ready for a strict validation test?"
 
@@ -214,7 +252,7 @@ Do not skip this scorecard. It is the guard against confusing competitor demand 
 |---|---|
 | Buying moment | One sentence naming the exact moment the user would pay now, not a vague persona need |
 | Specific pain evidence | 3+ recent or linkable user complaints, reviews, forum posts, issues, or visible workarounds about the narrow pain |
-| Sample inputs | 5 real, public, exported, synthetic-from-docs, or user-provided sample inputs can be collected before building |
+| Sample inputs | 5 real, public, exported, doc-derived, case-derived, or user-provided sample inputs can be collected before building, and they reveal field meanings and expected outputs |
 | Incumbent coverage check | The top 2-3 competitors were checked for the exact wedge; if they already solve it well, fail |
 | Current workaround | A spreadsheet/manual export/freelancer/full-suite workaround is visible and materially worse than the proposed tool |
 | Payment test | MVP includes a real payment or payment-intent action: paid report, paid unlock, pre-order, or "send file, pay for full report" |
@@ -222,7 +260,7 @@ Do not skip this scorecard. It is the guard against confusing competitor demand 
 
 Mandatory pass gates for a `DO` verdict: Buying moment, Sample inputs, Incumbent coverage check, and Payment test.
 
-For Specific pain evidence, list at least 3 items before scoring `yes`. For Sample inputs, list 5 inputs before scoring `yes`; mark each as `real`, `public`, `doc-derived`, `user-provided`, or `synthetic`. Synthetic inputs only pass when they are derived from public docs or official examples.
+For Specific pain evidence, list at least 3 items before scoring `yes`. For Sample inputs, list 5 inputs before scoring `yes`; mark each as `real`, `public`, `doc-derived`, `case-derived`, or `user-provided`. Purely invented synthetic inputs do not pass. Synthetic-looking fixtures only pass when their fields and examples are derived from public docs, official examples, community screenshots, demo exports, or user-provided anonymized data.
 
 #### Distribution channel cheatsheet
 
@@ -247,7 +285,7 @@ Verdict:
 - `OBSERVE` = 4-5 opportunity gates pass, or opportunity gates pass but demand-validation evidence is incomplete.
 - `KILL` = 0-3 opportunity gates pass, violates a hard constraint, or direct incumbent coverage already solves the wedge well.
 
-### 9. Validation MVP
+### 10. Validation MVP
 
 For each `DO` candidate, define a 7-10 day validation:
 
@@ -295,7 +333,7 @@ User/workaround evidence (3 required):
 - 3. ...
 
 Sample inputs (5 required):
-- 1. <input/source> — type: real/public/doc-derived/user-provided/synthetic
+- 1. <input/source> — type: real/public/doc-derived/case-derived/user-provided — field semantics: known/partial/unknown
 - 2. ...
 - 3. ...
 - 4. ...
@@ -310,7 +348,7 @@ Why not a clone:
 7-gate score:
 Competitor demand: yes/no/unknown
 Wedge: yes/no/unknown
-Visible data: yes/no/unknown
+Input-data fit: yes/no/unknown
 Low domain knowledge: yes/no/unknown
 Distribution: yes/no/unknown
 Pricing: yes/no/unknown
