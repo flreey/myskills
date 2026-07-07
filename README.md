@@ -18,6 +18,7 @@
 | [relight-game-design-guardrails](./relight-game-design-guardrails) | Relight 玩法设计护栏：任何新机制/章节/关卡批量规划先回答“连线后恢复了什么意义”，避免为了连线而连线，强调 star-chart/world-state 的可见回报。 |
 | [hook-template-builder](./hook-template-builder) | 扫描项目并推荐 Codex/Claude agent hooks：先识别语言、测试命令、CI、AGENTS/CLAUDE、已有 hooks，再输出候选表；默认只生成提醒型项目模板，阻断型、全局安装、网络通知必须用户确认。 |
 | [review-fix-push](./review-fix-push) | 轻量交付编排：当用户说“review 没问题就提交 push，有问题修到完成”时，先审查 staged/unstaged/untracked/未 push commits，全量修可判定问题并复验，再 commit + regular push；判断型问题才停下来问。 |
+| [ai-feature-delivery](./ai-feature-delivery) | 把业务级功能修改请求变成受控交付流程：先只读识别影响面、验收场景、non-goals 和验证计划，确认后再实现，最后输出验证证据与剩余风险。 |
 
 ## 📋 一键安装（直接复制粘贴）
 
@@ -34,6 +35,7 @@
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/relight-game-design-guardrails
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/hook-template-builder
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/review-fix-push
+帮我装这个 skill：https://github.com/flreey/myskills/tree/main/ai-feature-delivery
 ```
 
 > **就这一行。** 现代 coding agent 已经原生理解 GitHub `tree/main/<subdir>` 这种子目录 URL + `SKILL.md` 标准 + skills 目录约定，不需要手把手写步骤。
