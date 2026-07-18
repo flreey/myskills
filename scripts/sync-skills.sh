@@ -7,14 +7,15 @@ set -u
 MYSKILLS="$HOME/Projects/myskills"
 AGENTS="$HOME/.agents/skills"
 CLAUDE="$HOME/.claude/skills"
-changed=0 failed=0
+failed=0
+agent_paths=()
 for d in "$MYSKILLS"/*/; do
   n=$(basename "$d")
   [ -f "$d/SKILL.md" ] || continue
   if [ ! -e "$AGENTS/$n" ]; then
     if ln -s "$MYSKILLS/$n" "$AGENTS/$n" 2>/dev/null; then
       echo "sync-skills: registered $n (agents)"
-      changed=1
+      agent_paths+=("skills/$n")
     else
       failed=1
     fi
@@ -22,17 +23,19 @@ for d in "$MYSKILLS"/*/; do
   if [ -e "$AGENTS/$n" ] && [ ! -e "$CLAUDE/$n" ]; then
     if ln -s "../../.agents/skills/$n" "$CLAUDE/$n" 2>/dev/null; then
       echo "sync-skills: registered $n (claude)"
-      changed=1
     else
       failed=1
     fi
   fi
 done
-if [ "$failed" -eq 1 ]; then
-  echo "sync-skills: WARN links not created (sandboxed commit?) — re-run: $MYSKILLS/scripts/sync-skills.sh"
+if [ "${#agent_paths[@]}" -gt 0 ] && [ -d "$HOME/.agents/.git" ]; then
+  if git -C "$HOME/.agents" add -- "${agent_paths[@]}" >/dev/null 2>&1; then
+    git -C "$HOME/.agents" commit -qm "auto-sync: register new myskills" -- "${agent_paths[@]}" >/dev/null 2>&1 || failed=1
+  else
+    failed=1
+  fi
 fi
-if [ "$changed" -eq 1 ] && [ -d "$HOME/.agents/.git" ]; then
-  git -C "$HOME/.agents" add -A >/dev/null 2>&1
-  git -C "$HOME/.agents" commit -qm "auto-sync: register new myskills" >/dev/null 2>&1
+if [ "$failed" -eq 1 ]; then
+  echo "sync-skills: WARN registry update incomplete — inspect links and git status manually"
 fi
 exit 0
