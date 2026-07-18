@@ -43,6 +43,10 @@ AI 自动识别的影响面:
 - <关键边界或反例>
 - <角色/权限/状态相关场景，如适用>
 
+测试边界（如适用）:
+- <通过哪些公共接口或可观察行为进行测试>
+- <明确不测试哪些内部实现细节>
+
 不会改动的范围:
 - <明确的 non-goals，防止 AI 顺手重构或扩大范围>
 
@@ -59,11 +63,14 @@ After the user confirms:
 
 1. Keep edits within the approved impact surface unless discovery during implementation reveals a direct dependency.
 2. Reuse existing components, DTOs, services, hooks, tests, and naming conventions before creating new abstractions.
-3. For any feature, bugfix, refactor, or behavior change, use `superpowers:test-driven-development` before writing production code. Do not copy TDD rules here; invoke and follow that existing skill's RED-GREEN-REFACTOR workflow.
-4. TDD exceptions require explicit user approval or a clearly stated reason in the final evidence: throwaway prototype, generated code, configuration-only change, docs-only change, or copy-only change.
-5. Avoid opportunistic formatting, unrelated cleanup, dependency churn, schema churn, or broad refactors.
-6. If the implementation reveals a materially larger impact than the brief predicted, stop and produce a revised brief before continuing.
-7. Protect user changes in a dirty worktree; never revert unrelated edits.
+3. For any feature, bugfix, or behavior change, invoke and follow the installed `tdd` skill before writing production code. Use only the public seams confirmed in the pre-change brief. The `tdd` skill owns test design and the RED → GREEN loop; this delivery workflow owns recording the actual RED, GREEN, and regression evidence.
+4. Run RED and confirm the test fails because the intended behavior is missing, not because of syntax, fixture, setup, or environment errors. For a bugfix, the failing test must reproduce the reported bug on the original implementation.
+5. After the minimal implementation reaches GREEN, rerun the focused test and the narrowest relevant regression suite. Do not claim TDD without actual RED and GREEN command results.
+6. If `tdd` is unavailable, stop before behavior-changing implementation and report the missing dependency instead of silently falling back or claiming TDD.
+7. TDD exceptions require explicit user approval or a clearly stated reason in the final evidence: throwaway prototype, generated code, configuration-only change, docs-only change, or copy-only change.
+8. Avoid opportunistic formatting, unrelated cleanup, dependency churn, schema churn, or broad refactors.
+9. If the implementation reveals a materially larger impact than the brief predicted, stop and produce a revised brief before continuing.
+10. Protect user changes in a dirty worktree; never revert unrelated edits.
 
 ## Phase 4: Post-Change Evidence
 
@@ -75,7 +82,11 @@ When finished, report in Chinese:
 
 验证结果:
 - <实际运行的命令和结果>
-- <行为改动的 RED/GREEN 证据；若未使用 TDD，说明批准的例外或原因>
+- <已确认的公共测试 seam>
+- RED: <命令、失败结果和预期失败原因>
+- GREEN: <命令和通过结果>
+- 回归验证: <命令和结果>
+- <若未使用 TDD，说明批准的例外或原因>
 - <未能运行的验证及原因>
 
 剩余风险:

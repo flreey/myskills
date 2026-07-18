@@ -1,4 +1,4 @@
 interface:
   display_name: "AI Feature Delivery"
   short_description: "Guide AI feature work with impact and evidence"
-  default_prompt: "Use $ai-feature-delivery to turn this business request into impact scope, acceptance scenarios, validation plan, implementation result, and residual risk. During implementation, use superpowers:test-driven-development for behavior changes."
+  default_prompt: "Use $ai-feature-delivery to turn this business request into impact scope, acceptance scenarios, confirmed public test seams, validation evidence, implementation result, and residual risk. During behavior-changing implementation, invoke the installed $tdd skill and report actual RED, GREEN, and regression results."
