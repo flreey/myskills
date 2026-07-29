@@ -1,6 +1,6 @@
 # myskills
 
-我的 Claude Code / Codex CLI Skills 集合。每一个子目录都是一个独立的 skill，遵循通用的 `SKILL.md` 标准（YAML frontmatter + 自然语言指令 + 可选 `scripts/` / `references/` / `assets/`）。同一个 skill 包，Claude Code 和 Codex CLI 都能直接用。
+我的 Claude Code / Codex CLI Skills 集合。每一个子目录都是一个独立的 skill，遵循通用的 `SKILL.md` 标准（YAML frontmatter + 自然语言指令 + 可选 `scripts/` / `references/` / `assets/`）。大多数 skill 包可以在两侧直接使用；依赖特定宿主能力的 skill 会在自己的 README 中明确平台限制。
 
 > **目录命名约定**：skill 子目录名必须等于 `SKILL.md` 里 `name:` 字段（这样 `/skill-name` slash 命令才能直接触发）。
 
@@ -19,6 +19,7 @@
 | [hook-template-builder](./hook-template-builder) | 扫描项目并推荐 Codex/Claude agent hooks：先识别语言、测试命令、CI、AGENTS/CLAUDE、已有 hooks，再输出候选表；默认只生成提醒型项目模板，阻断型、全局安装、网络通知必须用户确认。 |
 | [review-fix-push](./review-fix-push) | 轻量交付编排：当用户说“review 没问题就提交 push，有问题修到完成”时，先审查 staged/unstaged/untracked/未 push commits，全量修可判定问题并复验，再 commit + regular push；判断型问题才停下来问。 |
 | [ai-feature-delivery](./ai-feature-delivery) | 把业务级功能修改请求变成受控交付流程：先只读识别影响面、验收场景、non-goals 和验证计划，确认后再实现，最后输出验证证据与剩余风险。 |
+| [chatgpt-pro-engineering-loop](./chatgpt-pro-engineering-loop) | Codex Desktop 通过已登录的 ChatGPT Pro 委派复杂仓库任务：满足授权和基线条件时优先 GitHub Issue + Draft PR，否则回退到安全源码包；保存交付证据并在本地隔离验收。 |
 
 ## 📋 一键安装（直接复制粘贴）
 
@@ -36,6 +37,7 @@
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/hook-template-builder
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/review-fix-push
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/ai-feature-delivery
+帮我装这个 skill：https://github.com/flreey/myskills/tree/main/chatgpt-pro-engineering-loop
 ```
 
 > **就这一行。** 现代 coding agent 已经原生理解 GitHub `tree/main/<subdir>` 这种子目录 URL + `SKILL.md` 标准 + skills 目录约定，不需要手把手写步骤。
