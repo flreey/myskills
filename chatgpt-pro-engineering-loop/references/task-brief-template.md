@@ -9,6 +9,11 @@ Fill every required field. Remove instructional placeholders before dispatch.
 - Contract confirmation evidence:
 - Conversation purpose:
 - Requested external role: senior engineer responsible for research, design, and implementation proposal
+- Required external model: `GPT-5.6 Sol Pro`
+- Model fallback allowed: `false`
+- Verified conversation surface:
+- Verified picker label:
+- Model verification time and official mapping source:
 
 ## Background And Goal
 
@@ -142,6 +147,9 @@ For each criterion, state one of:
 
 ## Response Discipline
 
+- Work only in this conversation while its selected underlying model remains
+  `GPT-5.6 Sol Pro`; if the product reports a model change or availability
+  problem, stop and report it without continuing on another model.
 - Read all supplied relevant files before proposing changes.
 - State uncertainty instead of guessing.
 - Prefer the smallest complete patch.

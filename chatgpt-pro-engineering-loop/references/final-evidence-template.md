@@ -8,11 +8,37 @@
 - Later revisions and reconfirmations:
 - Deviations from the confirmed contract:
 
+## Authorization Closure
+
+- Contract SHA-256:
+- Closure status:
+- Repository, external account, and destinations:
+- Approved data and edit scope:
+- Allowed local, browser, source-transmission, and GitHub operations:
+- Observed ChatGPT connected-app permission mode:
+- Agent-generated permission questions after confirmation: `0` / list and
+  explain each non-compliant repeat.
+- Native product/tool confirmation or authentication handoffs:
+
 ## External Conversations
 
 | Task | Purpose | Conversation URL | Final status |
 |---|---|---|---|
 | ... | ... | ... | passed/blocked |
+
+## External Model Gate
+
+- Required underlying model: `GPT-5.6 Sol Pro`
+- Fallback allowed: `false`
+- Current official mapping source and check time:
+
+| Task | Event | Surface | Visible picker label | Mapped underlying model | Verified at | Result |
+|---|---|---|---|---|---|---|
+| ... | conversation-created/pre-dispatch/recovery | Chat/Work | ... | ... | ... | passed/blocked |
+
+State whether any source packaging, source transmission, task dispatch, or
+GitHub task mutation occurred before the first passing model check. If the
+answer is yes, report the run as non-compliant.
 
 ## Transport And Authority
 

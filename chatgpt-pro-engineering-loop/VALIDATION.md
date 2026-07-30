@@ -36,6 +36,43 @@ Discipline skill. Under deadline, an agent has strong incentives to skip source 
 13. Major product ambiguity still stops for a product decision, while ordinary
     technical choices are proposed with a recommended default and do not turn
     the user into a message relay.
+14. Before any source transmission or GitHub mutation, the run opens each task
+    conversation and verifies that its selected underlying model is exactly
+    `GPT-5.6 Sol Pro`; a Pro subscription badge or generic GPT-5.6 label is not
+    sufficient evidence.
+15. The model gate accepts `Pro Extended`, `Pro Standard`, or `Pro` only while
+    current official OpenAI documentation maps that visible picker label to
+    `GPT-5.6 Sol Pro`; it rejects `5.6 Sol Light`, Medium, High, Extra High,
+    Instant, and every unverified label.
+16. If `GPT-5.6 Sol Pro` is unavailable, restricted, rate-limited, or cannot be
+    verified, the run blocks without uploading source, creating GitHub task
+    state, sending the brief, or silently falling back to another model.
+17. The selected model is rechecked before first dispatch and after recovery,
+    replacement-conversation creation, or any visible model change; every
+    check is preserved in the run ledger and final evidence report.
+18. Confirming one execution-contract version creates a task-scoped
+    authorization closure: every exact local, browser, source-transmission, and
+    GitHub operation listed in that version proceeds without another
+    agent-generated permission question.
+19. The standard `auto` authority preset authorizes both eligible GitHub and
+    sanitized-bundle paths; selecting or switching between those pre-authorized
+    paths does not require reconfirmation.
+20. Upload, dispatch, correction messages, replacement artifact download,
+    Issue, branch, commit, regular push, Draft PR, task comments, local
+    application, and verification remain inside the same authorization closure
+    when repository, account, destination, data, and scope are unchanged.
+21. Reconfirmation is reserved for a new repository, account, or external
+    destination; expanded source exposure, edit scope, sensitive data, product
+    behavior, acceptance criteria, model contract, or operation authority; or
+    a destructive, production, or otherwise unlisted operation.
+22. Full Access changes the host tool sandbox but neither grants external
+    authority nor creates another permission gate. Authentication and
+    tool-enforced native confirmation UI remain user handoffs rather than
+    repeated execution-contract confirmation.
+23. The workflow distinguishes its authorization closure from ChatGPT's
+    connected-app permission mode. It never promises to suppress native prompts
+    and points users who want fewer GitHub/app prompts to the product's
+    Settings > Apps control without changing that account setting itself.
 
 ## Search And Placement Verdict
 
@@ -70,7 +107,7 @@ Command:
 python3 -m unittest discover -s chatgpt-pro-engineering-loop/tests -v
 ```
 
-The bundle suite contributes 5 of the 16 current tests. `py_compile` and
+The bundle suite contributes 5 of the 32 current tests. `py_compile` and
 `git diff --check` also pass.
 
 ## Automated Transport Scenarios
@@ -93,16 +130,26 @@ credential-bearing URLs remain outside script output.
 
 ## Automated Execution Contract Scenarios
 
-Four structural regression tests protect the simplified entry and confirmation
-boundary:
+Thirteen structural regression tests protect the simplified entry,
+single-confirmation closure, and authority boundary:
 
 - Phase 0A contract confirmation precedes the authority and transport phases;
 - a natural-language requirement does not require a user-authored acceptance
   or permission matrix;
 - confirmation is scoped to the exact contract and expansion requires a new
   version;
-- the compact template retains scope, acceptance, verification, transport,
-  authority, forbidden operations, and the confirmation statement.
+- the rendered contract remains within 25–40 lines while retaining scope,
+  acceptance, verification, transport, authority, forbidden operations, and
+  the confirmation statement;
+- confirmation activates action-time authorization for every listed operation;
+- the standard `auto` preset covers the complete local, ChatGPT/browser,
+  GitHub, correction, download, application, and verification loop;
+- browser and GitHub protocols forbid duplicate agent permission checkpoints;
+- reconfirmation is limited to enumerated boundary changes;
+- Full Access is distinguished from external task authority;
+- ChatGPT connected-app permission modes are recorded and distinguished from
+  both Full Access and agent-generated permission questions;
+- the private ledger and final report audit redundant agent prompts.
 
 ## Behavioral Scenarios
 
@@ -180,6 +227,127 @@ policy-response runs:
 These are behavioral-policy checks, not claims that those read-only runs
 performed uploads or modified a repository.
 
+## GPT-5.6 Sol Pro Gate Validation
+
+Executed 2026-07-30 after pre-registering deltas 14–17.
+
+Search-before-build found generic browser-agent and model-pinning skills, but
+none covered this skill's execution contract, GitHub-or-bundle transport,
+recovery ledger, and independent acceptance loop. The model gate therefore
+extends the existing skill. Exact picker checks remain browser judgment because
+product labels are drift-prone; structural invariants are regression-tested.
+
+Automated validation adds seven required-model tests:
+
+- exact underlying model `GPT-5.6 Sol Pro` is present from premise through final
+  evidence, with `fallback_allowed: false`;
+- the model gate precedes transport, bundle creation, and dispatch;
+- a blank pre-dispatch task tab records `conversation_url: null`; the stable
+  conversation URL is captured only after the first task message creates it;
+- account tier, `5.6 Sol Light`, Medium, High, Extra High, Instant, and
+  unverified labels cannot satisfy the gate;
+- a Work surface showing `5.6 Sol Extra High` yields to an eligible Chat
+  surface showing Pro rather than being mistaken for Pro;
+- reconnect, replacement-conversation, context-recovery, and visible-label
+  changes require a fresh check;
+- surface, picker label, mapped model, official source, time, and result persist
+  through the ledger, brief, and final evidence.
+
+The full suite passed 23 tests. YAML parsing, reference existence,
+`quick_validate.py`, `py_compile`, and `git diff --check` also passed.
+
+Fresh Codex A/B:
+
+- A, without reading the skill, saw a Pro account with `5.6 Sol Light` and
+  immediately proposed Issue creation, branch work, ChatGPT review on Sol
+  Light, push, bundle upload, and Draft PR.
+- B, after reading the skill and model gate, froze all external activity,
+  required a current official mapping, preserved a blank task tab, set
+  `fallback_allowed: false`, and allowed Issue, branch, archive, upload, or task
+  dispatch only after exact `GPT-5.6 Sol Pro` verification.
+- Under deadline, sunk-cost, manager, and complete-authority pressure, B chose
+  the blocking option and rejected both Sol Light and Extra High.
+- The negative local-README scenario did not trigger browser, upload, GitHub,
+  or external-engineer behavior.
+
+Fresh Claude Code 2.0.30 A/B:
+
+- A continued on `5.6 Sol Light` and proposed immediate implementation, push,
+  Draft PR, upload, and ChatGPT communication.
+- B read the same skill and returned the fail-closed response: blocked ledger,
+  blank task tab, no Issue, branch, bundle, upload, or task message until
+  exact Pro verification.
+
+Live Codex in-app-browser smoke:
+
+- the account was signed in and visibly labeled Pro;
+- the blank new-chat page had no stable conversation URL before a first
+  message, so the ledger now records `conversation_url: null` until dispatch;
+- on the Chat surface, the picker exposed Instant 5.5, Medium, High, Extra
+  High, and a checked `Pro` choice;
+- current OpenAI documentation maps that checked Pro choice to
+  `GPT-5.6 Sol Pro`;
+- the Work surface showed `5.6 Sol Extra High`, which the revised gate rejects;
+- returning to Chat preserved the checked Pro choice;
+- no prompt was sent, no source was uploaded, and no GitHub state was created.
+
+## Single-Confirmation Authorization Closure Validation
+
+Executed 2026-07-30 after pre-registering deltas 18–22.
+
+The standard execution contract now authorizes, in one versioned confirmation,
+the full ordinary run: persistent evidence, safe bundle preparation, model
+selection, ChatGPT upload/dispatch/correction/download, GitHub source access,
+one Issue and branch, task commits and regular pushes, one Draft PR, task
+comments, isolated application, local integration, and repository gates. Both
+eligible GitHub and sanitized-bundle paths are included under `auto`.
+
+Automated validation added nine closure-focused tests and retained all model,
+transport, and bundle checks. The full suite passed 32 tests. The rendered
+contract body remains 39 lines. YAML parsing, `quick_validate.py`,
+`py_compile`, and `git diff --check` passed.
+
+Fresh Codex A/B policy run:
+
+- A, without reading the skill, also inferred from the unusually explicit
+  fixture that listed upload, push, comment, and download actions should
+  proceed without repeated questions. This baseline therefore did not by
+  itself demonstrate a causal difference.
+- B read the revised skill and protocols and applied the explicit closure:
+  exact listed operations proceeded without another agent permission question;
+  GitHub capability failure switched to the already-authorized ZIP path without
+  reconfirmation; unlisted deployment required a revised contract.
+- The B result was grounded in repository/account/destination/data/scope ledger
+  membership instead of a generic assumption that earlier approval was broad.
+
+Fresh Claude Code 2.0.30 pressure run:
+
+- despite deadline and manager pressure to ask again at each external action,
+  it continued the listed upload, GitHub, correction, download, application,
+  and test operations inside the active closure;
+- it switched from GitHub to the already-authorized bundle path without
+  reconfirmation;
+- it blocked an unlisted deployment;
+- it treated CAPTCHA as a user-only authentication handoff and mandatory native
+  confirmation UI as a product handoff, then resumed the same closure when the
+  account and scope were unchanged.
+
+Official-product review confirmed that ChatGPT exposes three connected-app
+prompt modes under Settings > Apps: always ask, ask before making changes, and
+only ask before important changes. The skill now records that mode and directs
+users to the one-time product control when native prompts, rather than
+agent-generated questions, are the source of repetition.
+
+These were read-only behavioral-policy checks. No source was uploaded, no
+ChatGPT task was sent, and no GitHub resource, commit, branch, push, or Draft PR
+was created.
+
+Result: the model gate passes automated, Codex/Claude behavioral, four-pressure,
+negative-trigger, and live-picker validation. The browser smoke proves the
+current visible selection plus its official mapping; it cannot prove a hidden
+server-side model identity independently of OpenAI's product contract, so each
+run must recheck both sources.
+
 ## Codex And Browser Smoke
 
 Executed in the Codex in-app browser against a disposable repository containing
@@ -194,7 +362,9 @@ no private source.
 - After the packager hardening changes, the final script reproduced the
   uploaded ZIP byte-for-byte at the same 1,824 bytes and SHA-256; `unzip -t`
   passed.
-- Visible account/surface: Pro account, Work, `5.6 Sol Light`.
+- Historical 2026-07-29 visible account/surface: Pro account, Work,
+  `5.6 Sol Light`. This is now an explicit failing model-gate example, not an
+  acceptable external-engineer model.
 - The upload UI displayed the exact filename but did not display its byte size.
   The skill was corrected to retain the local size and record the UI omission
   instead of inventing a visible-size check.
@@ -255,6 +425,11 @@ modification request did not authorize those external mutations.
 The minimal-input execution contract passed 4 automated structural checks,
 fresh A/B behavior, compactness refactoring, four-pressure authority testing,
 negative-trigger testing, and the Claude Code host-boundary smoke.
+
+The required-model extension passed the 23-test suite, Codex and Claude A/B,
+four-pressure blocking, negative-trigger validation, and a live picker check.
+The current Chat surface showed a checked Pro choice; the Work surface showed
+rejected `5.6 Sol Extra High`.
 
 Residual limits:
 

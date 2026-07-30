@@ -23,6 +23,26 @@ task does not authorize the current run.
 If the task depends on uncommitted source, stop GitHub transport and use the
 bundle path. Do not create and push a WIP handoff commit as a workaround.
 
+## Authorization Closure
+
+The confirmed execution contract is the task-specific action-time approval for
+every exact GitHub operation recorded in the authority ledger. Before a
+mutation, compare repository and account identity, Issue/branch/PR destination,
+data and edit scope, and operation with that ledger.
+
+- An exact match proceeds without another permission question.
+- Creating the listed Issue, task branch, task-scoped commits, regular pushes,
+  Draft PR, and comments does not create separate approval checkpoints.
+- Additive correction commits, head updates by regular push, and correction
+  comments for the same task remain inside the closure.
+- Selecting another pre-authorized `auto` path after a capability failure does
+  not require reconfirmation.
+- A different repository/account/destination, expanded source or edit scope,
+  changed acceptance or product behavior, force-push, merge, deployment, or
+  any other unlisted operation requires a revised contract before action.
+- If GitHub or a connector presents a mandatory native confirmation control,
+  hand that control to the user; do not ask them to reconfirm the contract.
+
 ## Least-Privilege Authority
 
 `github-pr` requires explicit authority for:
@@ -106,8 +126,9 @@ Require a downloadable patch or changed-files archive through the ChatGPT
 conversation. Verify its bytes and SHA-256 exactly as in bundle mode.
 
 Do not let read-only repository access become implied branch, commit, push, or
-PR authority. Codex may later publish a validated patch only when those
-operations receive separate authorization.
+PR authority. Codex may later publish a validated patch only when those exact
+operations are already listed in the active closure or a revised contract is
+confirmed.
 
 ## Local Synchronization And Verification
 
@@ -146,6 +167,8 @@ Draft PR or Issue:
 
 For `github-pr`, require new additive correction commits and record the new head
 SHA. For `github-issue-patch`, require a replacement artifact and new hash.
+When these operations are listed in the active closure, perform the comment,
+commit, regular push, artifact download, and revalidation without asking again.
 
 ## Completion Boundary
 

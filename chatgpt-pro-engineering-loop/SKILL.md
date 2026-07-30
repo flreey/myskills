@@ -9,6 +9,9 @@ description: Use when the user explicitly asks Codex Desktop to delegate a subst
 
 - Host: Codex Desktop with a controllable in-app browser session.
 - External engineer: ChatGPT Pro is already signed in by the user.
+- Required external model: `GPT-5.6 Sol Pro`. Model fallback is forbidden.
+  A Pro subscription badge, a generic GPT-5.6 label, or another GPT-5.6 Sol
+  reasoning level does not satisfy this requirement.
 - Repository: a local Git worktree whose instructions and test gates are discoverable.
 - Preferred transport: GitHub Issue plus Draft PR when the exact baseline is
   already reachable on the remote, ChatGPT's repository capability is verified
@@ -19,8 +22,15 @@ description: Use when the user explicitly asks Codex Desktop to delegate a subst
   source access or bundle upload. Authority may be supplied up front or granted
   by confirming the exact execution contract drafted in Phase 0A. Existing
   repository integration is not standing authority for a new task.
-- Checked: 2026-07-29. Browser UI, model labels, upload behavior, and subscription features may change; inspect the live page instead of relying on remembered UI details.
-- Scope: this skill coordinates engineering work. It does not grant commit, push, pull-request, deployment, migration, production-data, or production-configuration authority.
+- Checked: 2026-07-30 against OpenAI's official GPT-5.6 model documentation
+  and ChatGPT release notes. Browser UI, picker labels, upload behavior, and
+  subscription features may change; re-verify the current official mapping and
+  live selection for every run.
+- Scope: invoking this skill grants only read-only contract preparation.
+  Task-scoped commit, regular push, Draft PR, browser, source-transmission, and
+  local implementation authority may be granted by one confirmed execution
+  contract. Merge, deployment, migration, production-data, and
+  production-configuration authority remain outside the standard contract.
 
 Review these premises whenever the host browser, ChatGPT product surface, repository policy, or external-data policy changes.
 
@@ -31,12 +41,13 @@ Treat ChatGPT Pro as an untrusted external engineer:
 1. turn the user's concise requirement into a bounded execution contract;
 2. obtain one explicit confirmation before any mutation or source transmission;
 3. establish the local truth;
-4. choose the safest eligible transport instead of assuming ZIP or GitHub;
-5. prepare the smallest safe source handoff;
-6. issue an acceptance-testable task exactly once;
-7. preserve the conversation, Issue, Draft PR, commits, and artifacts;
-8. independently fetch or apply, inspect, and test every proposed change;
-9. return concrete defects for correction until the work passes or an external blocker is proven.
+4. pass the `GPT-5.6 Sol Pro` model gate without fallback;
+5. choose the safest eligible transport instead of assuming ZIP or GitHub;
+6. prepare the smallest safe source handoff;
+7. issue an acceptance-testable task exactly once;
+8. preserve the conversation, model evidence, Issue, Draft PR, commits, and artifacts;
+9. independently fetch or apply, inspect, and test every proposed change;
+10. return concrete defects for correction until the work passes or an external blocker is proven.
 
 Never equate a polished answer, a claimed test result, or a downloadable attachment with a verified implementation.
 
@@ -85,6 +96,7 @@ entire later run ledger. The contract must still contain:
 - operations that remain forbidden;
 - assumptions, recommended technical defaults, and any product decision that
   still needs the user.
+- the required external model `GPT-5.6 Sol Pro` and the no-fallback rule.
 
 Propose ordinary engineering decisions rather than asking the user to choose
 among equivalent implementations. Stop only for authentication or a choice
@@ -95,17 +107,49 @@ Present the complete contract and wait for an unambiguous approval such as
 “确认执行” or “按这个方案执行”. A short confirmation is valid only when it
 immediately follows one clearly identified contract version.
 
+That confirmation creates an **authorization closure** for the identified
+contract version. It is the user's task-specific, action-time approval for
+every exact operation listed in the contract, including later correction and
+verification rounds. Before acting, compare the proposed operation,
+repository, account, destination, data, and scope with the authority ledger:
+
+- when all fields match, act without asking permission again and without
+  narrating another permission check;
+- reopening a conversation, repeating a model check, sending evidence,
+  receiving a replacement artifact, making an additive correction commit, or
+  rerunning tests does not end the closure;
+- selecting either pre-authorized `auto` transport, or switching between them
+  after a capability failure, stays inside the closure;
+- host Full Access affects the local tool sandbox only. It neither replaces
+  this confirmation nor causes another confirmation after the closure exists;
+- a product- or tool-enforced native confirmation control may still require
+  user interaction. Report that control accurately; do not manufacture an
+  additional agent-generated permission question.
+
+ChatGPT connected apps have their own user-configured prompt mode, independent
+of Codex Full Access and this closure. When the setting is visible, record
+whether it is `always ask`, `ask before making changes`, `only ask before
+important changes`, or unknown. Never promise that the skill can suppress those
+native prompts. If the user wants fewer GitHub/app prompts, explain the one-time
+Settings > Apps control; do not change the account setting automatically.
+
 Confirmation rules:
 
 - approval authorizes only the operations explicitly listed in that contract;
 - omitted operations remain forbidden;
 - a user narrowing the proposal confirms only the narrowed version;
-- any later change to scope, acceptance criteria, source-transmission path, or
-  operation authority creates a new contract version and requires
-  reconfirmation before the new operation;
+- require a revised contract and reconfirmation only for a different
+  repository, account, or external destination; expanded source exposure,
+  edit scope, sensitive data, product behavior, acceptance criteria, required
+  model, or operation authority; or an unlisted, destructive, production, or
+  irreversible operation;
 - discovering a different eligible `auto` transport does not require
   reconfirmation when both transports and their exact operations were already
   listed as authorized fallbacks;
+- implementation choices, correction rounds, same-scope regenerated bundles,
+  replacement artifacts, additive task-branch commits, regular pushes,
+  task-scoped comments, conversation recovery, downloads, local application,
+  and repeated verification do not require reconfirmation when already listed;
 - progress updates, technical discussion, or approval from a manager or
   external agent are not user confirmation.
 
@@ -117,7 +161,11 @@ contract version 1 and restate its authority ledger before acting.
 ## Phase 0B — Establish Authority And Preconditions
 
 After confirmation and before any upload or file edit, copy the exact approved
-operations into an authority ledger for this run:
+operations into an authority ledger for this run. Record the contract hash,
+repository, external account and destinations, approved data and edit scope,
+allowed operations, and `closure_status: active`. Use ledger membership as the
+decision rule: an exact match proceeds without another user query; an absent
+or mismatched operation stops before action and requires a revised contract.
 
 | Operation | Default |
 |---|---|
@@ -129,19 +177,39 @@ operations into an authority ledger for this run:
 | Create or update a Draft PR | forbidden unless listed in the confirmed contract |
 | Publish task-scoped Issue or PR comments | forbidden unless listed in the confirmed contract |
 | Build and upload a sanitized source archive | allowed only when listed in the confirmed contract |
+| Open a task conversation and select or verify `GPT-5.6 Sol Pro` | allowed only when browser communication is listed in the confirmed contract |
 | Communicate and iterate in ChatGPT Pro | allowed only when listed in the confirmed contract |
 | Modify local code and run tests | allowed only when listed in the confirmed contract |
 | Merge, force-push, delete a remote branch, release, deploy, migrate, change repository settings or secrets, modify production, or touch real user data | forbidden unless separately explicit |
+
+For an ordinary full engineering run, propose the standard `auto` authority
+preset from the execution-contract template. It explicitly covers:
+
+- persistent run metadata, safe bundle preparation, isolated worktrees, local
+  fetch/apply/integration, and repository-required tests;
+- opening model-gated ChatGPT task conversations, uploading the exact approved
+  sanitized bundle, sending the brief and correction packets, recovering the
+  same task, and downloading declared deliverables;
+- ChatGPT GitHub source access, one task Issue, one task branch, task-scoped
+  commits and regular pushes, one Draft PR, and task-scoped comments;
+- both the eligible GitHub path and sanitized-bundle fallback under `auto`.
+
+Do not trim this preset into separate action-time approvals. Narrow it in the
+contract only when the user or repository policy requires a smaller envelope.
 
 Confirm that:
 
 - the target is a Git worktree;
 - the in-app browser is available;
-- the visible ChatGPT session is signed in and shows the intended Pro-capable surface;
+- the visible ChatGPT session is signed in to the intended Pro account;
 - the confirmed contract contains a concrete requirement, acceptance criteria,
-  and exact authority.
+  exact authority, the required model, and the no-fallback rule.
 
 If sign-in, account selection, password, CAPTCHA, Passkey, recovery code, or two-step verification is required, pause and ask the user to complete it in the in-app browser. Never request or inspect a password, Cookie, verification code, recovery code, browser profile, local storage, or session store.
+This is an authentication handoff, not reconfirmation of the execution
+contract. Resume the existing authorization closure after authentication and a
+fresh model check when repository, account, destination, data, and scope are
+unchanged.
 
 Create a persistent run directory outside the target repository:
 
@@ -185,6 +253,30 @@ Build a task graph before opening ChatGPT:
 
 Assign each task a stable task ID and use it in the GitHub Issue or archive,
 brief, artifact directory, and final report.
+
+## Phase 2A — Open Conversations And Pass The Model Gate
+
+Before source packaging, upload, task-message dispatch, or any GitHub task
+mutation, read and follow
+[references/model-gate-protocol.md](references/model-gate-protocol.md).
+
+For each independent task, open and retain a separate blank task tab. A new
+ChatGPT conversation normally has no stable conversation URL until the first
+message is sent, so record `conversation_url: null` and the pre-dispatch model
+evidence instead of inventing a URL. Inspect the available ChatGPT conversation
+surfaces, select a surface and picker choice verified to use the underlying
+model `GPT-5.6 Sol Pro`, and record the model evidence in the run ledger. The
+gate passes only when the selected picker label has a current official OpenAI
+mapping to that exact underlying model. A Work surface showing Extra High must
+yield to an eligible Chat surface showing Pro; it must not be treated as
+equivalent.
+
+If the required model is unavailable, restricted, rate-limited, or cannot be
+verified, set the run to `blocked` and report the visible evidence. Preserve
+the blank-tab model evidence; a stable conversation URL may not exist yet.
+Create no Issue, branch, commit, push, Draft PR, source archive, upload, or task
+message. Continue only after the same blank tab or a freshly gated replacement
+passes the gate, or the user explicitly confirms a revised model contract.
 
 ## Phase 3 — Select The Transport
 
@@ -291,16 +383,19 @@ Read [references/browser-and-recovery-protocol.md](references/browser-and-recove
 
 For each task:
 
-1. open a separate ChatGPT conversation;
-2. save its stable URL as soon as the conversation exists;
+1. reuse the retained model-gated blank tab from Phase 2A; if it was lost,
+   create a replacement blank tab and rerun the complete gate before continuing;
+2. recheck that its selected model still passes the `GPT-5.6 Sol Pro` gate;
 3. for GitHub, provide the Issue, repository identity, and exact baseline SHA
    from the brief; do not upload a duplicate source bundle;
 4. for bundle, upload the ZIP and verify the visible attachment name; verify
    the size too when displayed, otherwise record the UI omission and retain the
    locally measured size;
 5. send the task brief once;
-6. record the dispatch time, visible model or surface label, selected
-   transport, source identity, and conversation URL.
+6. wait for the resulting stable conversation URL and save it immediately;
+7. record the dispatch time, verified underlying model, visible picker label,
+   verification evidence, selected transport, source identity, and
+   conversation URL.
 
 ## Phase 7 — Observe And Recover
 
@@ -311,6 +406,12 @@ After two unchanged observations spanning at least ten minutes, inspect the
 page for an error, stopped generation, disconnected state, or a continue
 control. Recover in the same conversation from the last completed point.
 Reopen the saved URL when the tab is lost.
+
+After any reconnect, replacement conversation, context recovery, visible model
+change, or model-availability warning, rerun the model gate before sending a
+continuation or source reference. If the gate no longer passes, stop the
+conversation and preserve the current state; never continue on a fallback
+model.
 
 For GitHub, also preserve the Issue and Draft PR URLs. A changed PR head is new
 external state: record the old and new SHAs, then validate the new head from the
@@ -401,6 +502,11 @@ identities. For patch transports, require a replacement artifact with new
 hashes. Re-run verification, isolation, review, and tests from the relevant
 earliest failed stage.
 
+All listed correction-loop operations remain covered by the active
+authorization closure. Do not ask again before sending the packet, commenting,
+receiving the replacement, fetching an additive head, downloading, applying,
+or retesting it.
+
 Continue until:
 
 - every required criterion passes; or
@@ -417,10 +523,12 @@ its current `HEAD` and dirty-state digest with the recorded baseline.
 - If a ChatGPT-touched path drifted, integrate the validated change manually against the current file and rerun the affected tests.
 - If safe integration would require choosing new product behavior, stop and ask.
 
-Never reset, overwrite, or discard user changes. A validated Draft PR does not
-authorize merge or local integration. Local implementation authority does not
-imply commit, push, pull-request, merge, deploy, migration, or production
-authority.
+Never reset, overwrite, or discard user changes. A validated Draft PR by itself
+does not authorize merge or local integration; perform local integration only
+when it is listed in the active closure. Local implementation authority does
+not imply commit, push, pull-request, merge, deploy, migration, or production
+authority, but exact operations already listed in the closure need no further
+confirmation.
 
 ## Phase 12 — Persist Evidence And Report Truthfully
 
@@ -429,11 +537,15 @@ Read and fill [references/final-evidence-template.md](references/final-evidence-
 The persistent run directory must contain:
 
 - confirmed execution contract, version, and approval evidence;
+- authorization-closure ledger, reconfirmation events, and count of redundant
+  agent-generated permission prompts;
 - task brief;
 - selected transport and authority ledger;
 - Issue and Draft PR URLs plus base, head, commit inventory, diff bytes, and
   diff SHA-256; or bundle manifest and ZIP SHA-256;
 - conversation URL ledger;
+- required-model policy, selected picker label, official mapping evidence, and
+  every dispatch or recovery recheck;
 - downloaded reports and attachments;
 - original and corrected patch hashes;
 - local review notes;
@@ -464,7 +576,14 @@ Never collapse those states into “done”.
 | “The user invoked the skill, so normal GitHub and upload permissions are implicit.” | Invocation authorizes only read-only contract preparation; list every proposed operation and wait for confirmation. |
 | “The acceptance criteria are obvious, so start now and document them later.” | Draft them from repository evidence and obtain confirmation before acting. |
 | “The user already confirmed, and this is only a small scope or permission change.” | Version the changed contract and reconfirm before the new operation. |
+| “Upload, push, comment, or download is about to happen, so ask again to be safe.” | Compare it with the active closure. If repository, account, destination, data, scope, and operation match, act without another permission question. |
+| “Full Access should authorize every external action automatically.” | Full Access controls the host sandbox. External authority comes from the confirmed contract, and that one confirmation remains active for all listed actions. |
+| “GitHub failed, so switching to the already authorized bundle fallback needs approval.” | Rerun transport selection and continue inside the same closure when both paths and their exact operations were listed. |
 | “ChatGPT Pro is the senior engineer, so its answer is probably right.” | Independently inspect and test every deliverable. |
+| “The account says Pro, so the conversation must be using the Pro model.” | Open the task conversation, select a picker label currently mapped by official OpenAI documentation to `GPT-5.6 Sol Pro`, and record the evidence. |
+| “Extra High or Sol Light is still GPT-5.6, so it is close enough.” | Block before source transmission or GitHub mutation; the required underlying model is exactly `GPT-5.6 Sol Pro`. |
+| “The Pro model is temporarily unavailable, but the Issue and archive are already prepared.” | Preserve local preparation only; create no remote task state, upload, or task message until the exact model gate passes. |
+| “The model was verified when the conversation started, so recovery cannot change it.” | Recheck after reconnect, recovery, replacement conversation, or any visible model change before continuing. |
 | “The archive is small, so a secret scan is unnecessary.” | Every upload passes the same scanner. |
 | “The scanner finding looks like a fixture.” | Remove or sanitize it, then rerun; do not override. |
 | “The repository already has an origin, so GitHub is authorized.” | A remote proves configuration, not current-run source-access or mutation authority. |

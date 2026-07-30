@@ -1,4 +1,4 @@
 interface:
-  display_name: "ChatGPT Pro Engineering Loop"
-  short_description: "只需说明需求，确认方案后委派 ChatGPT Pro"
-  default_prompt: "使用 $chatgpt-pro-engineering-loop。先只读检查仓库，把下面的需求补全为包含验收标准、测试、auto 传输方式和权限边界的执行契约，等我确认后再执行：<填写需求>"
+  display_name: "GPT-5.6 Pro Engineering Loop"
+  short_description: "确认方案后强制委派 GPT-5.6 Sol Pro"
+  default_prompt: "使用 $chatgpt-pro-engineering-loop。强制使用 GPT-5.6 Sol Pro 且禁止模型降级。先只读检查仓库，把下面的需求补全为包含验收标准、测试、auto 传输方式和标准授权闭包的执行契约，等我确认后再执行；我确认一次后，契约内操作不要重复询问权限：<填写需求>"
