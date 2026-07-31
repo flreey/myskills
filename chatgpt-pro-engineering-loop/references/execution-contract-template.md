@@ -1,50 +1,37 @@
 # Execution Contract
 
-Use this template for the Codex-to-user confirmation gate. It is not the task
-brief sent to ChatGPT Pro.
-
-For an ordinary single-component task, use 25–40 lines, three to seven
-acceptance criteria, and the five headings below. Expand only when material
-product, data, or repository risk cannot be represented safely in that shape.
-Do not repeat the future run ledger or explain every permission separately.
-Remove instructional placeholders before presenting the contract.
+Use this for the one Codex-to-user confirmation gate. Remove placeholders
+before presenting it. Keep an ordinary contract between 20 and 35 physical
+lines with three to seven acceptance criteria.
 
 ## Goal And Scope
 
 - Contract version:
 - Requirement and intended outcome:
-- Target repository, ChatGPT account, and external destinations:
-- Material repository evidence and existing changes to preserve:
-- Proposed scope, non-goals, and recommended technical defaults:
-- Required external model: `GPT-5.6 Sol Pro`
-- Model fallback allowed: `false`
-
+- Target repository, account, and external destinations:
+- Material repository evidence and user changes to preserve:
+- Proposed scope, non-goals, and technical defaults:
+- Required external model: `GPT-5.6 Sol Pro`; Model fallback allowed: `false`
 ## Acceptance And Verification
 
-Label each item `user-supplied` or `inferred`.
+Label each criterion `user-supplied` or `inferred`.
 1. ...
 2. ...
 3. ...
-- Focused tests, required repository gates, and environment/evidence limits:
+- Focused tests, repository gates, and truthful evidence limits:
+## Transport, Actors, And Authority
 
-## Transport And Authority
+- Requested transport: `auto`; normal path: GitHub; authorized fallbacks: reviewed handoff branch and/or sanitized bundle.
+- Codex manager authority: create one task branch from the exact base; create or update one Draft PR after the first developer commit; fetch, isolate, inspect, test, and send correction evidence.
+- ChatGPT Pro authority: read the repository and add task-scoped commits only to the assigned task branch.
+- Browser authority: open/recover one model-gated conversation, send the brief and corrections, and download declared artifacts.
+- Fallback authority: scan and publish only the approved dirty handoff scope, or upload only the approved sanitized bundle.
+## Secret And Production Boundary
 
-- Requested transport: `auto` / `github-pr` / `github-issue-patch` / `bundle`; authority preset: standard engineering loop / narrowed custom.
-- Allowed local operations: create persistent run metadata and a safe bundle; create isolated worktrees; fetch, inspect, apply or integrate scoped changes; run required tests and verification.
-- Allowed ChatGPT/browser operations: open and recover task conversations; select and recheck `GPT-5.6 Sol Pro`; upload only the approved sanitized bundle; send the brief and corrections; download declared reports, patches, and replacements.
-- Allowed GitHub operations: let ChatGPT access this repository; create one task Issue and task branch; create task-scoped commits and regular pushes; create or update one Draft PR; publish task-scoped Issue/PR comments.
-- Authorized `auto` paths: eligible GitHub delivery and sanitized-bundle fallback are both authorized; capability-based switching needs no new confirmation.
-
-## Boundaries And Decisions
-
-- Still forbidden: merge or auto-merge, force-push, remote branch deletion, release or tag, deployment, migration, production configuration, repository settings or secrets, and real user data.
-- Required-model failure behavior: block before packaging, source transmission, task dispatch, or GitHub task mutation; do not downgrade.
-- Product, data-exposure, irreversible, or authority-changing decisions: none / one necessary question.
-
+- Credential class: `none` / `interface-only` / `local-test` / `ci-test` / `production`; allowed public configuration:
+- Secret values never enter ChatGPT, Git, Issue/PR content, attachments, or evidence logs.
+- Still forbidden: Issue by default, merge, auto-merge, force-push, branch deletion, release, deployment, migration, settings, secret provisioning, production configuration, production credentials, and real user data.
 ## Confirmation
 
-State:
-
-> Reply “确认执行” or otherwise unambiguously approve this contract version.
-> One confirmation activates the task-scoped authorization closure for every operation listed above, including correction and verification rounds.
-> Codex will not ask again before those operations. A different repository, account, destination, data or edit scope, product behavior, acceptance criteria, model, authority, or an unlisted/destructive/production operation requires a revised contract and another confirmation.
+> Reply “确认执行” or otherwise unambiguously approve this contract version. One confirmation activates the task-scoped authorization closure for every listed operation and correction round.
+> Codex will ask again only when the repository, account, destination, data or edit scope, product behavior, acceptance criteria, model, secret class, authority, or production boundary changes. Native authentication and connected-app approvals remain user handoffs.

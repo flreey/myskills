@@ -1,4 +1,4 @@
 interface:
   display_name: "GPT-5.6 Pro Engineering Loop"
-  short_description: "确认方案后强制委派 GPT-5.6 Sol Pro"
-  default_prompt: "使用 $chatgpt-pro-engineering-loop。强制使用 GPT-5.6 Sol Pro 且禁止模型降级。先只读检查仓库，把下面的需求补全为包含验收标准、测试、auto 传输方式和标准授权闭包的执行契约，等我确认后再执行；我确认一次后，契约内操作不要重复询问权限：<填写需求>"
+  short_description: "Codex 管理、ChatGPT Pro 开发、GitHub 交付"
+  default_prompt: "使用 $chatgpt-pro-engineering-loop。由 Codex 管理仓库、任务分支、Draft PR 和独立验收；强制使用 ChatGPT Pro 的 GPT-5.6 Sol Pro 作为开发者，只向指定分支追加 commit。先只读检查仓库，把下面需求补全为验收标准、测试、GitHub-first 传输、密钥分级和一次性授权闭包，等我确认后执行：<填写需求>"

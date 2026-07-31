@@ -14,13 +14,21 @@ class ExecutionContractPolicyTests(unittest.TestCase):
         cls.template = (
             SKILL_ROOT / "references" / "execution-contract-template.md"
         ).read_text(encoding="utf-8")
-        cls.browser_protocol = (
+        cls.browser = (
             SKILL_ROOT / "references" / "browser-and-recovery-protocol.md"
         ).read_text(encoding="utf-8")
-        cls.github_protocol = (
-            SKILL_ROOT / "references" / "github-transport-protocol.md"
+        cls.github = (
+            SKILL_ROOT
+            / "references"
+            / "github-manager-developer-protocol.md"
         ).read_text(encoding="utf-8")
-        cls.final_evidence = (
+        cls.secrets = (
+            SKILL_ROOT / "references" / "secrets-and-live-validation.md"
+        ).read_text(encoding="utf-8")
+        cls.brief = (
+            SKILL_ROOT / "references" / "task-brief-template.md"
+        ).read_text(encoding="utf-8")
+        cls.final = (
             SKILL_ROOT / "references" / "final-evidence-template.md"
         ).read_text(encoding="utf-8")
         cls.readme = (SKILL_ROOT / "README.md").read_text(encoding="utf-8")
@@ -29,202 +37,136 @@ class ExecutionContractPolicyTests(unittest.TestCase):
         )
 
     def test_contract_confirmation_precedes_mutating_workflow(self) -> None:
-        draft_phase = self.skill.index(
-            "## Phase 0A — Draft And Confirm The Execution Contract"
-        )
-        authority_phase = self.skill.index(
-            "## Phase 0B — Establish Authority And Preconditions"
-        )
-        transport_phase = self.skill.index("## Phase 3 — Select The Transport")
-        self.assertLess(draft_phase, authority_phase)
-        self.assertLess(authority_phase, transport_phase)
+        contract_phase = self.skill.index("## Phase 0 — Draft One Execution Contract")
+        local_phase = self.skill.index("## Phase 1 — Establish Local Truth")
+        github_phase = self.skill.index("## Phase 4 — Establish The GitHub Task")
+        self.assertLess(contract_phase, local_phase)
+        self.assertLess(local_phase, github_phase)
 
-    def test_minimal_requirement_does_not_require_user_authored_matrix(self) -> None:
-        self.assertIn(
-            "The initial request may contain only a concrete natural-language "
-            "requirement.",
-            self.skill,
-        )
-        self.assertIn(
-            "Do not require the user to pre-write acceptance criteria, test "
-            "commands, or a\npermission matrix.",
-            self.skill,
-        )
-        self.assertIn("需求", self.metadata)
-        self.assertIn("等我确认后再执行", self.metadata)
+    def test_minimal_requirement_is_enough(self) -> None:
+        self.assertIn("A concrete one-sentence requirement is enough.", self.skill)
+        self.assertIn("infer ordinary\nacceptance criteria", self.skill)
+        self.assertIn("<填写需求>", self.metadata)
+        self.assertIn("等我确认后执行", self.metadata)
 
-    def test_confirmation_is_exact_and_expansion_requires_reconfirmation(
-        self,
-    ) -> None:
+    def test_negative_trigger_stays_local(self) -> None:
+        for excluded_case in (
+            "ordinary local implementation or debugging",
+            "a small second-opinion review",
+            "generic web research",
+            "browser login by itself",
+            "work that forbids external source access",
+        ):
+            with self.subTest(excluded_case=excluded_case):
+                self.assertIn(excluded_case, self.skill)
+
+    def test_contract_is_compact_and_complete(self) -> None:
+        rendered = self.template[self.template.index("## Goal And Scope") :]
+        line_count = len(rendered.splitlines())
+        self.assertGreaterEqual(line_count, 20)
+        self.assertLessEqual(line_count, 35)
+        for heading in (
+            "## Goal And Scope",
+            "## Acceptance And Verification",
+            "## Transport, Actors, And Authority",
+            "## Secret And Production Boundary",
+            "## Confirmation",
+        ):
+            with self.subTest(heading=heading):
+                self.assertIn(heading, self.template)
+
+    def test_one_confirmation_creates_authorization_closure(self) -> None:
+        self.assertIn("authorization closure", self.skill)
         self.assertIn(
-            "approval authorizes only the operations explicitly listed in "
-            "that contract",
-            self.skill,
-        )
-        self.assertIn(
-            "operation authority; or an unlisted, destructive, production, or\n"
-            "  irreversible operation",
+            "does not ask again before the listed branch, commit, Draft PR",
             self.skill,
         )
         self.assertIn(
             "One confirmation activates the task-scoped authorization closure",
             self.template,
         )
-
-    def test_template_covers_scope_acceptance_transport_and_forbidden_ops(
-        self,
-    ) -> None:
-        for heading in (
-            "## Goal And Scope",
-            "## Acceptance And Verification",
-            "## Transport And Authority",
-            "## Boundaries And Decisions",
-            "## Confirmation",
-        ):
-            with self.subTest(heading=heading):
-                self.assertIn(heading, self.template)
-
-    def test_presented_contract_shape_remains_compact(self) -> None:
-        rendered = self.template[self.template.index("## Goal And Scope") :]
-        line_count = len(rendered.splitlines())
-        self.assertGreaterEqual(line_count, 25)
-        self.assertLessEqual(line_count, 40)
-
-    def test_one_confirmation_creates_action_time_authorization_closure(
-        self,
-    ) -> None:
         self.assertIn(
-            "That confirmation creates an **authorization closure**",
-            self.skill,
-        )
-        self.assertIn(
-            "when all fields match, act without asking permission again",
-            self.skill,
-        )
-        self.assertIn(
-            "Codex will not ask again before those operations",
+            "Native authentication and connected-app approvals remain user",
             self.template,
         )
-        self.assertIn("我确认一次后，契约内操作不要重复询问权限", self.metadata)
 
-    def test_standard_auto_preset_covers_complete_engineering_loop(self) -> None:
-        for required in (
-            "create persistent run metadata and a safe bundle",
-            "upload only the approved sanitized",
-            "send the brief and corrections",
-            "create one task Issue and task branch",
-            "task-scoped commits and regular pushes",
-            "create or update one Draft PR",
-            "publish task-scoped Issue/PR comments",
-            "eligible GitHub delivery and sanitized-bundle fallback",
+    def test_manager_developer_split_is_consistent(self) -> None:
+        for document in (self.skill, self.github, self.brief, self.readme, self.metadata):
+            with self.subTest(document=document[:30]):
+                self.assertIn("Codex", document)
+                self.assertIn("ChatGPT Pro", document)
+
+        self.assertIn(
+            "Codex creates `codex/chatgpt-pro/<task-id>`", self.skill
+        )
+        self.assertIn(
+            "ChatGPT Pro reads and commits only to that assigned branch",
+            self.skill,
+        )
+        self.assertIn(
+            "after the first valid Pro commit, Codex creates the Draft PR",
+            self.skill,
+        )
+        self.assertIn("does not create an Issue by default", self.skill)
+
+    def test_native_prompt_is_user_handoff_not_reconfirmation(self) -> None:
+        self.assertIn(
+            "mandatory native ChatGPT/GitHub confirmation is a user handoff",
+            self.browser,
+        )
+        self.assertIn("Allow GitHub for this conversation", self.browser)
+        self.assertIn("Do not choose `Always allow`", self.browser)
+        self.assertIn("Full Access", self.skill)
+        self.assertIn("原生确认", self.readme)
+
+    def test_secret_classes_and_value_boundary_are_present(self) -> None:
+        for classification in (
+            "`none`",
+            "`interface-only`",
+            "`local-test`",
+            "`ci-test`",
+            "`production`",
         ):
-            with self.subTest(required=required):
-                self.assertIn(required, self.template)
+            with self.subTest(classification=classification):
+                self.assertIn(classification, self.secrets)
 
-    def test_browser_actions_do_not_create_new_permission_checkpoints(
-        self,
-    ) -> None:
-        self.assertIn("## Authorization Closure", self.browser_protocol)
-        self.assertIn(
-            "An exact match proceeds immediately without another "
-            "agent-generated\n  permission question",
-            self.browser_protocol,
-        )
-        self.assertIn(
-            "Dispatch, recovery, correction messages, and replacement "
-            "downloads",
-            self.browser_protocol,
-        )
-        self.assertIn(
-            "mandatory native confirmation control",
-            self.browser_protocol,
-        )
+        for document in (self.skill, self.template, self.brief, self.final, self.readme):
+            with self.subTest(document=document[:30]):
+                self.assertIn("secret", document.lower())
 
-    def test_github_actions_do_not_create_new_permission_checkpoints(
-        self,
-    ) -> None:
-        self.assertIn("## Authorization Closure", self.github_protocol)
+        self.assertIn("Secret values never enter", self.secrets)
+        self.assertIn("ChatGPT messages or attachments", self.secrets)
+        self.assertIn("require a new execution contract", self.secrets)
+
+    def test_credentialed_execution_requires_diff_review(self) -> None:
         self.assertIn(
-            "Creating the listed Issue, task branch, task-scoped commits, "
-            "regular pushes,\n  Draft PR, and comments does not create "
-            "separate approval checkpoints",
-            self.github_protocol,
+            "review the complete executable diff before injection", self.secrets
         )
         self.assertIn(
-            "Additive correction commits, head updates by regular push",
-            self.github_protocol,
+            "A same-repository branch is not automatically trusted", self.secrets
         )
         self.assertIn(
-            "perform the comment,\ncommit, regular push, artifact download, "
-            "and revalidation without asking again",
-            self.github_protocol,
+            "Before any test receives `local-test` or `ci-test` credentials",
+            self.skill,
         )
 
-    def test_reconfirmation_is_limited_to_boundary_changes(self) -> None:
-        for boundary in (
-            "different\n  repository, account, or external destination",
-            "expanded source exposure",
-            "sensitive data",
-            "product behavior",
-            "acceptance criteria",
-            "required\n  model",
-            "unlisted, destructive, production",
+    def test_github_issue_is_not_mandatory(self) -> None:
+        self.assertIn("Issue 默认不创建", self.readme)
+        self.assertIn("does not create an Issue by default", self.github)
+        self.assertNotIn("create one task Issue", self.template)
+
+    def test_final_evidence_separates_states(self) -> None:
+        for state in (
+            "Local modifications:",
+            "Local commit:",
+            "Remote task branch and pushed commits:",
+            "Draft PR:",
+            "Merged:",
+            "Deployed:",
+            "Production verified:",
         ):
-            with self.subTest(boundary=boundary):
-                self.assertIn(boundary, self.skill)
-        self.assertIn(
-            "correction rounds, same-scope regenerated bundles",
-            self.skill,
-        )
-        self.assertIn(
-            "do not require reconfirmation when already listed",
-            self.skill,
-        )
-
-    def test_full_access_is_separate_from_contract_authority(self) -> None:
-        self.assertIn(
-            "host Full Access affects the local tool sandbox only",
-            self.skill,
-        )
-        self.assertIn(
-            "Full Access 只控制本机工具的文件系统和命令沙箱",
-            self.readme,
-        )
-        self.assertIn(
-            "产品或认证交接，不是重新确认契约",
-            self.readme,
-        )
-
-    def test_native_connected_app_prompt_mode_is_explained(self) -> None:
-        self.assertIn(
-            "ChatGPT connected apps have their own user-configured prompt mode",
-            self.skill,
-        )
-        self.assertIn("Settings > Apps", self.skill)
-        self.assertIn("Settings > Apps", self.browser_protocol)
-        self.assertIn("only ask before important changes", self.browser_protocol)
-        self.assertIn(
-            '"connected_app_permission_mode": '
-            '"always-ask|before-changes|important-only|unknown"',
-            self.browser_protocol,
-        )
-        self.assertIn("Settings > Apps", self.readme)
-        self.assertIn(
-            "Observed ChatGPT connected-app permission mode",
-            self.final_evidence,
-        )
-
-    def test_ledger_and_final_report_audit_redundant_prompts(self) -> None:
-        self.assertIn('"authorization_closure": {', self.browser_protocol)
-        self.assertIn(
-            '"redundant_agent_permission_prompts": 0',
-            self.browser_protocol,
-        )
-        self.assertIn("## Authorization Closure", self.final_evidence)
-        self.assertIn(
-            "Agent-generated permission questions after confirmation: `0`",
-            self.final_evidence,
-        )
+            with self.subTest(state=state):
+                self.assertIn(state, self.final)
 
 
 if __name__ == "__main__":

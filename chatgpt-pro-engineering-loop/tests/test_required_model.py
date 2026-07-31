@@ -23,7 +23,7 @@ class RequiredModelPolicyTests(unittest.TestCase):
         cls.brief = (
             SKILL_ROOT / "references" / "task-brief-template.md"
         ).read_text(encoding="utf-8")
-        cls.final_evidence = (
+        cls.final = (
             SKILL_ROOT / "references" / "final-evidence-template.md"
         ).read_text(encoding="utf-8")
         cls.readme = (SKILL_ROOT / "README.md").read_text(encoding="utf-8")
@@ -37,7 +37,7 @@ class RequiredModelPolicyTests(unittest.TestCase):
             self.model_gate,
             self.contract,
             self.brief,
-            self.final_evidence,
+            self.final,
             self.readme,
             self.metadata,
         ):
@@ -47,58 +47,50 @@ class RequiredModelPolicyTests(unittest.TestCase):
         self.assertIn("Fallback allowed: `false`", self.model_gate)
         self.assertIn("Model fallback allowed: `false`", self.contract)
         self.assertIn("Model fallback allowed: `false`", self.brief)
-        self.assertIn("Fallback allowed: `false`", self.final_evidence)
-        self.assertIn("fallback_allowed", self.browser)
+        self.assertIn("Fallback allowed: `false`", self.final)
         self.assertIn('"fallback_allowed": false', self.browser)
 
-    def test_model_gate_precedes_transport_and_source_handoff(self) -> None:
-        compact_skill = " ".join(self.skill.split())
-        model_gate_phase = self.skill.index(
-            "## Phase 2A — Open Conversations And Pass The Model Gate"
+    def test_model_gate_precedes_transport_and_github_mutation(self) -> None:
+        model_phase = self.skill.index(
+            "## Phase 2 — Pass The Model And Secret Gates"
         )
-        transport_phase = self.skill.index("## Phase 3 — Select The Transport")
-        bundle_phase = self.skill.index("## Phase 4 — Prepare A Safe Bundle Handoff")
+        transport_phase = self.skill.index(
+            "## Phase 3 — Select The Fast Transport"
+        )
+        github_phase = self.skill.index(
+            "## Phase 4 — Establish The GitHub Task"
+        )
         dispatch_phase = self.skill.index(
-            "## Phase 6 — Dispatch Once And Preserve Recovery State"
+            "## Phase 6 — Dispatch The Engineering Brief Once"
         )
-
-        self.assertLess(model_gate_phase, transport_phase)
-        self.assertLess(model_gate_phase, bundle_phase)
-        self.assertLess(model_gate_phase, dispatch_phase)
+        self.assertLess(model_phase, transport_phase)
+        self.assertLess(model_phase, github_phase)
+        self.assertLess(model_phase, dispatch_phase)
         self.assertIn(
-            "Create no Issue, branch, commit, push, Draft PR, source archive, "
-            "upload, or task message",
-            compact_skill,
+            "Before creating a task branch, packaging source, mentioning the repository",
+            " ".join(self.skill.split()),
         )
 
-    def test_stable_conversation_url_is_recorded_only_after_dispatch(self) -> None:
-        self.assertIn("record `conversation_url: null`", self.skill)
+    def test_stable_conversation_url_is_recorded_after_dispatch(self) -> None:
+        self.assertIn("stable conversation URL", self.skill)
         self.assertIn(
             "do not invent a stable conversation URL", self.model_gate
         )
         self.assertIn('"conversation_url": null', self.model_gate)
         self.assertIn('"url": null', self.browser)
-        self.assertIn(
-            "Wait for the resulting stable conversation URL and save it immediately.",
-            self.browser,
-        )
-        self.assertIn(
-            "wait for the resulting stable conversation URL and save it immediately",
-            self.skill,
-        )
+        self.assertIn("Save the stable conversation URL", self.browser)
 
     def test_picker_policy_accepts_only_documented_pro_mapping(self) -> None:
-        compact_model_gate = " ".join(self.model_gate.split())
+        compact = " ".join(self.model_gate.split())
         for label in ("Pro Extended", "Pro Standard", "`Pro`"):
             with self.subTest(label=label):
                 self.assertIn(label, self.model_gate)
 
         self.assertIn(
-            "only when the current documentation still maps the visible "
-            "choice to `GPT-5.6 Sol Pro`",
-            compact_model_gate,
+            "only when the current documentation still maps the visible choice "
+            "to `GPT-5.6 Sol Pro`",
+            compact,
         )
-
         for rejected in (
             "`5.6 Sol Light`",
             "Medium, High, or Extra High",
@@ -110,30 +102,13 @@ class RequiredModelPolicyTests(unittest.TestCase):
             with self.subTest(rejected=rejected):
                 self.assertIn(rejected, self.model_gate)
 
-        self.assertIn(
-            "If the current surface lacks an eligible Pro choice but another visible "
-            "surface offers one, switch to the eligible surface",
-            " ".join(self.model_gate.split()),
-        )
-        self.assertIn(
-            "A Work surface showing Extra High must yield to an eligible "
-            "Chat surface showing Pro",
-            " ".join(self.skill.split()),
-        )
-
-    def test_account_tier_and_nearby_model_are_not_evidence(self) -> None:
+    def test_account_tier_and_nearby_models_are_not_evidence(self) -> None:
         self.assertIn("Account tier alone is not evidence.", self.model_gate)
         self.assertIn(
             "A generic GPT-5.6 label alone is not evidence.", self.model_gate
         )
-        self.assertIn(
-            "The account says Pro, so the conversation must be using the Pro model.",
-            self.skill,
-        )
-        self.assertIn(
-            "Extra High or Sol Light is still GPT-5.6, so it is close enough.",
-            self.skill,
-        )
+        self.assertIn("A Pro account\nbadge", self.skill)
+        self.assertIn("Medium, High, Extra High", self.skill)
 
     def test_recovery_requires_a_fresh_model_check(self) -> None:
         for event in (
@@ -144,13 +119,9 @@ class RequiredModelPolicyTests(unittest.TestCase):
         ):
             with self.subTest(event=event):
                 self.assertIn(event, self.model_gate)
+        self.assertIn("rerun the model gate", self.browser)
 
-        self.assertIn(
-            "rerun the model gate; stop without sending a continuation if it fails",
-            self.browser,
-        )
-
-    def test_model_evidence_is_carried_through_the_run(self) -> None:
+    def test_model_evidence_is_preserved(self) -> None:
         for field in (
             '"required": "GPT-5.6 Sol Pro"',
             '"surface"',
@@ -162,10 +133,10 @@ class RequiredModelPolicyTests(unittest.TestCase):
         ):
             with self.subTest(field=field):
                 self.assertIn(field, self.browser)
-
-        self.assertIn("## External Model Gate", self.final_evidence)
-        self.assertIn("Model verification time and official mapping source", self.brief)
-        self.assertIn("Required-model failure behavior", self.contract)
+        self.assertIn("External Conversation And Model", self.final)
+        self.assertIn(
+            "Model verification time and official mapping source", self.brief
+        )
 
 
 if __name__ == "__main__":

@@ -2,128 +2,92 @@
 
 ## Confirmed Execution Contract
 
-- Contract version:
+- Contract version and approval evidence:
 - Confirmed requirement and acceptance scope:
-- Approval evidence:
-- Later revisions and reconfirmations:
-- Deviations from the confirmed contract:
+- Deviations, revisions, and reconfirmations:
+- Authorization closure status:
 
-## Authorization Closure
+## External Conversation And Model
 
-- Contract SHA-256:
-- Closure status:
-- Repository, external account, and destinations:
-- Approved data and edit scope:
-- Allowed local, browser, source-transmission, and GitHub operations:
-- Observed ChatGPT connected-app permission mode:
-- Agent-generated permission questions after confirmation: `0` / list and
-  explain each non-compliant repeat.
-- Native product/tool confirmation or authentication handoffs:
-
-## External Conversations
-
-| Task | Purpose | Conversation URL | Final status |
-|---|---|---|---|
-| ... | ... | ... | passed/blocked |
-
-## External Model Gate
-
+- Conversation URL:
 - Required underlying model: `GPT-5.6 Sol Pro`
 - Fallback allowed: `false`
-- Current official mapping source and check time:
+- Chat surface, picker label, official mapping source, and verification time:
+- Recovery model checks:
+- Native connected-app approval handoffs:
 
-| Task | Event | Surface | Visible picker label | Mapped underlying model | Verified at | Result |
-|---|---|---|---|---|---|---|
-| ... | conversation-created/pre-dispatch/recovery | Chat/Work | ... | ... | ... | passed/blocked |
+## Transport And Actors
 
-State whether any source packaging, source transmission, task dispatch, or
-GitHub task mutation occurred before the first passing model check. If the
-answer is yes, report the run as non-compliant.
+- Decision: `READY_GITHUB` / `READY_HANDOFF_BRANCH` / `READY_BUNDLE` /
+  `BLOCKED_AUTH` / `BLOCKED`
+- Codex manager operations actually performed:
+- ChatGPT Pro operations actually performed:
+- Bundle or handoff operations actually performed:
+- Explicitly forbidden operations that remained untouched:
 
-## Transport And Authority
-
-- Requested transport:
-- Selected transport:
-- GitHub source-access authority:
-- Authorized GitHub mutations:
-- Bundle-upload authority:
-- Explicitly forbidden operations:
-
-## Source Handoff Baseline
+## GitHub Source Identity
 
 - Repository:
-- Branch:
-- Commit:
-- Dirty baseline:
-- Dirty-state digest:
-
-For GitHub:
-
-- Issue URL:
-- Draft PR URL:
-- Target base branch:
-- Base SHA:
-- Head SHA:
+- Base branch and SHA:
+- Task branch and creator:
+- Current head SHA:
 - Commit inventory:
 - Changed-file inventory:
-- Diff bytes:
-- Diff SHA-256:
+- Draft PR URL:
+- Diff bytes and SHA-256:
 
 For bundle:
 
-- ZIP filename:
-- ZIP bytes:
-- ZIP SHA-256:
-- Included scope:
-- Excluded scope:
-- Secret scan:
+- ZIP filename, bytes, SHA-256, included scope, excluded scope, and secret scan:
 
-## External Deliverables
+## Secret And Live-Validation Boundary
 
-| Artifact | Claimed bytes/hash | Local bytes/hash | Result |
-|---|---|---|---|
-| ... | ... | ... | match/mismatch |
+- Credential class:
+- Public configuration supplied to Pro:
+- Secret storage or injection surface:
+- Credentialed checks run by Codex:
+- Secret-bearing CI or production operations:
+- Redaction limitations and unresolved risks:
 
-## Actual Local Changes
+State explicitly that no secret value entered ChatGPT, Git, PR content,
+attachments, or evidence logs, or report the leak response if that statement
+is false.
+
+## Actual Changes And Corrections
 
 - Behavior implemented:
 - Important files:
-- Dependency or lock-file changes:
-- Migrations or configuration changes:
-- Scope intentionally left unchanged:
+- Dependency, lock-file, workflow, migration, or configuration changes:
+- Scope intentionally unchanged:
 
-## Corrections Requested From ChatGPT Pro
-
-| Round | Evidence supplied | Requested correction | Retest result |
-|---|---|---|---|
-| ... | ... | ... | ... |
+| Round | Redacted evidence supplied | Requested correction | New head | Retest |
+|---|---|---|---|---|
+| ... | ... | ... | ... | ... |
 
 ## Independent Verification
 
-| Gate | Command or check | Result | Evidence |
+| Gate | Command or check | Result | Evidence and limits |
 |---|---|---|---|
+| Diff/security review | ... | pass/fail | ... |
 | Lint | ... | pass/fail/not run | ... |
 | Typecheck | ... | pass/fail/not run | ... |
 | Unit | ... | pass/fail/not run | ... |
-| Contract | ... | pass/fail/not run | ... |
+| Contract/live integration | ... | pass/fail/not run | sandbox/mock/real |
 | Build | ... | pass/fail/not run | ... |
-| E2E/browser | ... | pass/fail/not run | ... |
+| E2E/browser | ... | pass/fail/not run | local/deployed |
 
-Distinguish real services and deployed environments from mocks, fixtures, static analysis, and local simulations.
+Do not collapse mocks, fixtures, local checks, deployed checks, and production
+verification into one status.
 
-## Unverified Risks And Blockers
+## Unverified Risks And Repository State
 
-- ...
-
-## Repository State
-
-- Local modifications: yes/no
-- Commit created: yes/no and SHA
-- Pushed: yes/no and remote branch
-- Issue: yes/no and URL
-- Draft pull request: yes/no and URL
-- Merged: yes/no and merge SHA
-- Deployed: yes/no and environment
-- Production verified: yes/no and evidence
+- Remaining risks and blockers:
+- Local modifications:
+- Local commit:
+- Remote task branch and pushed commits:
+- Draft PR:
+- Merged:
+- Deployed:
+- Production verified:
 
 Never report a later state unless that action actually succeeded in this run.

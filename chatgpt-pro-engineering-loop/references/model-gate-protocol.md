@@ -17,7 +17,7 @@ maps them to `GPT-5.6 Sol Pro`.
 
 ## Current Official Mapping
 
-Checked 2026-07-30:
+Checked 2026-07-31:
 
 - OpenAI's GPT-5.6 ChatGPT documentation maps the `Pro` picker choice to
   `GPT-5.6 Sol Pro`.
