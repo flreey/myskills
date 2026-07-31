@@ -35,6 +35,18 @@ class ExecutionContractPolicyTests(unittest.TestCase):
         cls.metadata = (SKILL_ROOT / "agents" / "openai.yaml").read_text(
             encoding="utf-8"
         )
+        cls.run_state = (SKILL_ROOT / "scripts" / "run_state.py").read_text(
+            encoding="utf-8"
+        )
+
+    def test_resume_discovery_precedes_new_contract_creation(self) -> None:
+        resume_phase = self.skill.index("## Phase -1 — Resolve An Existing Run First")
+        contract_phase = self.skill.index("## Phase 0 — Draft One Execution Contract")
+        self.assertLess(resume_phase, contract_phase)
+        self.assertIn("Resume before creating", self.skill)
+        self.assertIn("NEW_TASK", self.skill)
+        self.assertIn("AMBIGUOUS", self.skill)
+        self.assertIn("LOCKED", self.skill)
 
     def test_contract_confirmation_precedes_mutating_workflow(self) -> None:
         contract_phase = self.skill.index("## Phase 0 — Draft One Execution Contract")
@@ -74,6 +86,25 @@ class ExecutionContractPolicyTests(unittest.TestCase):
         ):
             with self.subTest(heading=heading):
                 self.assertIn(heading, self.template)
+        self.assertIn("exact edit scope, and concurrency limit", self.template)
+
+    def test_conversation_identity_is_not_the_physical_tab(self) -> None:
+        self.assertIn(
+            "conversation ID, not the physical browser tab", self.browser
+        )
+        self.assertIn("https://chatgpt.com/c/<conversation-id>", self.browser)
+        self.assertIn("A root `/` URL means", self.browser)
+        self.assertIn("CONVERSATION_URL_NOT_STABLE", self.run_state)
+
+    def test_concurrency_and_lease_boundaries_are_explicit(self) -> None:
+        self.assertIn("at most two active code-changing", self.skill)
+        self.assertIn("no more than two active", self.browser)
+        self.assertIn("non-overlapping edit scopes", self.github)
+        self.assertIn("最多两个", self.readme)
+        self.assertIn("DEFAULT_MAX_CODE_TASKS = 2", self.run_state)
+        self.assertIn("CONCURRENCY_BLOCKED", self.run_state)
+        self.assertIn("takeover", self.skill.lower())
+        self.assertIn("lease_history", self.run_state)
 
     def test_one_confirmation_creates_authorization_closure(self) -> None:
         self.assertIn("authorization closure", self.skill)

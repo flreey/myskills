@@ -19,6 +19,7 @@ ChatGPT Pro is the branch developer:
 
 - reads only the assigned repository and task scope;
 - commits only to the assigned task branch;
+- never reads, modifies, or comments on another active task's branch;
 - reports head SHA, commits, files, tests, and limitations;
 - adds correction commits without rewriting observed history;
 - does not create an Issue by default, manage secrets, merge, deploy, or change
@@ -83,6 +84,12 @@ codex/chatgpt-pro/<task-id>
 
 Codex creates it from the exact recorded base SHA before dispatch. Verify the
 resulting ref before telling Pro to modify it.
+
+For concurrent work, every code-changing task has a distinct task branch and
+registry-approved non-overlapping edit scopes. Different branch names do not
+make overlapping files safe. Serialize tasks that share a parent/child scope,
+dependency or lock file, workflow, migration, schema, generated contract, or
+public interface.
 
 If Codex cannot create the branch but Pro's live action surface can, Pro may
 create the exact pre-authorized branch from the exact base SHA. Record the

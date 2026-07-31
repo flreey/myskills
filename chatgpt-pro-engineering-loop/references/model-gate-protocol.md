@@ -133,6 +133,8 @@ prior model evidence, then apply the fail-closed result.
 }
 ```
 
-A stable conversation URL is recorded immediately after the first task message
-creates it. Private conversation URLs remain in the persistent local run
-ledger, not in a public validation report.
+A stable conversation URL is recorded only after the first task message changes
+the route to `/c/<conversation-id>`. Strip query and fragment components and
+persist the canonical URL plus conversation ID. Never record the ChatGPT root
+URL as a conversation. Private conversation URLs remain in the persistent
+local run registry, not in a public validation report.

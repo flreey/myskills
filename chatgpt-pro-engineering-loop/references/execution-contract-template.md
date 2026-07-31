@@ -11,6 +11,7 @@ lines with three to seven acceptance criteria.
 - Target repository, account, and external destinations:
 - Material repository evidence and user changes to preserve:
 - Proposed scope, non-goals, and technical defaults:
+- Task ID, `code`/`review` mode, exact edit scope, and concurrency limit:
 - Required external model: `GPT-5.6 Sol Pro`; Model fallback allowed: `false`
 ## Acceptance And Verification
 

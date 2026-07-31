@@ -28,6 +28,7 @@ Fill every required field and remove placeholders before dispatch.
 - Base branch and exact base SHA:
 - Assigned task branch:
 - Allowed file scope:
+- Concurrent tasks and explicitly non-overlapping boundaries:
 - Current Pro GitHub capability:
 - Explicitly forbidden remote operations:
 
@@ -87,6 +88,8 @@ For GitHub:
 Codex creates the Draft PR after the first valid commit. Pro must not create an
 Issue, PR, merge, force-push, branch deletion, release, deployment, secret, or
 repository-setting change unless the brief explicitly overrides that boundary.
+Pro must not inspect, modify, or comment on another task's branch or
+conversation.
 
 For bundle:
 

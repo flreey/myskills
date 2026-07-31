@@ -72,13 +72,14 @@ class RequiredModelPolicyTests(unittest.TestCase):
         )
 
     def test_stable_conversation_url_is_recorded_after_dispatch(self) -> None:
-        self.assertIn("stable conversation URL", self.skill)
+        self.assertIn("/c/<conversation-id>", self.skill)
         self.assertIn(
             "do not invent a stable conversation URL", self.model_gate
         )
         self.assertIn('"conversation_url": null', self.model_gate)
-        self.assertIn('"url": null', self.browser)
-        self.assertIn("Save the stable conversation URL", self.browser)
+        self.assertIn('"canonical_url": "https://chatgpt.com/c/', self.browser)
+        self.assertIn("A root `/` URL means", self.browser)
+        self.assertIn("bind-conversation", self.browser)
 
     def test_picker_policy_accepts_only_documented_pro_mapping(self) -> None:
         compact = " ".join(self.model_gate.split())

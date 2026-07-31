@@ -18,6 +18,12 @@ description: Use when the user explicitly asks Codex Desktop to delegate substan
   source, or a sanitized bundle when the source must not be published.
 - Secret transport: none. Secret values never enter ChatGPT, Git, Issues, PRs,
   comments, attachments, or evidence logs.
+- Recovery identity: one task maps to one persistent run, one ChatGPT
+  conversation ID, one task branch, one Draft PR, and one isolated worktree.
+- Concurrency: default maximum two non-overlapping code-changing tasks per
+  repository. Browser actions are serialized; Pro generations may overlap.
+- Registry locking: current implementation uses POSIX `fcntl`, validated on
+  macOS. Rework the locking backend before claiming native Windows support.
 - Live proof: on 2026-07-31, the signed-in Pro surface created a branch and a
   one-file commit in `flreey/myskills` through the GitHub plugin after one
   native approval. This proves that account/repository pair only; another
@@ -45,6 +51,9 @@ Use four separate planes:
 4. **Secret plane** — local environment, secret manager, or gated CI only;
    never ChatGPT or repository content.
 
+Resume before creating. A new physical browser tab is acceptable; a new
+ChatGPT conversation for an existing active task is not.
+
 Treat ChatGPT Pro as an untrusted external engineer. A polished report, a
 claimed test pass, or a green remote check does not replace local review and
 verification at the exact head SHA.
@@ -67,6 +76,32 @@ acceptance criteria and technical defaults instead of demanding a long user
 template. Ask only for authentication, a product-defining decision, sensitive
 data exposure, irreversible state, or expanded authority.
 
+## Phase -1 — Resolve An Existing Run First
+
+On every invocation, inspect the persistent registry with
+`scripts/run_state.py` before opening a blank ChatGPT conversation.
+
+Routing rules:
+
+- an explicit task ID or task branch selects that active run;
+- “continue”, “resume”, or a reply after authentication selects the only
+  matching active run;
+- more than one matching run is `AMBIGUOUS`; identify the task by ID or branch
+  instead of guessing;
+- `NEW_TASK` or a concrete new independent requirement proceeds to Phase 0,
+  but its edit scope and capacity must pass registry checks before dispatch;
+- completed, abandoned, or superseded runs never resume automatically.
+
+For `RESUME`, acquire the task lease, navigate to the saved canonical
+`https://chatgpt.com/c/<conversation-id>` URL, recheck the account and model,
+read the latest GitHub head, and continue from the recorded phase. Reuse an
+existing physical tab when convenient; otherwise open the canonical URL in a
+new tab. Never navigate to the ChatGPT root and call that recovery.
+
+For `LOCKED`, do not send a duplicate message. Take over an unexpired lease
+only when the user explicitly says the previous Codex task was interrupted or
+must be replaced. Record every takeover.
+
 ## Phase 0 — Draft One Execution Contract
 
 Before source transmission, GitHub mutation, persistent run state, local
@@ -84,6 +119,7 @@ acceptance criteria. It must identify:
 - exact local verification commands and evidence limits;
 - required model `GPT-5.6 Sol Pro` with no fallback;
 - requested transport `auto`;
+- task ID, code/review mode, exact edit scope, and concurrency limit;
 - GitHub collaboration, optional reviewed handoff branch, and sanitized bundle
   fallback authority;
 - secret classification: `none`, `interface-only`, `local-test`, `ci-test`, or
@@ -137,6 +173,13 @@ Never clean, reset, stash, rebase, or hide user work.
 
 ## Phase 2 — Pass The Model And Secret Gates
 
+After contract confirmation, initialize the persistent run with
+`scripts/run_state.py init`. Code-changing tasks require explicit
+repository-relative edit scopes. Default to at most two active code-changing
+tasks per repository. The script blocks a third task and any exact or
+parent/child scope overlap. Review-only conversations do not consume code-task
+capacity.
+
 Before creating a task branch, packaging source, mentioning the repository in
 ChatGPT, or dispatching the task, follow
 [references/model-gate-protocol.md](references/model-gate-protocol.md).
@@ -144,11 +187,12 @@ ChatGPT, or dispatching the task, follow
 The gate passes only when the selected Chat surface and documented picker
 mapping prove the underlying model is exactly `GPT-5.6 Sol Pro`. A Pro account
 badge, generic GPT-5.6 label, Medium, High, Extra High, or Work model is not
-enough.
+enough. Persist each pre-dispatch and recovery check with
+`scripts/run_state.py record-model`.
 
-Create one blank conversation per independent task. Default to one active
-code-changing conversation. Multiple conversations are allowed only when their
-branches and edit scopes do not overlap; review-only conversations may overlap.
+Create a blank conversation only for a newly initialized run. Each independent
+task receives a distinct conversation and branch. A task may never read,
+modify, or correct another active task's branch or conversation.
 
 Classify credential needs using
 [references/secrets-and-live-validation.md](references/secrets-and-live-validation.md):
@@ -261,12 +305,16 @@ commit. For bundle mode, require a downloadable patch or changed-files archive
 with size and SHA-256. A conversation code block alone is provisional.
 
 Use [references/browser-and-recovery-protocol.md](references/browser-and-recovery-protocol.md).
-Send the brief once, save the stable conversation URL after dispatch, and
-record the model, baseline, branch or bundle identity, and dispatch time.
+Send the brief once. Wait until ChatGPT changes the route from `/` to
+`/c/<conversation-id>`, remove query and fragment components, and persist the
+canonical URL with `scripts/run_state.py bind-conversation`. A root URL is not
+recoverable evidence. Record the model, baseline, branch or bundle identity,
+and dispatch time.
 
 When the native GitHub prompt appears, ask the user to approve it in the
 browser. Recommend conversation-scoped approval for a personal workflow; do
-not select a broader persistent permission on the user's behalf.
+not select a broader persistent permission on the user's behalf. Persist
+`awaiting-auth` and release the task lease before yielding to the user.
 
 ## Phase 7 — Observe And Recover
 
@@ -278,6 +326,11 @@ control, or authentication requirement.
 Recover the saved conversation from the last completed heading. After a
 reconnect, replacement conversation, visible model change, or availability
 warning, rerun the model gate before sending more repository context.
+
+Multiple Pro generations may run concurrently, but Codex performs browser
+actions and exact-head acceptance one task at a time. Renew the lease while
+acting. Release it before yielding to the user or when no immediate manager
+action remains. Never hold one global browser lock across all tasks.
 
 Track GitHub progress through repository state when possible; use the browser
 for task communication, native approvals, and recovery. A changed branch head
@@ -353,6 +406,9 @@ and report separately:
 - remaining risks;
 - local modification, commit, push, PR, merge, deploy, and production states.
 
+Mark the run `completed`, `abandoned`, or `superseded` and release its lease.
+Terminal runs remain auditable but are excluded from automatic recovery.
+
 Keep valuable sanitized evidence in the repository only when it has future
 engineering value. Private conversation URLs, local paths, secret metadata,
 source archives, and credentials stay outside the repository.
@@ -371,3 +427,7 @@ source archives, and credentials stay outside the repository.
 | “Full Access should suppress the GitHub prompt.” | Full Access is local; hand the native connected-app approval to the user. |
 | “The fix is small, so force-push is harmless.” | Require additive commits and preserve every observed head identity. |
 | “The implementation is done, so merge it.” | Stop at a validated Draft PR unless merge is separately authorized. |
+| “A new Codex request needs a new ChatGPT chat.” | Resolve the active run and navigate to its canonical `/c/<conversation-id>` URL. |
+| “The address bar only shows chatgpt.com, so the conversation has no ID.” | Wait for the `/c/<conversation-id>` route and persist the canonical URL; reject `/`. |
+| “Separate tabs make overlapping edits safe.” | Require distinct branches and non-overlapping edit scopes; serialize shared files and dependencies. |
+| “The lease is inconvenient, so take it over.” | Respect the active owner; take over only after an explicit interruption/replacement request and record it. |

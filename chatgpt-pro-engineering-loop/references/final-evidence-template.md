@@ -9,7 +9,9 @@
 
 ## External Conversation And Model
 
-- Conversation URL:
+- Task ID and terminal run status:
+- Conversation ID and canonical `/c/<id>` URL:
+- Resume, lease, or takeover events:
 - Required underlying model: `GPT-5.6 Sol Pro`
 - Fallback allowed: `false`
 - Chat surface, picker label, official mapping source, and verification time:
@@ -18,6 +20,7 @@
 
 ## Transport And Actors
 
+- Code/review mode, edit scope, and concurrent-task boundaries:
 - Decision: `READY_GITHUB` / `READY_HANDOFF_BRANCH` / `READY_BUNDLE` /
   `BLOCKED_AUTH` / `BLOCKED`
 - Codex manager operations actually performed:
