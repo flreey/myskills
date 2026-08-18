@@ -1,4 +1,4 @@
 interface:
   display_name: "Project Truth"
-  short_description: "Drive capability work from verified project truth"
-  default_prompt: "Use $project-truth to inspect this repository and continue the next verified capability step."
+  short_description: "Initialize and drive work from verified project truth"
+  default_prompt: "Use $project-truth to inspect or initialize this repository and continue the next safe, verified capability step."

@@ -1,72 +1,93 @@
 ---
 name: project-truth
-description: Use when a repository contains .project-truth/project.yaml and the user asks to inspect, implement, verify, review, or continue product capabilities, or explicitly mentions Project Truth, capability truth, receipts, coverage, or the truth dashboard. Drive work from validated machine state, record real evidence through the pinned CLI, rebuild the offline dashboard, and stop at authority, manual-acceptance, Git, deployment, or other external-action boundaries.
+description: Use to initialize Project Truth in a new or existing Git repository, inspect capability status, update reviewed authority, implement or continue capabilities, record receipts, handle human acceptance, and rebuild the truth dashboard. Trigger when the user invokes $project-truth, asks what is complete or next, or mentions Project Truth, capability truth, authority, criteria, receipts, coverage, or the truth dashboard. Drive work from validated machine state and stop at authority approval, manual acceptance, Git, deployment, and other external-action boundaries.
 ---
 
 # Project Truth
 
-Treat Project Truth as a deterministic engine and this Skill as its AI workflow adapter. Read
-machine output; do not scrape the HTML dashboard or recompute truth in the model.
+Use one `$project-truth` entry point for the complete truth lifecycle. Treat Project Truth as the
+deterministic engine and this Skill as its workflow router. Read machine output; never scrape the
+HTML dashboard or recompute truth in the model.
 
-## Locate the project
+## Inspect first
 
-Resolve this Skill directory and invoke bundled scripts by absolute path.
-
-1. Find the nearest ancestor containing `.project-truth/project.yaml`.
-2. If none exists, report that Project Truth is not initialized. `ptruth init` writes files, so
-   propose its scope and wait for confirmation before running it.
-3. Run the read-only context command before planning or reporting capability work:
+Resolve this Skill directory and run the same read-only command for every invocation:
 
 ```bash
 python3 <skill-dir>/scripts/truth-context.py --root <repository>
 ```
 
-The command validates authority and emits compact JSON from `ptruth status --json`. Treat an
-invalid authority file, unsupported schema, Git error, or malformed output as a blocker.
+Route by its schema:
 
-## Choose the workflow
+- `project-truth/bootstrap-context@1`: the Git repository is uninitialized. Read
+  [initialization-workflow.md](references/initialization-workflow.md) and follow it.
+- `project-truth/skill-context@1`: authority is initialized and validated. Continue from its work
+  queue and the user's intent.
+- Command failure: report the exact validation, schema, Git, or engine blocker; do not guess.
 
-- For explanation, status, review, or planning requests, remain read-only and report the compact
-  context. Do not write receipts or rebuild artifacts unless requested.
-- For an existing Capability implementation, select one reviewed criterion or one explicit
-  user-selected slice. Read its authority YAML and resolved binding paths before editing code.
-- For a missing Capability, missing criterion, or `NO_REQUIRED_CRITERIA`, propose an authority
-  change with bindings and observable acceptance behavior. Wait for confirmation; do not invent
-  authority merely to make current code appear complete.
-- For `MANUAL`, `CONFLICT`, or an authority mismatch, stop at the corresponding human review.
+If the user invokes only `$project-truth`, inspect and continue the next safe step. Stay read-only
+when the next step requires confirmation.
 
-Read [evidence-boundaries.md](references/evidence-boundaries.md) before any state-changing
-Project Truth command.
+## Route the lifecycle
 
-## Implement against authority
+Use Project Truth as the control and evidence layer, not as a replacement for specialist process
+Skills.
 
-1. Preserve the project's own planning, testing, and permission rules.
-2. Keep the change inside the selected Capability bindings and confirmed impact surface.
+| Situation | Action |
+| --- | --- |
+| Uninitialized repository | Assess, propose parameters and Authority scope, dry-run, then wait |
+| Explanation, status, or review | Report compact machine context without writing |
+| Missing Product mapping, Capability, criterion, or required dimension | Propose a versioned Authority change and wait |
+| Reviewed actionable criterion | Select one slice and use the project's matching implementation flow |
+| Product failure or runtime mismatch | Use the matching investigation flow before rerunning evidence |
+| `MANUAL` or `CONFLICT` | Stop for the required human decision or evidence-source review |
+| New evidence or confirmed Authority change | Rebuild state and Dashboard, then reread context |
+
+For implementation, preserve repository instructions and choose only one matching primary process
+Skill for the current stage. Project Truth retains ownership of Capability selection, Authority,
+bindings, criteria, Receipts, and final truth reporting.
+
+## Change Authority carefully
+
+Read the current Product Intent, Journeys, Features, Outcomes, Capabilities, criteria, and resolved
+binding paths before proposing an update. Describe observable behavior and affected paths. Never
+invent Authority to make current code appear complete.
+
+Wait for confirmation before creating or changing Authority files. Keep new definitions
+`proposed` until the human reviews their meaning. When semantics change, increment the applicable
+definition, criterion, or binding version; allow previous evidence to become stale.
+
+Read [evidence-boundaries.md](references/evidence-boundaries.md) before any state-changing Project
+Truth command.
+
+## Implement against Authority
+
+1. Select one reviewed criterion or one explicit user-selected slice.
+2. Keep changes inside confirmed bindings and impact surface.
 3. Establish the required public-seam test before behavior-changing implementation.
-4. Run focused validation during implementation, but do not call ordinary test output a Project
-   Truth PASS.
-5. If implementation reveals that the authority is wrong or incomplete, stop and propose a
-   versioned authority correction instead of weakening the test or fabricating evidence.
+4. Run focused and regression validation, but do not call ordinary test output a Project Truth
+   PASS.
+5. If Authority is wrong or incomplete, stop and propose a versioned correction instead of
+   weakening tests or fabricating evidence.
 
 ## Record evidence
 
-For a confirmed command criterion, run the configured evaluator through the pinned engine:
+For a confirmed command criterion, use the pinned engine:
 
 ```bash
 <skill-dir>/scripts/ptruth run CAP-0001 AC-01 --root <repository>
 ```
 
-This command executes the authority-owned command and writes an immutable Receipt. Preserve its
-exit code and distinguish `PASS`, product failure, evaluator error, and configuration failure.
+Preserve the exit code and distinguish `PASS`, product failure, evaluator error, and configuration
+failure. Never write Receipt JSON manually. Never use `accept` or `reject` as an agent decision;
+run one only after the human explicitly supplies the decision and note in the current conversation.
 
-Never write Receipt JSON manually. Never use `accept` or `reject` to represent an agent decision.
-Run a manual command only after the human explicitly supplies the decision and note in the current
-conversation. Treat `revoke`, commit, push, deployment, publication, credentials, paid calls, and
-live-environment actions as separate authorization boundaries.
+Treat `revoke`, commit, push, deployment, publication, credentials, paid calls, live environments,
+and an engine pin upgrade as separate authorization boundaries.
 
 ## Rebuild and close the loop
 
-After new evidence or confirmed authority changes:
+After new evidence or confirmed Authority changes:
 
 ```bash
 <skill-dir>/scripts/ptruth status --root <repository> --json
@@ -74,16 +95,16 @@ After new evidence or confirmed authority changes:
 python3 <skill-dir>/scripts/truth-context.py --root <repository>
 ```
 
-Verify that standalone `state.json` and `coverage.json` validate and that the dashboard was built
-from the same state. Do not edit `.project-truth/generated/` or `.project-truth/logs/` directly.
+Verify standalone `state.json` and `coverage.json` and confirm the Dashboard was built from the
+same state. Never edit `.project-truth/generated/` or `.project-truth/logs/` directly.
 
 Report separately:
 
-- implemented behavior;
-- focused and regression tests;
-- newly recorded Receipt IDs and resulting criterion states;
+- implemented behavior and focused/regression tests;
+- Product Feature to Capability and criterion traceability, including derived Feature state;
+- Receipt IDs and resulting criterion states;
 - Dashboard/read-model build result;
-- manual, authority, dirty-worktree, discovery, Git, remote, or production boundaries still open.
+- remaining manual, Authority, dirty-worktree, discovery, Git, remote, or production boundaries.
 
-Do not describe local tests as committed, pushed, deployed, released, provider-verified, or
+Never describe local tests as committed, pushed, deployed, released, provider-verified, or
 production-verified evidence.

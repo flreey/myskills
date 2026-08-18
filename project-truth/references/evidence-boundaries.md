@@ -20,11 +20,12 @@ or the Dashboard appearance as stronger evidence than current authority, subject
 | --- | --- | --- |
 | `validate` | Reads and validates authority, evidence, bindings, and Git state | Read-only |
 | `status --json` | Derives current truth | Read-only |
+| `init --dry-run` | Lists the initial authority layout without creating it | Read-only |
 | `build` | Replaces only the configured generated artifact set | Local generated write |
 | `run` | Executes one authority-owned command and creates an immutable Receipt/log | Evidence write |
 | `accept` / `reject` | Records an explicit human decision | Human decision required |
 | `revoke` | Invalidates historical evidence without deleting it | Explicit authorization required |
-| `init` | Creates initial authority layout | Confirm scope before use |
+| `init` | Creates initial authority layout without overwriting non-empty content | Confirm the preview and scope before use |
 
 Commit, push, pull request, deployment, publication, database, credential, paid-provider, and live
 environment actions remain outside Project Truth command authorization.
@@ -51,7 +52,7 @@ may then become stale by design. Do not preserve a green Dashboard by retaining 
 a materially changed acceptance contract.
 
 The bundled runner pins Project Truth commit
-`8113d179c9782bb0a1cb640b11a5607ff27978a9`. Update the pin only after the new engine commit passes
+`bdd1fb1a04d6a2abc44fb1fca9d078157a851139`. Update the pin only after the new engine commit passes
 its full test suite and the Skill is forward-tested against its supported status schema.
 The first uncached invocation needs `uvx`, private-repository access, and network connectivity.
 After the exact revision is cached, the runner prefers an offline invocation and does not refresh

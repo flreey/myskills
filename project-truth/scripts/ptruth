@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_TRUTH_COMMIT="8113d179c9782bb0a1cb640b11a5607ff27978a9"
+PROJECT_TRUTH_COMMIT="bdd1fb1a04d6a2abc44fb1fca9d078157a851139"
 PROJECT_TRUTH_SOURCE="git+ssh://git@github.com/flreey/project-truth.git@${PROJECT_TRUTH_COMMIT}"
 
 if [[ "${1:-}" == "--skill-pin" ]]; then
