@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROJECT_TRUTH_COMMIT="8113d179c9782bb0a1cb640b11a5607ff27978a9"
+PROJECT_TRUTH_SOURCE="git+ssh://git@github.com/flreey/project-truth.git@${PROJECT_TRUTH_COMMIT}"
+
+if [[ "${1:-}" == "--skill-pin" ]]; then
+  printf '%s\n' "${PROJECT_TRUTH_COMMIT}"
+  exit 0
+fi
+
+if [[ -n "${PROJECT_TRUTH_UVX_BIN:-}" ]]; then
+  UVX_BIN="${PROJECT_TRUTH_UVX_BIN}"
+else
+  UVX_BIN="$(command -v uvx || true)"
+  if [[ -z "${UVX_BIN}" && -n "${HOME:-}" && -x "${HOME}/.local/bin/uvx" ]]; then
+    UVX_BIN="${HOME}/.local/bin/uvx"
+  fi
+fi
+
+if [[ -z "${UVX_BIN}" ]]; then
+  printf '%s\n' "project-truth: uvx is required but was not found" >&2
+  exit 127
+fi
+
+if "${UVX_BIN}" --offline --from "${PROJECT_TRUTH_SOURCE}" ptruth --help \
+  >/dev/null 2>&1; then
+  exec "${UVX_BIN}" --offline --from "${PROJECT_TRUTH_SOURCE}" ptruth "$@"
+fi
+
+exec "${UVX_BIN}" --from "${PROJECT_TRUTH_SOURCE}" ptruth "$@"

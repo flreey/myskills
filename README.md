@@ -20,6 +20,7 @@
 | [review-fix-push](./review-fix-push) | 轻量交付编排：当用户说“review 没问题就提交 push，有问题修到完成”时，先审查 staged/unstaged/untracked/未 push commits，全量修可判定问题并复验，再 commit + regular push；判断型问题才停下来问。 |
 | [ai-feature-delivery](./ai-feature-delivery) | 把业务级功能修改请求变成受控交付流程：先只读识别影响面、验收场景、non-goals 和验证计划，确认后再实现，最后输出验证证据与剩余风险。 |
 | [chatgpt-pro-engineering-loop](./chatgpt-pro-engineering-loop) | Codex Desktop 通过已登录的 ChatGPT Pro 委派复杂仓库任务：优先用独立 GitHub 任务分支 + Draft PR 交换代码，以持久 conversation ID 恢复中断任务，并在本地隔离验收；GitHub 不可用或源码不能发布时回退到安全源码包。 |
+| [project-truth](./project-truth) | 让 AI 从经过校验的 Capability、Receipt 和 Git 状态驱动实现：只读获取紧凑真相上下文，通过固定版本 CLI 记录真实证据，重建离线 Dashboard，并停在人工验收和外部动作边界。 |
 
 ## 📋 一键安装（直接复制粘贴）
 
@@ -38,6 +39,7 @@
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/review-fix-push
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/ai-feature-delivery
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/chatgpt-pro-engineering-loop
+帮我装这个 skill：https://github.com/flreey/myskills/tree/main/project-truth
 ```
 
 > **就这一行。** 现代 coding agent 已经原生理解 GitHub `tree/main/<subdir>` 这种子目录 URL + `SKILL.md` 标准 + skills 目录约定，不需要手把手写步骤。
