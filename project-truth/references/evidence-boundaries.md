@@ -52,7 +52,7 @@ may then become stale by design. Do not preserve a green Dashboard by retaining 
 a materially changed acceptance contract.
 
 The bundled runner pins Project Truth commit
-`bdd1fb1a04d6a2abc44fb1fca9d078157a851139`. Update the pin only after the new engine commit passes
+`b6aad0b0201b3d99033a68923958fb5f229685e8`. Update the pin only after the new engine commit passes
 its full test suite and the Skill is forward-tested against its supported status schema.
 The first uncached invocation needs `uvx`, private-repository access, and network connectivity.
 After the exact revision is cached, the runner prefers an offline invocation and does not refresh
