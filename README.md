@@ -21,6 +21,8 @@
 | [ai-feature-delivery](./ai-feature-delivery) | 把业务级功能修改请求变成受控交付流程：先只读识别影响面、验收场景、non-goals 和验证计划，确认后再实现，最后输出验证证据与剩余风险。 |
 | [chatgpt-pro-engineering-loop](./chatgpt-pro-engineering-loop) | Codex Desktop 通过已登录的 ChatGPT Pro 委派复杂仓库任务：优先用独立 GitHub 任务分支 + Draft PR 交换代码，以持久 conversation ID 恢复中断任务，并在本地隔离验收；GitHub 不可用或源码不能发布时回退到安全源码包。 |
 | [project-truth](./project-truth) | 让 AI 从经过校验的 Capability、Receipt 和 Git 状态驱动实现：只读获取紧凑真相上下文，通过固定版本 CLI 记录真实证据，重建离线 Dashboard，并停在人工验收和外部动作边界。 |
+| [search-demand-discovery](./search-demand-discovery) | 从免费来源（自动补全、Keyword Planner、Trends、Search Console、SERP 相关搜索、竞品 sitemap）构建有证据的关键词观测池：先自动调研再一次性选择题确认边界，种子递归扩展经 triage 把关，按轮次 yield 判断何时停止；关键词只来自外部观测，不编造需求。 |
+| [search-demand-mapper](./search-demand-mapper) | 把关键词池变成需求簇和页面决策：模型分批做语义归簇（稳定 ID、定义版本、合并/拆分谱系），修饰词默认是属性，按证据门槛决定 keep / improve / filter / create / defer，变更集经批准才写入页面注册表，并用 GSC 窗口复盘互抢排名、属性升级与下线。 |
 
 ## 📋 一键安装（直接复制粘贴）
 
@@ -40,6 +42,8 @@
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/ai-feature-delivery
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/chatgpt-pro-engineering-loop
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/project-truth
+帮我装这个 skill：https://github.com/flreey/myskills/tree/main/search-demand-discovery
+帮我装这个 skill：https://github.com/flreey/myskills/tree/main/search-demand-mapper
 ```
 
 > **就这一行。** 现代 coding agent 已经原生理解 GitHub `tree/main/<subdir>` 这种子目录 URL + `SKILL.md` 标准 + skills 目录约定，不需要手把手写步骤。
