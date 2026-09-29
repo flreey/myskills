@@ -19,15 +19,24 @@ Per seed per engine: quick sends 1–2 queries. Standard adds `prefixes + suffix
 question_templates`, about 9 queries in total by default. Deep adds 26 alphabet queries.
 
 Hosts run in parallel lanes: Google and YouTube share one lane because they share a host; Bing has
-its own. Each lane keeps its own 1–2 s delay, so the delay per host never drops. Network errors
-back off (5, 15, 45, 120, 300 s) before a source pauses; blocks pause at once. A budget stop is not
-saturation: rerun `suggest` in the same round and the cache skips everything already fetched.
+its own. Each lane reuses one HTTPS connection (through the environment's proxy when set) and
+waits a random 1–1.3 s between request starts (`delay_seconds`; the floor never drops below
+1 s). Network errors back off (5, 15, 45, 120, 300 s) before a source pauses; blocks pause at
+once. A budget stop is not saturation: rerun `suggest` in the same round and the cache skips
+everything already fetched.
 
-**Modifier gate.** When a seed's base queries return fewer than `modifier_gate_min_base` (5)
-distinct suggestions on an engine, its modifier queries are skipped for that engine. The seed is
-recorded as `gated` and counts as expanded; `--no-gate` overrides this. On SFXMint (66 seeds,
-2026-09-29) the gate skipped 21% of queries and lost 1.4% of unique keywords, almost all of them
-off-topic.
+**Modifier gate.** Modifier queries run in the measured yield order (`free`, `best`, `for`,
+`without`, `with`, `like`, `vs`) and are cut for a seed and engine in two cases:
+
+- **Thin base.** The seed's base queries returned fewer than `modifier_gate_min_base` (5)
+  distinct suggestions on that engine.
+- **Early stop.** The first `modifier_early_stop_after` (3) modifier queries found fewer than
+  `modifier_early_stop_min_new` (3) new keywords. Calibrated on SFXMint: about 12% fewer
+  modifier queries for 1.4% of unique keywords.
+
+Gated seeds are recorded in `gated` with the reason and count as expanded; `--no-gate` overrides
+this. On SFXMint (66 seeds, 2026-09-29) the thin-base gate alone skipped 21% of queries and lost
+1.4% of unique keywords, almost all of them off-topic.
 
 Deep expansion goes only to the `alpha_top_seeds` (default 20) seeds with the highest
 new-keywords-per-request after standard. The alphabet is where volume comes from, but it is also

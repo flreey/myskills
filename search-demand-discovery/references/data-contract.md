@@ -50,7 +50,7 @@ observations; readers take the latest period per source.
 
 ## seed@1
 
-`{id, text, aliases[], origin, ring, depth, parent_seed_id, evidence[], note, status, expanded{engine: [groups]}, gated{engine: {group, base_distinct, min}}, stats{engine: {requests, suggestions, new_keywords}}, added_run, added_at}`
+`{id, text, aliases[], origin, ring, depth, parent_seed_id, evidence[], note, status, expanded{engine: [groups]}, gated{engine: {group, reason: thin_base|early_stop, ...}}, stats{engine: {requests, suggestions, new_keywords, modifier_queries, modifier_new}}, added_run, added_at}`
 
 - `origin`: gsc | onsite | inventory | reviewed_concept | topdown | taxonomy | user
 - `status`: pending | active | exhausted | rejected | deferred | parked. `parked` seeds are known,

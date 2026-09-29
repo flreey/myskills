@@ -87,6 +87,9 @@ result set. Probing, not a fixed rule, decides how fine the entities get.
      "case").
    - Numbers stay in group names ("iphone 15"). In leaves, only numbers that the group also has
      survive.
+   - Particles stay at the end of a name and in keys ("game over", "power on", "fade in"); only
+     leading particles and pure function words are dropped. Dropping them once merged "8-bit game
+     over" into "8 bit game" on SFXMint.
    - Names that point at one group become aliases; names that point at several become parent
      candidates.
    - A leaf minus its modifier words collapses into its group when nothing else remains.
@@ -134,6 +137,11 @@ result set. Probing, not a fixed rule, decides how fine the entities get.
    `seed` decision with `--revise`. Stop when the remaining words are true synonyms. Otherwise a
    word like "hit" or "door" would pull unrelated keywords into one seed during concept
    extraction.
+
+6. **Re-consolidation keeps earlier work.** After a boundary or rule change, rerun `consolidate`.
+   Decisions carry over by row name, so only new or renamed rows come back as undecided.
+   `seed review` also lists `stale_seeds`: seeds whose source rows vanished because a renamed row
+   now covers them. Keep them, or retire them with `seed reject --text ...`.
 
 On SFXMint (2026-09-29), 8,042 legacy seeds consolidated to 668 candidate entities before probing.
 The detailed numbers are in [example-sfxmint.md](example-sfxmint.md).

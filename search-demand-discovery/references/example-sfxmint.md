@@ -98,12 +98,30 @@ Throughput (same machine and network, fresh seeds, no cache):
 | --- | --- |
 | Sequential | 0.73–0.77 |
 | Parallel lanes, delay measured end-to-start | 0.73 (no gain) |
-| Parallel lanes, delay measured start-to-start | 1.07 (about 1.4×) |
+| Parallel lanes, delay measured start-to-start (1–2 s) | 1.07 (about 1.4×) |
+| + persistent connections, 1–1.3 s delay, early stop | 1.65 (about 2.2×); early stop also skipped 9% of queries; no network errors in the run |
 
-Each host is still limited to one request per 1–2 s. The politeness delay, not the code, sets the
-ceiling: at about 1 request per second, 1,000 seeds at standard level (about 18,000 queries) take
-about 5 hours. Clean seeds to entity level and use Keyword Planner for breadth before scaling
+Each host is still limited to one request per 1–1.3 s. The politeness delay, not the code, sets the
+ceiling: at about 1.65 requests per second, 1,000 seeds at standard level (about 18,000 queries)
+take about 3 hours. Clean seeds to entity level and use Keyword Planner for breadth before scaling
 autocomplete.
+
+## Standard expansion of the consolidated seeds (2026-09-29)
+
+| | Old engine (all sources) | 341 entity seeds, standard |
+| --- | --- | --- |
+| Requests | 812 | 4,833 (plus 633 cache hits), 77 min at 1.0 req/s |
+| Distinct keywords | 3,976 | 10,231 |
+| Absent from the old DB | — | 8,513 (83%) |
+| New keywords without a sound word | — | 14% (mostly adjacent: how-to, music, platform IDs) |
+| Seeds with ≥ 30 new keywords / ≤ 3 | — | 150 / 3 |
+
+The old engine found 1,381 suggestion keywords that this run did not. They were traced to two
+causes: set names and generic words that were parked on purpose (dungeon traps, sets), and a
+consolidation bug. The stopword "over" merged "8-bit game over" into "8 bit game", so the
+"game over" seed disappeared. After the fix, re-consolidation carried 666 of 669 decisions forward
+and left 3 rows to decide. `stale_seeds` flagged the two seeds the bug had produced.
+
 
 ## Seed consolidation (2026-09-29)
 

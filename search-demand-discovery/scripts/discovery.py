@@ -11,6 +11,7 @@ import argparse
 import csv
 import gzip
 import hashlib
+import http.client
 import io
 import json
 import os
@@ -41,15 +42,17 @@ DEFAULT_CONFIG = {
         "level": "standard",
         "max_requests_per_run": 600,
         "max_seconds_per_run": 1800,
-        "delay_seconds": [1.0, 2.0],
+        "delay_seconds": [1.0, 1.3],
         "cache_ttl_days": 7,
         "max_depth": 2,
         "alpha_top_seeds": 20,
         "prefixes": ["free", "best"],
-        "suffixes": ["for", "vs", "without", "like", "with"],
+        "suffixes": ["for", "without", "with", "like", "vs"],
         "stop_yield": 0.02,
         "stop_rounds": 2,
         "modifier_gate_min_base": 5,
+        "modifier_early_stop_after": 3,
+        "modifier_early_stop_min_new": 3,
         "concept_min_count": 2,
         "triage_batch": 80,
     },
@@ -89,10 +92,14 @@ GENERIC_MODIFIERS = [
     "official", "cheap", "for free", "free download",
 ]
 STOPWORDS = set(
-    "a an the of for to in on with without and or vs versus by from at is are be what how why when "
+    "a an the of for to with without and or vs versus by from at is are be what how why when "
     "where which who do does did can could should i my your me you it its this that these those like "
-    "no not into onto over under about".split()
+    "into onto about".split()
 )
+# particles such as over/on/off/in/up/no change meaning ("game over", "fade in", "power off"); they stay
+# in entity keys and concept residuals. Only these pure function words are dropped from entity keys.
+ENTITY_STOP = set("a an the of for to with and or by from at into onto is are be my your its this that".split())
+LEADING_STOP = STOPWORDS | set("over under on off in out up down no not".split())  # leading particles carry no meaning
 SITEMAP_STOP = set(
     "category categories cat tag tags page pages p search download downloads en us uk de fr es it "
     "index html htm php amp www item items detail details product products".split()
@@ -550,9 +557,10 @@ def load_seed_review(p: Paths):
     rows = {r["name"]: r for r in rv["review"] + rv["no_signal"]}
     decided = {}
     for d in read_jsonl(p.d / "seed-review-decisions.jsonl"):
-        if d["review_hash"] == rv["review_hash"]:
-            for n in d["names"]:
-                decided[n] = d
+        # decisions carry over by row name when a re-consolidation changes the review; the latest wins
+        for n in d["names"]:
+            if n in rows:
+                decided[n] = dict(d, carried=d["review_hash"] != rv["review_hash"])
     return rv, rows, decided
 
 
@@ -563,9 +571,17 @@ def seed_review(p: Paths, args):
     todo.sort(key=lambda r: (-(r["signal"] > 0 or bool(r["signal_leaves"])), -r["items"], r["name"]))
     batch = todo[: args.limit] if args.limit else todo
     active = sorted(x["text"] for x in load_seeds(p) if x["status"] in ("pending", "active", "exhausted"))
+    sources = defaultdict(set)  # seed text -> rows that created it
+    for d in read_jsonl(p.d / "seed-review-decisions.jsonl"):
+        if d["action"] == "seed" and d.get("text"):
+            sources[d["text"]].update(d["names"])
+    stale = sorted(t for t in active if sources.get(t) and not sources[t] & set(rows))
     emit({
-        "review_hash": rv["review_hash"], "rows_total": len(rows), "decided": len(decided), "undecided": len(todo),
+        "review_hash": rv["review_hash"], "rows_total": len(rows), "decided": len(decided),
+        "carried_from_earlier_reviews": sum(1 for d in decided.values() if d.get("carried")), "undecided": len(todo),
         "actions": ["seed", "alias", "park", "out"],
+        "stale_seeds": {"seeds": stale, "how": "their source rows vanished after re-consolidation; keep them, "
+                        "or retire with `seed reject --text ...` when a renamed row now covers them"},
         "seeds_so_far": active,
         "rows": [{"name": r["name"], "kind": r["kind"], "signal": r["probe"], "items": r["items"],
                   "groups": len(r["groups"]), "aliases": r["aliases"][:30], "children": r["children"][:10],
@@ -741,25 +757,71 @@ def suggest_url(engine: str, q: str, market: dict) -> str:
     die(f"unknown engine {engine}")
 
 
-def fetch_suggest(engine: str, q: str, market: dict):
-    """Return (status, suggestions). status: ok | blocked | error."""
-    req = urllib.request.Request(suggest_url(engine, q, market))
-    try:
-        with urllib.request.urlopen(req, timeout=15) as r:
+class SuggestClient:
+    """One persistent HTTPS connection per host (through the environment's proxy when set).
+
+    Reusing the connection avoids a TLS handshake per request, which dominated latency through
+    proxies and caused most of the connection resets.
+    """
+
+    def __init__(self):
+        self.conns = {}
+
+    def _conn(self, host: str):
+        c = self.conns.get(host)
+        if c is None:
+            proxy = urllib.request.getproxies().get("https")
+            if proxy and not urllib.request.proxy_bypass(host):
+                pu = urllib.parse.urlparse(proxy if "://" in proxy else "http://" + proxy)
+                c = http.client.HTTPSConnection(pu.hostname, pu.port or 80, timeout=15)  # CONNECT tunnel via proxy
+                c.set_tunnel(host, 443)
+            else:
+                c = http.client.HTTPSConnection(host, 443, timeout=15)
+            self.conns[host] = c
+        return c
+
+    def close(self, host: str):
+        c = self.conns.pop(host, None)
+        if c:
+            c.close()
+
+    def fetch(self, engine: str, q: str, market: dict):
+        """Return (status, suggestions). status: ok | blocked | error."""
+        u = urllib.parse.urlparse(suggest_url(engine, q, market))
+        path = u.path + ("?" + u.query if u.query else "")
+        try:
+            c = self._conn(u.netloc)
+            c.request("GET", path, headers={"User-Agent": f"Python-urllib/{sys.version_info[0]}.{sys.version_info[1]}"})
+            r = c.getresponse()
             body = r.read()
             charset = r.headers.get_content_charset() or "utf-8"
-    except urllib.error.HTTPError as exc:
-        return ("blocked" if exc.code in (403, 429, 503) else "error"), f"HTTP {exc.code}"
-    except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        return "error", str(exc)
+            if r.status != 200:
+                if r.getheader("connection", "").lower() == "close":
+                    self.close(u.netloc)
+                return ("blocked" if r.status in (403, 429, 503) else "error"), f"HTTP {r.status}"
+            if r.getheader("connection", "").lower() == "close":
+                self.close(u.netloc)
+        except (http.client.HTTPException, OSError) as exc:
+            self.close(u.netloc)
+            return "error", str(exc) or exc.__class__.__name__
+        try:
+            data = json.loads(body.decode(charset, errors="replace"))
+            items = data[1]
+            if not isinstance(items, list):
+                raise ValueError("unexpected shape")
+        except (ValueError, IndexError, TypeError, json.JSONDecodeError):
+            return "blocked", "non-JSON response (consent page, captcha or format change)"
+        return "ok", [str(x) for x in items if isinstance(x, str)]
+
+
+def fetch_suggest(engine: str, q: str, market: dict):
+    """One-off fetch (tests, ad-hoc use); harvest lanes use a persistent SuggestClient."""
+    client = SuggestClient()
     try:
-        data = json.loads(body.decode(charset, errors="replace"))
-        items = data[1]
-        if not isinstance(items, list):
-            raise ValueError("unexpected shape")
-    except (ValueError, IndexError, TypeError, json.JSONDecodeError):
-        return "blocked", "non-JSON response (consent page, captcha or format change)"
-    return "ok", [str(x) for x in items if isinstance(x, str)]
+        return client.fetch(engine, q, market)
+    finally:
+        for h in list(client.conns):
+            client.close(h)
 
 
 class SuggestCache:
@@ -791,7 +853,8 @@ class Harvest:
 
     def __init__(self, engines):
         self.counters = Counter()
-        self.per_engine = {e: {"requests": 0, "cache_hits": 0, "new_keywords": 0, "gated_queries": 0} for e in engines}
+        self.per_engine = {e: {"requests": 0, "cache_hits": 0, "new_keywords": 0, "gated_queries": 0,
+                               "early_stopped_queries": 0} for e in engines}
         self.paused = {}
         self.stopped_by = "done"
         self.lanes = {}
@@ -822,6 +885,7 @@ def harvest(p: Paths, dc: dict, market: dict, queues: dict, max_requests: int, m
     started = time.monotonic()
 
     def lane_body(lane_engines):
+        client = SuggestClient()
         last = 0.0
         retry_at = {e: 0.0 for e in lane_engines}
         errors = Counter()
@@ -860,7 +924,7 @@ def harvest(p: Paths, dc: dict, market: dict, queues: dict, max_requests: int, m
                 if wait > 0 and stop.wait(wait):
                     return
                 last = time.monotonic()  # spacing is start-to-start: at most one request per delay per host
-                status, result = fetch_suggest(e, q, market)
+                status, result = client.fetch(e, q, market)
                 if status != "ok":
                     errors[e] += 1
                     if status == "blocked" or errors[e] > len(RETRY_BACKOFF):
@@ -982,6 +1046,8 @@ def cmd_suggest(args):
         return
 
     gate_min = 0 if args.no_gate else int(dc.get("modifier_gate_min_base") or 0)
+    stop_after = 0 if args.no_gate else int(dc.get("modifier_early_stop_after") or 0)
+    stop_min_new = int(dc.get("modifier_early_stop_min_new") or 0)
     pool = Pool(p)
     gated_seeds = set()
 
@@ -1001,20 +1067,31 @@ def cmd_suggest(args):
 
     def skip(e, task, h):
         sid, g, _ = task
-        if g != "modifiers" or not gate_min or "base" not in by_id[sid].get("expanded", {}).get(e, []):
+        if g != "modifiers" or args.no_gate:
             return False
-        n = len(pool.base_counts[(sid, ENGINE_SOURCE[e])])
-        if n >= gate_min:
-            return False
-        h.per_engine[e]["gated_queries"] += 1
-        finish(sid, e, g, {"group": "modifiers", "base_distinct": n, "min": gate_min})
-        return True
+        st = by_id[sid].get("stats", {}).get(e, {})
+        if gate_min and "base" in by_id[sid].get("expanded", {}).get(e, []):
+            n = len(pool.base_counts[(sid, ENGINE_SOURCE[e])])
+            if n < gate_min:
+                h.per_engine[e]["gated_queries"] += 1
+                finish(sid, e, g, {"group": "modifiers", "reason": "thin_base", "base_distinct": n, "min": gate_min})
+                return True
+        # early stop: the first modifier queries (highest-yield patterns first) found almost nothing new
+        if stop_after and st.get("modifier_queries", 0) >= stop_after and st.get("modifier_new", 0) < stop_min_new:
+            h.per_engine[e]["early_stopped_queries"] += 1
+            finish(sid, e, g, {"group": "modifiers", "reason": "early_stop", "after": st.get("modifier_queries", 0),
+                               "new": st.get("modifier_new", 0)})
+            return True
+        return False
 
     def record(e, task, suggestions, h):
         sid, g, q = task
         s = by_id[sid]
         st = s.setdefault("stats", {}).setdefault(e, {"requests": 0, "suggestions": 0, "new_keywords": 0})
         st["requests"] += 1
+        if g == "modifiers":
+            st["modifier_queries"] = st.get("modifier_queries", 0) + 1
+            st.setdefault("modifier_new", 0)  # empty answers still count as a modifier query with 0 new
         for rank, raw in enumerate(suggestions):
             kw = norm(raw)
             if not kw:
@@ -1027,6 +1104,8 @@ def cmd_suggest(args):
             h.per_engine[e]["new_keywords"] += is_new_kw
             st["suggestions"] += 1
             st["new_keywords"] += is_new_kw
+            if g == "modifiers":
+                st["modifier_new"] = st.get("modifier_new", 0) + is_new_kw
         finish(sid, e, g)
 
     h = harvest(p, dc, market, queues, max_requests, max_seconds, record, skip,
@@ -1579,7 +1658,7 @@ def entity_key(words: list[str]) -> tuple:
     """Order-free key for grouping names: stems plus -ing/-e folding (knocking -> knock, crackle -> crackl)."""
     out = []
     for t in words:
-        if t in STOPWORDS:
+        if t in ENTITY_STOP:
             continue
         t = stem(t)
         if len(t) > 5 and t.endswith("ing"):
@@ -1620,9 +1699,9 @@ def clean_name(text: str, lex: set, keep_numbers=None) -> tuple[str, tuple]:
     words = strip_edges(words)
     if words and words[0] in STOPWORDS and original and original[0] not in STOPWORDS:
         words = original  # the stripped head term was part of the name ("sound effects for games")
-    while words and words[0] in STOPWORDS:
+    while words and words[0] in LEADING_STOP:
         words = words[1:]
-    while words and words[-1] in STOPWORDS:
+    while words and words[-1] in STOPWORDS:  # trailing particles stay: "game over", "power on"
         words = words[:-1]
     return " ".join(words), entity_key(words)
 
@@ -1725,7 +1804,7 @@ def cmd_consolidate(args):
             continue
         name, _ = clean_name(leaf["text"], light, group_numbers.get(leaf.get("group"), set()))
         words = [w for w in name.split() if not entity_key([w]) or entity_key([w])[0] not in attr_words]
-        while words and words[0] in STOPWORDS:
+        while words and words[0] in LEADING_STOP:
             words = words[1:]
         while words and words[-1] in STOPWORDS:
             words = words[:-1]

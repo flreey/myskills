@@ -55,9 +55,11 @@ bootstrap reference. Never expand raw item titles directly.
 | Triage | write decisions JSON, then `triage --file` | Rules below |
 | Close | `round` | `TRIAGE_FIRST` means triage the rest; otherwise `CONTINUE` or `STOP` |
 
-Budgets live in `seo/config.json`: `max_requests_per_run`, a delay of at least 1 second per host,
-a 7-day cache, and `modifier_gate_min_base`. Hosts run in parallel. Seeds whose base queries return
-almost nothing skip their modifier queries (`--no-gate` overrides this). A budget stop is not
+Budgets live in `seo/config.json`: `max_requests_per_run`, a 1–1.3 s delay per host (the floor
+never drops below 1 s), a 7-day cache, and the modifier gate. Hosts run in parallel on persistent
+connections. Seeds skip their remaining modifier queries when their base queries return almost
+nothing, or when their first modifier queries add almost nothing new (`--no-gate` overrides
+this). A budget stop is not
 saturation: rerun `suggest` in the same round to continue.
 [references/expansion-loop.md](references/expansion-loop.md) covers levels, the gate, concept
 extraction, yield and coverage.
