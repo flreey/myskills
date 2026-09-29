@@ -100,3 +100,27 @@ first CAPTCHA and made 7 more requests that all landed on it, which is why the S
 at the first one. Google redirected the session to google.com.hk, so US ranking was not verified;
 captures now record `served_host` and `localized`.
 
+## Search Console and SERP round (2026-09-30)
+
+GSC held one window (2026-08-30..09-27): 330 visible queries, 2.61K impressions, 127 clicks.
+264 of the 330 queries were new to the 17,408-keyword pool. Reviewing them created 11 clusters
+that live pages already served but no cluster named: `eight_bit_sound_generator` (/synth/8-bit),
+`sound_effects_api` (/api/docs), `react_sound_library`, `text_blip`, four category-level
+collections (animal, mechanical, office, water), `sci_fi_sound_effects`, an AI generator cluster
+and the brand. Tool and integration demand hid behind discovery's `adjacent: generator` boundary:
+adjacent for asset seeds, but a real job for a site that has the tool.
+
+Page-level GSC data showed 534 variant URLs (`/sounds/<family>-NN`, canonical to the family)
+carrying about 31% of page impressions, and only 218 of 578 registered URLs with any
+impressions. Per-page review must fold canonicalized variants into their family page before
+judging cannibalization or retirement.
+
+SERP: 12 captures, one query per page load with pauses, `gl=us&hl=en&pws=0`; no CAPTCHA, every
+answer from www.google.com (the earlier session had been redirected to google.com.hk). The
+captures resolved senses more than page types: "drone" mixes UAV flying and ambient drones,
+"whisper" means human whispers (SFXMint's whisper-like wind does not match), "warning" returns
+alarm and alert pages, "cinematic", "fight" and "sound effects for games" return collections.
+Pairs: warning vs alarm shared 3 of the top 10, click vs button click shared 2, both below the
+merge line. Excluding `license`/`format` from promotion cut the promotion candidates with enough
+inventory from 208 to 9 and the SERP queue from 670 to 351.
+

@@ -49,8 +49,15 @@ close variants and repeats the group's volume on each variant; never add up vari
    relative ("Last 3 months"), so compute the absolute dates. Data lags about 3 days.
 5. Per-page exports also feed `search-demand-mapper gsc import` for the page feedback loop.
 
-Pitfalls: anonymized queries are missing, so missing does not mean no demand. Countries are
-global unless filtered. Never add query exports to query+page exports.
+Small properties can skip the download: set Rows per page to 500, read the table rows from the
+page, save them as a CSV with the header `Top queries,Clicks,Impressions,CTR,Position`, and check
+the saved rows against the page (row count, summed impressions, a hash of the rows) before
+importing. The data is the same as the export.
+
+Pitfalls: anonymized queries are missing, so missing does not mean no demand (in the SFXMint
+trial the visible queries carried 22% of all impressions). Countries are global unless filtered.
+Never add query exports to query+page exports. Expect GSC to surface demand autocomplete never
+showed: 264 of SFXMint's 330 visible queries were not in a 17,408-keyword autocomplete pool.
 
 ## Google Trends
 

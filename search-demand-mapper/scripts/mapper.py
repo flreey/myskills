@@ -43,7 +43,9 @@ DEFAULT_MAPPER = {
                    "asset": {"min_items": 1, "needs_cluster": False}, "info": {"min_items": 0, "needs_cluster": False}},
     "gate": {"min_keywords": 2, "strong_planner_high": 100, "strong_gsc_impressions": 50,
              "require_serp_for_create": True},
-    "promotion": {"min_keywords": 3, "min_items": 8},
+    # exclude_axes: axes whose values narrow a result set but almost never deserve a page of their own
+    # (license, format); analyze does not list them as promotion candidates. A project can clear it.
+    "promotion": {"min_keywords": 3, "min_items": 8, "exclude_axes": ["license", "format"]},
     "priority": {"p0_planner_high": 1000, "p0_gsc_impressions": 100, "p1_planner_high": 100, "p1_members": 5},
     "serp": {"top_n": 10, "merge_min_shared": 6, "split_max_shared": 3, "budget_per_session": 30},
     "gsc": {"windows_required": 2, "split_min_impressions": 100, "cannibal_min_share": 0.2,
@@ -992,7 +994,7 @@ def cmd_analyze(args):
         promotions = []
         inv_attrs = (inv.get(cid) or {}).get("attrs", {})
         for key, a in sorted(attrs.items(), key=lambda kv: -kv[1]["members"]):
-            if a["members"] < promo["min_keywords"]:
+            if a["members"] < promo["min_keywords"] or key.split("=", 1)[0] in promo.get("exclude_axes", []):
                 continue
             ai = inv_attrs.get(key)
             cand = {"attribute": key, "members": a["members"], "examples": a["examples"], "inventory": ai,

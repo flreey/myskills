@@ -43,8 +43,10 @@ never enough.
 
 ## Attribute promotion (filter → own cluster/page)
 
-`analyze` lists attributes with at least `promotion.min_keywords` (3) member keywords. Promote only
-with all of the following:
+`analyze` lists attributes with at least `promotion.min_keywords` (3) member keywords, except on
+the axes in `promotion.exclude_axes` (default `license` and `format`: "free", "no copyright", "mp3"
+and "wav" narrow every result set but are not a page of their own). Promote only with all of the
+following:
 
 - distinct phrasings of the attribute demand, from the pool or GSC;
 - a SERP pair (parent representative versus attribute query) with verdict `different_result_set`;
