@@ -48,9 +48,10 @@ decision simple:
 | Singles (the last third had no seed) | 4,674 | 4,674 | 31 |
 
 Outcome: 10,916 included, 5,475 excluded, 1,017 pending, 412 active clusters. After inventory,
-`analyze` suggested `keep_or_improve_existing` for the 25 clusters with live pages. 170 clusters
-lacked only a SERP check; 211 had demand but no matching catalog items. Live searches of the
-SFXMint API confirmed several gaps (no air horn, fire alarm, dinosaur or coin toss sounds).
+`analyze` suggested `keep_or_improve_existing` for the 25 clusters with registered pages and
+treated most others as page gaps. 211 had demand but no matching catalog items. Live searches of
+the SFXMint API confirmed several gaps (no air horn, fire alarm, dinosaur or coin toss sounds).
+The page gaps were wrong: the registry held 33 of 578 live URLs (next section).
 
 Lessons:
 
@@ -64,3 +65,38 @@ Lessons:
 - Pending keywords are mostly franchise clips (Free Fire, Star Wars, Mario), named memes and sets
   for streamers. They are real demand, but not for asset pages until rights and page type are
   decided.
+
+## Registry sync (2026-09-29)
+
+The trial registry was not empty, only incomplete, so nothing forced a sync, and `analyze` kept
+proposing pages that already existed (`/sounds/animal-bird`, `/sounds/ambience-thunder`).
+`sync-check` against the built sitemap found 545 of 578 live URLs unregistered: 202 family pages,
+321 one-sound pages, 20 categories, 19 set pages, tools, guides and info pages. Counting pages by
+URL prefix had put the families at 197; the built HTML (`CollectionPage` versus a single
+`AudioObject`) gave the real split. With the snapshot in place, 233 clusters moved from
+`defer`/`create_candidate` to `check_existing_page`.
+
+The ownership review produced `cs_sfxmint_sync_2`: 578 `page_upsert` and 244 `map` changes
+(212 primary, 32 secondary). Rules used:
+
+- A family page named for the entity owns the cluster (`keep`, or `improve_existing` below 8
+  items). A category, set or home page owns a cluster that matches its scope (`improve_existing`
+  when the scope is mixed, such as Fire & Electricity).
+- A one-sound page owns a cluster only when it is the only live page naming the entity
+  (`improve_existing`). 29 clusters are named only by several one-sound pages (bite, breathing,
+  scream, window, typewriter…). They were left without a primary and reported as gaps.
+- Overlaps to watch go in as `secondary`: `/sounds/error` next to `/sounds/feedback-error`,
+  `/sounds/frog-croak` next to `/sounds/animal-frog`, the fireplace and fire crackling families.
+- `published_at` is the sitemap lastmod, labelled as such. The first trial had written an invented
+  date, earlier than the site's launch.
+
+`apply-changes --dry-run` passed with 0 errors. In a throwaway copy, `analyze` then reported 0
+unregistered URLs: 235 clusters `keep_or_improve_existing`, 177 `defer`, 0 `create_candidate`.
+80 indexable pages own no cluster (set pages, most categories, several families such as portal,
+hologram and braam): live pages with no observed demand in the pool.
+
+SERP: 6 captures succeeded; the 7th query hit a Google CAPTCHA. The batch did not stop at the
+first CAPTCHA and made 7 more requests that all landed on it, which is why the SERP step now stops
+at the first one. Google redirected the session to google.com.hk, so US ranking was not verified;
+captures now record `served_host` and `localized`.
+

@@ -85,7 +85,7 @@ model-generated labels do not prove that an item fits; human review evidence doe
   "approved_by": "user in chat 2026-09-29",
   "reason": "map button_click; register filter view",
   "changes": [
-    {"kind": "page_upsert", "url": "/sounds/button-click", "page_type": "resource", "status": "published", "indexable": true, "published_at": "2026-05-01", "reason": "existing owner page"},
+    {"kind": "page_upsert", "url": "/sounds/button-click", "page_type": "resource", "status": "published", "indexable": true, "published_at": "2026-09-08", "notes": "published_at = sitemap lastmod", "reason": "existing owner page"},
     {"kind": "map", "cluster_id": "button_click", "page": "/sounds/button-click", "role": "primary", "decision": "improve_existing", "reason": "…"},
     {"kind": "map", "cluster_id": "button_click", "page": "/sounds/button-click?style=retro", "role": "filter", "decision": "filter", "conditions": {"style": "retro"}, "reason": "attribute, 1 member"},
     {"kind": "redirect", "from": "/sounds/ui-click", "to": "/sounds/button-click", "reason": "cannibalization confirmed in 2 windows"},
@@ -94,6 +94,10 @@ model-generated labels do not prove that an item fits; human review evidence doe
   ]
 }
 ```
+
+`published_at` comes from a project record (deploy log, CMS field, sitemap lastmod) and says which;
+it drives the cooldown and retire checks, so it is never guessed. `apply-changes --dry-run` runs
+every check on a proposal (no `approved_by` needed) and writes nothing.
 
 `apply-changes` validates the whole set before writing and rejects it on any error:
 

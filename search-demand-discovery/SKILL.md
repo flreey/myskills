@@ -53,7 +53,8 @@ bootstrap reference. Never expand raw item titles directly.
 | Add top-down hypotheses | `sitemap --url <competitor>` | Slugs become `hypothesis` concepts, never keywords |
 | Alias hygiene | `seed aliases`, then `seed aliases --file` | Drop aliases other seeds' searches also produce; confirm synonyms |
 | Extract | `concepts` | Writes `seo/work/triage-input.json` |
-| Triage | write decisions JSON, then `triage --file` | Rules below; deciding a concept again revises it, `boundary` ops record narrower phrases |
+| Triage | write decisions JSON, then `triage --file` | Rules below; deciding a concept again revises it, `boundary` ops record narrower phrases. Read its `breadth_warnings` |
+| Boundary audit | `boundary audit` | Adjacent/out phrases that also sit inside seed names ("spell" in "magic spell"). Narrow or keep each one; run it after each round |
 | Close | `round` | `TRIAGE_FIRST` means triage the rest; otherwise `CONTINUE` or `STOP` |
 
 Budgets live in `seo/config.json`: `max_requests_per_run`, a 1–1.3 s delay per host (the floor

@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import argparse
 import csv
+import gzip
 import hashlib
+import html
 import io
 import json
 import os
@@ -18,6 +20,7 @@ import re
 import sys
 import unicodedata
 import urllib.parse
+import urllib.request
 import zipfile
 from collections import Counter, defaultdict
 from datetime import date, datetime, timezone
@@ -33,8 +36,11 @@ DEFAULT_MAPPER = {
               "navigate", "check", "other"],
     "deliveries": ["asset", "collection", "tool", "explanation", "comparison", "integration", "website",
                    "video", "service", "other"],
+    # needs_cluster=False: indexable pages that are not meant to own demand (one-item detail pages,
+    # about/legal/docs); validate does not ask them for a primary cluster.
     "page_types": {"resource": {"min_items": 8}, "collection": {"min_items": 3}, "tool": {"min_items": 1},
-                   "article": {"min_items": 0}, "filter": {"min_items": 3}},
+                   "article": {"min_items": 0}, "filter": {"min_items": 3},
+                   "asset": {"min_items": 1, "needs_cluster": False}, "info": {"min_items": 0, "needs_cluster": False}},
     "gate": {"min_keywords": 2, "strong_planner_high": 100, "strong_gsc_impressions": 50,
              "require_serp_for_create": True},
     "promotion": {"min_keywords": 3, "min_items": 8},
@@ -161,6 +167,7 @@ class Paths:
         self.serp_cmp = self.m / "evidence" / "serp-compare.jsonl"
         self.gsc = self.m / "evidence" / "gsc"
         self.changesets = self.m / "changesets"
+        self.site_urls = self.m / "site-urls.json"
         self.work = self.seo / "work"
 
 
@@ -311,6 +318,49 @@ def site_host(p: Paths) -> str:
 def page_key(url: str, host: str) -> str:
     """Registry URLs may be paths; GSC pages are absolute. Compare both as host/path."""
     return norm_url(host + url) if url.startswith("/") else norm_url(url)
+
+
+def registry_form(url: str, host: str) -> str:
+    """Absolute URLs on the site host become paths (the registry's usual form); others stay absolute."""
+    u = urllib.parse.urlparse(url.strip())
+    if u.netloc and u.netloc.lower().removeprefix("www.") == host:
+        return u.path.rstrip("/") or "/"
+    return url.strip()
+
+
+def url_tokens(url: str) -> set:
+    path = urllib.parse.urlparse(url).path if "://" in url else url
+    return {stem(t) for t in re.findall(r"[a-z0-9]+", path.lower()) if not re.fullmatch(r"\d+", t)}
+
+
+def head_stems(p: Paths) -> set:
+    b = read_json(p.boundary, {}) or {}
+    return {stem(t) for x in list(b.get("head_terms") or []) + ["sound", "sounds", "effect", "effects"]
+            for t in tokens(x)}
+
+
+def cluster_cores(c: dict, drop: set) -> list:
+    """Stem sets naming a cluster (entity and label, minus head terms), for lexical page hints only."""
+    cores = []
+    for text in (c.get("entity"), c.get("label"), c["id"].replace("_", " ")):
+        core = {stem(t) for t in tokens(text or "") if t not in FILLER} - drop
+        if core and core not in cores:
+            cores.append(core)
+    return cores
+
+
+def names_cluster(cores: list, toks: set) -> bool:
+    return any(core <= toks for core in cores)
+
+
+def live_url_hints(cores: list, candidates: dict, limit: int = 5) -> list:
+    """Candidate live pages whose URL (or title, when known) names the cluster."""
+    hits = [u for u, toks in candidates.items() if names_cluster(cores, toks)]
+    return sorted(hits, key=lambda u: (len(candidates[u]), u))[:limit]
+
+
+def load_site_urls(p: Paths):
+    return read_json(p.site_urls, None)
 
 
 def obs_strength(o: dict) -> int:
@@ -856,6 +906,13 @@ def cmd_analyze(args):
     mappings = load_mappings(p)
     inv = (read_json(p.inventory, {}) or {}).get("clusters", {})
     serp = serp_captures(p)
+    host = site_host(p)
+    snap = load_site_urls(p)
+    registered = {page_key(u, host) for u in pages}
+    drop = head_stems(p)
+    unregistered = {} if not snap else {
+        u: url_tokens(u) | {stem(t) for t in tokens((snap.get("titles") or {}).get(u, ""))}
+        for u in snap["urls"] if page_key(u, host) not in registered}
     members = defaultdict(list)
     for k, d in decisions.items():
         if d["status"] == "included" and d.get("cluster_id") and k in pool:
@@ -911,8 +968,12 @@ def cmd_analyze(args):
             "parent_page": {"value": next((m["page"] for m in by_cluster_maps.get(c.get("parent") or "", [])
                                            if m["role"] == "primary"), None)},
         }
+        hints = [] if primary else live_url_hints(cluster_cores(c, drop), unregistered)
         if c["status"] == "hold":
             suggestion = "hold"
+        elif hints:  # a live page probably serves this already; register it before planning a new one
+            suggestion = "check_existing_page"
+            checks["live_url_hints"] = hints
         elif primary:
             page = pages.get(primary["page"], {})
             newer = sum(1 for _, d in mem if d["decided_at"] > primary.get("updated_at", ""))
@@ -953,12 +1014,21 @@ def cmd_analyze(args):
     tier_rank = {"P0": 0, "P1": 1, "P2": 2}
     report.sort(key=lambda r: (tier_rank[r["tier"]], -r["members"]))
     budget = cfg["serp"]["budget_per_session"]
-    result = {"schema": f"{S}/analysis@1", "generated_at": now(), "clusters": report,
+    if snap:
+        coverage = {"snapshot_captured_at": snap.get("captured_at"), "source": snap.get("source"),
+                    "live_urls": len(snap["urls"]), "unregistered": len(unregistered)}
+        if unregistered:
+            coverage["warning"] = (f"{len(unregistered)} live URLs are not in the registry; create_candidate and "
+                                   "defer are unreliable until they are synced (sync-check, then a change set)")
+    else:
+        coverage = {"snapshot_captured_at": None,
+                    "warning": "registry completeness unknown: run sync-check --sitemap <sitemap> first"}
+    result = {"schema": f"{S}/analysis@1", "generated_at": now(), "registry_coverage": coverage, "clusters": report,
               "needs_serp": needs_serp[:budget], "needs_serp_total": len(needs_serp),
               "undecided_keywords": sum(1 for k in pool if k not in decisions),
               "pending_keywords": sum(1 for d in decisions.values() if d["status"] == "pending")}
     write_json(p.work / "analysis.json", result)
-    emit({"analysis": str(p.work / "analysis.json"), "clusters": len(report),
+    emit({"analysis": str(p.work / "analysis.json"), "registry_coverage": coverage, "clusters": len(report),
           "by_suggestion": dict(Counter(r["suggestion"] for r in report)),
           "by_tier": dict(Counter(r["tier"] for r in report)),
           "needs_serp": len(needs_serp), "undecided_keywords": result["undecided_keywords"],
@@ -982,9 +1052,13 @@ def cmd_serp(args):
                         "market": r.get("market") or market_of(p), "captured_at": r.get("captured_at") or now(),
                         "urls": [norm_url(u) for u in urls][: cfg["top_n"]],
                         "result_types": r.get("result_types"), "features": r.get("features"),
+                        "served_host": r.get("served_host"), "localized": r.get("localized"),
                         "note": r.get("note")})
         append_jsonl(p.serp, out)
-        emit({"captures_added": len(out)})
+        unknown = [x["query"] for x in out if not x["served_host"] or x["localized"] is None]
+        emit({"captures_added": len(out), "warnings": [
+            f"{len(unknown)} captures lack served_host/localized (which engine domain answered, and whether "
+            f"the target market's ranking was verified): {unknown[:5]}"] if unknown else []})
         return
     caps = serp_captures(p)
     if args.pairs:
@@ -1222,9 +1296,29 @@ def validate_state(clusters, decisions, pages, mappings, cfg) -> tuple[list, lis
                 errors.append(f"page {url}: redirect chain via {pg['redirect_to']}")
             elif t.get("status") != "published":
                 warnings.append(f"page {url}: redirect target is {t.get('status')}")
-        if st == "published" and pg.get("indexable") and url not in primary_pages:
+        needs_cluster = cfg["page_types"].get(pg.get("page_type"), {}).get("needs_cluster", True)
+        if st == "published" and pg.get("indexable") and needs_cluster and url not in primary_pages:
             warnings.append(f"page {url}: indexable but owns no cluster")
     return errors, warnings
+
+
+def coverage_warnings(p: Paths, pages: dict) -> list:
+    snap = load_site_urls(p)
+    if not snap:
+        return ["registry completeness unknown: no site URL snapshot (run sync-check --sitemap <sitemap>)"]
+    host = site_host(p)
+    live = {page_key(u, host) for u in snap["urls"]}
+    keys = {page_key(u, host): u for u in pages}
+    out = []
+    missing = sorted(u for u in snap["urls"] if page_key(u, host) not in keys)
+    if missing:
+        out.append(f"{len(missing)} live URLs (snapshot {snap.get('captured_at')}) not in the registry, "
+                   f"e.g. {missing[:5]}")
+    gone = sorted(u for k, u in keys.items() if k not in live and pages[u].get("status") == "published"
+                  and pages[u].get("indexable"))
+    if gone:
+        out.append(f"{len(gone)} published indexable registry pages absent from the live snapshot, e.g. {gone[:5]}")
+    return out
 
 
 def cmd_apply_changes(args):
@@ -1232,11 +1326,14 @@ def cmd_apply_changes(args):
     require(p)
     cfg = cfg_of(p)
     cs = read_json(Path(args.file))
-    if not isinstance(cs, dict) or not cs.get("id") or not cs.get("approved_by"):
-        die("change set needs id and approved_by (who approved it and where)")
+    if not isinstance(cs, dict) or not cs.get("id"):
+        die("change set needs an id")
+    if not cs.get("approved_by") and not args.dry_run:
+        die("change set needs approved_by (who approved it and where); --dry-run checks a proposal without it")
     dest = p.changesets / f"{cs['id']}.json"
     if dest.exists():
         die(f"change set {cs['id']} already applied")
+    before = {"pages": len(load_pages(p)), "mappings": len(load_mappings(p))}
     clusters = load_clusters(p)
     decisions = load_decisions(p)
     pages = load_pages(p)
@@ -1318,18 +1415,109 @@ def cmd_apply_changes(args):
     errors += v_err
     if errors:
         die("change set rejected:\n  " + "\n  ".join(errors[:60]))
+    if args.dry_run:
+        emit({"changeset": cs["id"], "dry_run": True, "would_apply": len(cs.get("changes", [])),
+              "by_kind": dict(Counter(ch.get("kind") for ch in cs.get("changes", []))),
+              "pages": [before["pages"], len(pages)], "mappings": [before["mappings"], len(mappings)],
+              "clusters_changed": len(new_clusters), "decisions_moved": len(new_decisions),
+              "warnings": v_warn[:30] + coverage_warnings(p, pages), "warnings_total": len(v_warn)})
+        return
     write_jsonl(p.pages, sorted(pages.values(), key=lambda r: r["url"]))
     write_jsonl(p.mappings, sorted(mappings, key=lambda r: (r["cluster_id"], r["role"], r["page"])))
     append_jsonl(p.clusters, new_clusters)
     append_jsonl(p.decisions, new_decisions)
     write_json(dest, dict(cs, applied_at=ts))
-    emit({"changeset": cs["id"], "applied": len(cs.get("changes", [])), "warnings": v_warn[:30]})
+    emit({"changeset": cs["id"], "applied": len(cs.get("changes", [])), "warnings": v_warn[:30] + coverage_warnings(p, pages),
+          "warnings_total": len(v_warn)})
+
+
+def read_sitemap(src: str, depth: int = 0) -> list[tuple]:
+    """(url, lastmod) from a sitemap (urlset or index, file or URL, optionally gzipped) or a plain URL list."""
+    if re.match(r"https?://", src):
+        req = urllib.request.Request(src, headers={"User-Agent": "search-demand-mapper/1"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            raw = r.read()
+    else:
+        raw = Path(src).read_bytes()
+    if raw[:2] == b"\x1f\x8b":
+        raw = gzip.decompress(raw)
+    text = raw.decode("utf-8", "replace")
+    if "<urlset" not in text and "<sitemapindex" not in text:
+        return [(x.strip(), None) for x in text.splitlines() if x.strip() and not x.startswith("#")]
+    entries = []
+    for block in re.findall(r"<(?:url|sitemap)>(.*?)</(?:url|sitemap)>", text, re.S):
+        loc = re.search(r"<loc>\s*([^<]+?)\s*</loc>", block)
+        mod = re.search(r"<lastmod>\s*([^<]+?)\s*</lastmod>", block)
+        if loc:
+            entries.append((html.unescape(loc[1]), mod[1] if mod else None))
+    if "<sitemapindex" not in text:
+        return entries
+    if depth >= 2:
+        die(f"sitemap index nested too deep at {src}")
+    urls = []
+    for loc, _ in entries:
+        urls += read_sitemap(loc, depth + 1)
+    return urls
+
+
+def cmd_sync_check(args):
+    """Compare the live URL set with the registry and snapshot it for analyze/validate."""
+    p = Paths(args.root)
+    require(p)
+    host = site_host(p)
+    lastmod = {}
+    for u, mod in read_sitemap(args.sitemap):
+        lastmod.setdefault(registry_form(u, host), mod)
+    live = list(lastmod)
+    facts = {}
+    if args.pages:
+        rows = read_json(Path(args.pages))
+        for r in rows.get("pages", rows) if isinstance(rows, dict) else rows:
+            facts[registry_form(r["url"], host)] = {k: v for k, v in r.items() if k != "url"}
+    snap = {"schema": f"{S}/site-urls@1", "source": args.sitemap, "captured_at": now(), "host": host,
+            "urls": live, "lastmod": {u: m for u, m in lastmod.items() if m},
+            "titles": {u: f["title"] for u, f in facts.items() if f.get("title")}}
+    write_json(p.site_urls, snap)
+    pages = load_pages(p)
+    keys = {page_key(u, host): u for u in pages}
+    live_keys = {page_key(u, host) for u in live}
+    clusters = {cid: c for cid, c in load_clusters(p).items() if c["status"] in ("active", "hold")}
+    drop = head_stems(p)
+    cores = {cid: cluster_cores(c, drop) for cid, c in clusters.items()}
+    owned = {m["cluster_id"]: m["page"] for m in load_mappings(p) if m["role"] == "primary"}
+    unregistered = []
+    for u in live:
+        if page_key(u, host) in keys:
+            continue
+        toks = url_tokens(u) | {stem(t) for t in tokens((facts.get(u) or {}).get("title", ""))}
+        hints = [{"cluster_id": cid, "label": c.get("label"), "primary_page": owned.get(cid)}
+                 for cid, c in clusters.items() if names_cluster(cores[cid], toks)]
+        hints.sort(key=lambda h: (h["primary_page"] is not None, -max(len(x) for x in cores[h["cluster_id"]])))
+        unregistered.append(dict({"url": u, "lastmod": lastmod.get(u)}, **(facts.get(u) or {}), cluster_hints=hints[:8]))
+    mismatch = [{"url": u, "status": pages[u].get("status"), "indexable": pages[u].get("indexable")}
+                for k, u in keys.items() if k in live_keys and not (pages[u].get("status") == "published"
+                                                                   and pages[u].get("indexable"))]
+    absent = [u for k, u in keys.items() if k not in live_keys and pages[u].get("status") == "published"
+              and pages[u].get("indexable")]
+    unowned = sorted(cid for cid in clusters if cid not in owned)
+    out = {"schema": f"{S}/sync-check@1", "generated_at": now(), "source": args.sitemap, "live_urls": len(live),
+           "registered": len(pages), "unregistered": unregistered, "live_but_not_published_indexable": mismatch,
+           "published_but_not_live": absent, "clusters_without_primary": unowned,
+           "note": "cluster_hints are lexical (URL/title contains every stem of the entity or label); the model decides ownership"}
+    write_json(p.work / "sync-check.json", out)
+    emit({"sync_check": str(p.work / "sync-check.json"), "snapshot": str(p.site_urls), "live_urls": len(live),
+          "registered": len(pages), "unregistered": len(unregistered),
+          "unregistered_with_hints": sum(1 for x in unregistered if x["cluster_hints"]),
+          "live_but_not_published_indexable": len(mismatch), "published_but_not_live": len(absent),
+          "clusters_without_primary": len(unowned)})
 
 
 def cmd_validate(args):
     p = Paths(args.root)
     require(p)
-    errors, warnings = validate_state(load_clusters(p), load_decisions(p), load_pages(p), load_mappings(p), cfg_of(p))
+    pages = load_pages(p)
+    errors, warnings = validate_state(load_clusters(p), load_decisions(p), pages, load_mappings(p), cfg_of(p))
+    warnings += coverage_warnings(p, pages)
     emit({"ok": not errors, "errors": errors, "warnings": warnings})
     if errors:
         sys.exit(1)
@@ -1400,7 +1588,12 @@ def main(argv=None):
     a.set_defaults(fn=cmd_gsc)
     a = sub.add_parser("apply-changes", help="apply a user-approved change set to the registry")
     a.add_argument("--file", required=True)
+    a.add_argument("--dry-run", action="store_true", help="run every check and report the result; write nothing")
     a.set_defaults(fn=cmd_apply_changes)
+    a = sub.add_parser("sync-check", help="compare live URLs (sitemap) with the registry and snapshot them")
+    a.add_argument("--sitemap", required=True, help="sitemap file or URL (urlset, index, .gz) or a plain URL list")
+    a.add_argument("--pages", help="optional JSON list of {url, title, ...} page facts for hints and review")
+    a.set_defaults(fn=cmd_sync_check)
     sub.add_parser("validate", help="check registry invariants").set_defaults(fn=cmd_validate)
     a = sub.add_parser("sitemap", help="list published, indexable, self-canonical URLs")
     a.add_argument("--json", action="store_true")

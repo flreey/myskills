@@ -14,10 +14,11 @@ and `work/`.
 | `mapper/pages.jsonl` | current registry | Rewritten only by `apply-changes` |
 | `mapper/mappings.jsonl` | current registry | Rewritten only by `apply-changes` |
 | `mapper/changesets/<id>.json` | append-only history | Each applied change set with `approved_by` and `applied_at` |
-| `mapper/evidence/serp.jsonl` | append-only | Captures (normalized top-N URLs, result types, market, date) |
+| `mapper/site-urls.json` | snapshot | Written by `sync-check`: `{source, captured_at, host, urls[], lastmod{url: date}, titles{url: title}}`; `analyze` and `validate` compare the registry with it |
+| `mapper/evidence/serp.jsonl` | append-only | Captures (normalized top-N URLs, result types, market, date, `served_host`, `localized`) |
 | `mapper/evidence/serp-compare.jsonl` | append-only | Pair overlaps and verdicts |
 | `mapper/evidence/gsc/<start>_<end>.jsonl` | per window | Query, page, clicks, impressions, CTR, position; git-ignored |
-| `work/analysis.json`, `work/gsc-review.json` | derived | Regenerate at any time |
+| `work/analysis.json`, `work/gsc-review.json`, `work/sync-check.json` | derived | Regenerate at any time. `analysis.json` carries `registry_coverage` |
 
 `keyword_id = "kw_" + sha1(normalized keyword)[:12]`. The keyword's `evidence_hash` is a hash of
 its sorted observation ids; a change re-queues the keyword.
@@ -38,6 +39,11 @@ keyword was grouped under. The mapper also reads `discovery/seeds.jsonl` (`text`
 
 `{url, page_type, status: planned|published|noindex|redirected|gone, indexable, canonical, redirect_to, parent, title, covered_attributes{axis: [values]}, published_at, experiment, notes, created_at, updated_at}`
 
+Page types come from `mapper.page_types` in `config.json`. Defaults: `resource` (min 8 items),
+`collection` (3), `tool` (1), `article` (0), `filter` (3), and two types that need no cluster:
+`asset` (a one-item detail page) and `info` (about, legal, docs). A type with
+`needs_cluster: false` is not asked to own a cluster by `validate`.
+
 ## mapping@1
 
 `{cluster_id, page, role: primary|secondary|filter, decision: keep|improve_existing|filter|create|defer, conditions{}, reason, changeset, updated_at}`
@@ -52,3 +58,7 @@ keyword was grouped under. The mapper also reads `discovery/seeds.jsonl` (`text`
 - Redirects point to existing pages, with no chains.
 - Included decisions point to existing, non-retired clusters. Retired clusters list successors
   that exist.
+
+Warnings (not errors): indexable pages that own no cluster (unless their type has
+`needs_cluster: false`), live URLs missing from the registry, published indexable registry pages
+missing from the live snapshot, and no snapshot at all ("completeness unknown").

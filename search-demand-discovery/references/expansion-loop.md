@@ -68,6 +68,17 @@ Triage is not final. When the pool shows that a term was decided too broadly (fo
 entry is withdrawn automatically. Run `seed aliases` after each round for the same reason, then
 `concepts` again: pending concepts that are no longer extracted become `stale`.
 
+`boundary audit` finds such terms: adjacent/out phrases whose pool matches fall inside a seed or
+alias name that reaches beyond the phrase. In the SFXMint trial it flagged `spell` (inside "magic
+spell sound effect"), `snow` (footsteps in snow), `curtains` (stems to "curtain", catching curtain
+open/close) and `hamster` (hamster squeak). It is evidence, not a verdict. Read the matches, then
+either remove the term and add the narrower phrases the keywords show (`how to spell`,
+`electric snow shovel`, `sound dampening`), or keep it when the collateral is small and the rest is
+truly out (`ringtone` catches "phone ringtone sound effect" but mostly music ringtones). A phrase
+that already contains the whole seed name (`electric snow shovel`) counts as a deliberate
+narrowing and is not flagged. `triage` reports the same check for the terms it adds as
+`breadth_warnings`.
+
 ## Triage heuristics
 
 - **Seed** only if it points to a different result set that users want and the product could

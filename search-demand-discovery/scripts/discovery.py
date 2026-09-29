@@ -1686,6 +1686,71 @@ def cmd_concepts(args):
           "held_as_variants": sum(len(v) for v in variants.values()), "triage_input": str(out)})
 
 
+def audit_terms(p: Paths, items: list[tuple]) -> list[dict]:
+    """Collateral check for adjacent/out phrases: pool keywords where the phrase sits inside a seed or
+    alias name ("spell" inside "magic spell sound effect"). Lexical evidence for the model; never a verdict."""
+    seeds = [s for s in load_seeds(p) if s.get("status") != "rejected" and s.get("ring", "in") == "in"]
+    by_first = defaultdict(list)
+    for s in seeds:
+        for t in [s["text"]] + list(s.get("aliases") or []):
+            ph = stem_tuple(t)
+            if ph:
+                by_first[ph[0]].append((ph, s["text"]))
+    kws = sorted({o["keyword"] for o in read_jsonl(p.obs)})
+    st_kw = [(k, stem_tuple(k)) for k in kws]
+    by_tok = defaultdict(list)
+    for i, (_, st) in enumerate(st_kw):
+        for t in set(st):
+            by_tok[t].append(i)
+    rows = []
+    for field, term in items:
+        ph = stem_tuple(term)
+        if not ph:
+            continue
+        matched, hits, names = 0, [], Counter()
+        for i in by_tok.get(ph[0], []):
+            k, st = st_kw[i]
+            pos = contains_seq(st, ph)
+            if pos < 0:
+                continue
+            matched += 1
+            lo, hi = pos, pos + len(ph)
+            for j in range(len(st)):
+                for sp, name in by_first.get(st[j], []):
+                    # the seed name overlaps the phrase and reaches beyond it; a phrase that already
+                    # contains the whole name ("electric snow shovel") is a deliberate narrowing
+                    if (st[j : j + len(sp)] == sp and j < hi and j + len(sp) > lo
+                            and (j < lo or j + len(sp) > hi)):
+                        hits.append(k)
+                        names[name] += 1
+                        break
+                else:
+                    continue
+                break
+        rows.append({"field": field, "term": term, "single_word": len(ph) == 1, "matches": matched,
+                     "inside_seed_names": len(hits), "seeds": [n for n, _ in names.most_common(3)],
+                     "examples": hits[:5]})
+    rows.sort(key=lambda r: (-r["inside_seed_names"], -r["matches"]))
+    return rows
+
+
+def cmd_boundary(args):
+    """Read-only audit: adjacent/out phrases that also catch in-scope entity names."""
+    p = Paths(args.root)
+    require_init(p)
+    b = load_boundary(p)
+    items = [(f, t) for f in ("adjacent_terms", "out_terms") for t in b.get(f, [])]
+    rows = audit_terms(p, items)
+    flagged = [r for r in rows if r["inside_seed_names"]]
+    write_json(p.work / "boundary-audit.json", {"schema": f"{S}/boundary-audit@1", "generated_at": now(),
+                                                "boundary_version": b.get("version"), "terms": rows})
+    emit({"audit": str(p.work / "boundary-audit.json"), "terms": len(rows), "flagged": len(flagged),
+          "top": [{k: r[k] for k in ("field", "term", "matches", "inside_seed_names", "seeds", "examples")}
+                  for r in flagged[: args.top]],
+          "next": "narrow flagged phrases with a triage boundary op (remove the broad term, add the narrower "
+                  "phrase the keywords show, e.g. 'spell' -> 'how to spell'); keep terms whose hits are noise"})
+
+
 def cmd_triage(args):
     p = Paths(args.root)
     state = require_init(p)
@@ -1804,7 +1869,14 @@ def cmd_triage(args):
     write_jsonl(p.seeds, seeds)
     log_run(p, {"type": "triage", "run": state["run"], "decisions": dict(counts),
                 "boundary_ops": [{k: op.get(k) for k in ("op", "field", "axis", "term", "reason")} for op in ops]})
-    emit({"applied": len(decisions) + len(ops), "by_decision": dict(counts), "boundary_version": b["version"]})
+    added = [(BOUNDARY_FIELDS[op["field"]], norm(op["term"])) for op in ops
+             if op["op"] == "add" and op["field"] in ("adjacent", "out")]
+    added += [("adjacent_terms" if d["decision"] == "adjacent" else "out_terms", norm(d["text"]))
+              for d in decisions if d["decision"] in ("adjacent", "out")]
+    wide = [r for r in audit_terms(p, added) if r["inside_seed_names"]] if added else []
+    emit({"applied": len(decisions) + len(ops), "by_decision": dict(counts), "boundary_version": b["version"],
+          "breadth_warnings": [{k: r[k] for k in ("field", "term", "inside_seed_names", "seeds", "examples")}
+                               for r in wide]})
 
 
 # ---------------------------------------------------------------- seed consolidation and probing
@@ -2295,6 +2367,11 @@ def main(argv=None):
     a.add_argument("--min-count", type=int)
     a.add_argument("--limit", type=int)
     a.set_defaults(fn=cmd_concepts)
+
+    a = sub.add_parser("boundary", help="audit adjacent/out phrases that also catch in-scope entity names")
+    a.add_argument("action", choices=["audit"])
+    a.add_argument("--top", type=int, default=25)
+    a.set_defaults(fn=cmd_boundary)
 
     a = sub.add_parser("triage", help="apply triage decisions to seeds and boundary")
     a.add_argument("--file", required=True)

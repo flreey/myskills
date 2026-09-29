@@ -44,12 +44,14 @@ point at.
 | Pool exists, need clusters and a page plan | **map** | review loop → inventory → `analyze` → SERP → decisions → change set |
 | Search Console data after launch | **review** | `gsc import` → `gsc review` → decisions → change set |
 | A question about a few keywords ("does X need its own page?") | **decide** | Answer the ten questions below, read-only, with whatever evidence exists |
-| Existing site with an empty registry | **sync** | Register current landing pages and their primary clusters via a change set before mapping |
+| Existing site whose registry does not cover every live URL | **sync** | `sync-check` → ownership review → change set, before trusting any page plan |
 
 ## Map mode
 
-1. `init`. If the site has landing pages but the registry is empty, run **sync** first. Read the
-   router, sitemap and experiment/cohort config so live experiments are not disturbed.
+1. `init`, then `sync-check --sitemap <sitemap file or URL>`. If any live URL is unregistered, run
+   **sync** first: a registry that is not empty but incomplete makes `analyze` propose pages the
+   site already has. Read the router, sitemap and experiment/cohort config so live experiments are
+   not disturbed.
 2. **Review loop.** `prepare-review` builds a batch of review units: boundary groups, per-seed
    variant groups, cross-seed facet groups and single keywords (up to 100 units / 600 keywords).
    `--plan` sizes the whole queue first. Read `input.json`, write `output.json` (shorthand
@@ -63,18 +65,40 @@ point at.
    `axis=value`. Count; never estimate. If items cannot be counted, leave them out; the gate then
    reads "inventory unknown".
 4. **Analyze.** `analyze` writes `seo/work/analysis.json` with evidence flags, a demand tier,
-   suggestions (`keep_or_improve_existing`, `create_candidate`, `improve_parent_or_defer`,
-   `defer`, `hold`), attribute candidates and `needs_serp`.
+   suggestions (`keep_or_improve_existing`, `check_existing_page`, `create_candidate`,
+   `improve_parent_or_defer`, `defer`, `hold`), attribute candidates, `needs_serp` and
+   `registry_coverage`. `check_existing_page` means an unregistered live URL names the cluster:
+   sync before planning a new page.
 5. **SERP evidence.** Search the `needs_serp` queries in the target market, within the session
-   budget (default 30). Capture the top-10 organic URLs and result types into a captures file, then
-   run `serp add` and `serp compare`. Rerun `analyze`. Record the capture date and market, and note
-   when localized ranking was not verified.
+   budget (default 30): one query per page load, a human-paced pause between queries, and no
+   parallel or scripted batches. At the first CAPTCHA or "unusual traffic" page, stop the whole
+   SERP step for the session: never solve, bypass or retry it, and report how many were captured.
+   Capture the top-10 organic URLs and result types into a captures file with `served_host` (the
+   engine domain that actually answered, e.g. a redirect to google.com.hk) and `localized` (whether
+   the target market's ranking was verified), then run `serp add` and `serp compare`. Rerun
+   `analyze`.
 6. **Decide** each cluster: keep / improve_existing / filter / create / defer, and promote an
    attribute only when its gate passes. Give each decision a reason, the evidence it rests on and
    a priority. Use [references/page-decisions.md](references/page-decisions.md).
-7. **Propose.** Write the change set (JSON plus a short Markdown summary) and present it. After
-   explicit approval, run `apply-changes` and `validate`. Page work itself is handed to the
+7. **Propose.** Write the change set (JSON plus a short Markdown summary), check it with
+   `apply-changes --dry-run`, and present it. After explicit approval, run `apply-changes` and
+   `validate`. Page work itself is handed to the
    project's implementation workflow.
+
+## Sync mode
+
+1. `sync-check --sitemap <file|URL> [--pages facts.json]` snapshots the live URLs
+   (`mapper/site-urls.json`) and writes `work/sync-check.json`: unregistered URLs with lexical
+   cluster hints, registry pages missing from the sitemap, and clusters without a primary page.
+   `--pages` adds page facts from the project (title, kind, item count) as JSON `[{url, title, …}]`.
+2. **Ownership review** (model): for each live page, decide the clusters it owns (`primary`) or
+   partly serves (`secondary`), and its page type. One primary page per cluster; the page whose
+   result set best matches the cluster wins. Mark a thin or mixed owner `improve_existing`. When
+   only several one-item pages name a cluster, leave it without a primary and report the gap.
+   Pages that are not meant to own demand use `asset` or `info` (`needs_cluster: false`).
+3. Write every live URL as `page_upsert` (published_at from the project's own record, such as the
+   sitemap lastmod or a deploy log, labelled as such; never invented) plus the `map` changes.
+   Check it with `apply-changes --dry-run`, present it, and apply only after approval.
 
 ## Review mode
 
