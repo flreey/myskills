@@ -50,12 +50,14 @@ point at.
 
 1. `init`. If the site has landing pages but the registry is empty, run **sync** first. Read the
    router, sitemap and experiment/cohort config so live experiments are not disturbed.
-2. **Review loop.** Run `prepare-review` (at most 100 new or changed keywords, strongest evidence
-   first). Read `input.json`, write `output.json` following
-   [references/review-protocol.md](references/review-protocol.md), then run `apply-review`. Repeat
-   until the queue is empty or the batch budget is spent. The engine rejects outputs whose evidence
-   changed since `prepare-review`, that skip keywords, that change identity or that overwrite human
-   decisions.
+2. **Review loop.** `prepare-review` builds a batch of review units: boundary groups, per-seed
+   variant groups, cross-seed facet groups and single keywords (up to 100 units / 600 keywords).
+   Read `input.json`, write `output.json` following
+   [references/review-protocol.md](references/review-protocol.md), then run `apply-review`. Decide
+   every group, and use `except` for members that differ. Repeat until the queue is empty or the
+   batch budget is spent. The engine rejects outputs whose evidence changed since
+   `prepare-review`, that skip or double-cover keywords, that change identity, that use `@seed`
+   before a seed is clustered, or that overwrite human decisions.
 3. **Inventory.** Write `seo/mapper/inventory.json` from project data: items per cluster and per
    `axis=value`. Count; never estimate. If items cannot be counted, leave them out; the gate then
    reads "inventory unknown".

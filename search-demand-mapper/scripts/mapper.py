@@ -26,7 +26,9 @@ from pathlib import Path
 S = "search-demand"
 
 DEFAULT_MAPPER = {
-    "review_batch": 100,
+    "review_batch": 100,          # review units per batch (a group counts as one unit)
+    "review_max_keywords": 600,   # keywords per batch across groups and single items
+    "review_facet_min": 3,        # keywords sharing the same extra words (across seeds) to form a facet group
     "tasks": ["acquire_asset", "acquire_collection", "use_tool", "learn", "compare", "buy", "integrate",
               "navigate", "check", "other"],
     "deliveries": ["asset", "collection", "tool", "explanation", "comparison", "integration", "website",
@@ -211,14 +213,94 @@ def stem_tuple(text: str) -> tuple:
     return tuple(t[:-1] if len(t) > 3 and t.endswith("s") and not t.endswith("ss") else t for t in toks)
 
 
-def out_phrases(p: Paths) -> list[tuple]:
-    b = read_json(p.boundary, {}) or {}
-    return [t for t in (stem_tuple(x) for x in b.get("out_terms", [])) if t]
+# keep in sync with search-demand-discovery (generic modifiers and function words)
+GENERIC_MODIFIERS = ["free", "download", "downloads", "best", "top", "online", "new", "latest", "hd", "4k",
+                     "official", "cheap", "for free", "free download"]
+FILLER = set("a an the of for to with without and or by from at is are be this that these those my your".split())
 
 
-def has_phrase(text: str, phrases: list[tuple]) -> bool:
-    toks = stem_tuple(text)
-    return any(toks[i : i + len(ph)] == ph for ph in phrases for i in range(len(toks) - len(ph) + 1))
+def tokens(text: str) -> list[str]:
+    return re.findall(r"[^\W_]+(?:'[^\W_]+)?", norm(text))
+
+
+def stem(t: str) -> str:
+    return t[:-1] if len(t) > 3 and t.endswith("s") and not t.endswith("ss") else t
+
+
+def contains_seq(hay: tuple, needle: tuple) -> int:
+    n = len(needle)
+    for i in range(len(hay) - n + 1):
+        if hay[i : i + n] == needle:
+            return i
+    return -1
+
+
+class Grouper:
+    """Mechanical grouping for review. It proposes units; the model decides every unit.
+
+    Uses the discovery contract only: seeds (+ aliases) and boundary (modifiers, head terms,
+    adjacent/out terms). Without seeds every keyword is a single item.
+    """
+
+    def __init__(self, p: Paths):
+        b = read_json(p.boundary, {}) or {}
+        self.out = [(t, norm(x)) for x in b.get("out_terms", []) for t in [stem_tuple(x)] if t]
+        self.adj = [(t, norm(x)) for x in b.get("adjacent_terms", []) for t in [stem_tuple(x)] if t]
+        self.axes = {}
+        for axis, vals in (b.get("modifiers") or {}).items():
+            for v in vals:
+                t = stem_tuple(v)
+                if t and axis != "_generic":
+                    self.axes[t] = (axis, norm(v))
+        self.lex = set(self.axes) | {stem_tuple(x) for x in GENERIC_MODIFIERS + list(b.get("head_terms") or [])
+                                     + list((b.get("modifiers") or {}).get("_generic", [])) if stem_tuple(x)}
+        self.seeds = []
+        for sd in read_jsonl(p.seo / "discovery" / "seeds.jsonl"):
+            if sd.get("status") in ("rejected",):
+                continue
+            for t in [sd["text"]] + list(sd.get("aliases") or []):
+                if stem_tuple(t):
+                    self.seeds.append((stem_tuple(t), sd["text"]))
+        self.seeds.sort(key=lambda x: -len(x[0]))
+
+    def _strip(self, toks: list[str]):
+        """Return (leftover words, attributes) after removing modifier phrases, head terms and filler."""
+        st = [stem(t) for t in toks]
+        attrs, left, i = defaultdict(list), [], 0
+        while i < len(st):
+            hit = next((n for n in (4, 3, 2, 1) if i + n <= len(st) and tuple(st[i : i + n]) in self.lex), 0)
+            if hit:
+                ax = self.axes.get(tuple(st[i : i + hit]))
+                if ax and ax[1] not in attrs[ax[0]]:
+                    attrs[ax[0]].append(ax[1])
+                i += hit
+                continue
+            if toks[i] not in FILLER and not re.fullmatch(r"\d+", toks[i]):
+                left.append(toks[i])
+            i += 1
+        return left, {k: v for k, v in attrs.items() if v}
+
+    def classify(self, keyword: str):
+        """-> (unit_key, seed_text, attributes). unit_key None means review the keyword on its own.
+
+        Units: ("boundary", ring, term), ("variants", seed) and ("facet", extra words). Facet units
+        only become groups when enough keywords share them (review_facet_min)."""
+        toks = tokens(keyword)
+        st = tuple(stem(t) for t in toks)
+        for ph, term in self.out:
+            if contains_seq(st, ph) >= 0:
+                return ("boundary", "out", term), None, {}
+        for ph, term in self.adj:
+            if contains_seq(st, ph) >= 0:
+                return ("boundary", "adjacent", term), None, {}
+        hit = next(((k, txt) for k, txt in self.seeds if contains_seq(st, k) >= 0), None)
+        if not hit:
+            return None, None, {}
+        pos = contains_seq(st, hit[0])
+        left, attrs = self._strip(toks[:pos] + toks[pos + len(hit[0]):])
+        if not left:
+            return ("variants", hit[1]), hit[1], attrs
+        return ("facet", " ".join(left)), hit[1], attrs  # same extra words across seeds
 
 
 def site_host(p: Paths) -> str:
@@ -262,9 +344,8 @@ def cmd_prepare_review(args):
     decisions = load_decisions(p)
     clusters = load_clusters(p)
     market = market_of(p)
-    outs = out_phrases(p)
     wanted = set(args.id or [])
-    picked, skipped_out, protected = [], 0, 0
+    picked, protected = [], 0
     for k, e in pool.items():
         langs = {o["market"].get("language") for o in e["observations"]}
         if market["language"] not in langs and "und" not in langs:
@@ -287,30 +368,90 @@ def cmd_prepare_review(args):
             reason = "pending"
         if not reason:
             continue
-        if not wanted and has_phrase(e["keyword"], outs):
-            skipped_out += 1
-            continue
         strength = min(obs_strength(o) for o in e["observations"])
         picked.append((strength, -len(e["observations"]), e["keyword"], k, reason))
     picked.sort()
-    batch = picked[: args.limit or cfg["review_batch"]]
-    if not batch:
-        emit({"batch": 0, "skipped_out_terms": skipped_out, "protected_human": protected,
-              "note": "nothing to review"})
+    if not picked:
+        emit({"batch": 0, "protected_human": protected, "note": "nothing to review"})
         return
+    grouper = Grouper(p)
+    units, singles_by_seed, seed_rank = {}, defaultdict(list), {}
+    classified = []
+    facet_size = Counter()
+    for rank, (strength, _, kw, k, reason) in enumerate(picked):
+        unit, seed, attrs = grouper.classify(kw)
+        classified.append((rank, kw, k, reason, unit, seed, attrs))
+        if unit and unit[0] == "facet":
+            facet_size[unit] += 1
+    for rank, kw, k, reason, unit, seed, attrs in classified:
+        if seed and seed not in seed_rank:
+            seed_rank[seed] = rank
+        if unit and unit[0] == "facet" and facet_size[unit] < cfg["review_facet_min"]:
+            unit = None
+        if unit and not args.no_groups:
+            units.setdefault(unit, {"rank": rank, "members": []})["members"].append((kw, k, reason, attrs, seed))
+        else:
+            singles_by_seed[seed].append((rank, kw, k, reason, attrs))
+    ordered = []  # boundary groups, then per seed: its variant group and its single items, then unseeded
+    for unit, u in sorted(units.items(), key=lambda x: x[1]["rank"]):
+        if unit[0] == "boundary":
+            ordered.append(("group", unit, u["members"]))
+    for seed in sorted(seed_rank, key=seed_rank.get):
+        if ("variants", seed) in units:
+            ordered.append(("group", ("variants", seed), units[("variants", seed)]["members"]))
+        for _, kw, k, reason, attrs in singles_by_seed.get(seed, []):
+            ordered.append(("single", seed, (kw, k, reason, attrs)))
+    for _, kw, k, reason, attrs in sorted(singles_by_seed.get(None, [])):
+        ordered.append(("single", None, (kw, k, reason, attrs)))
+    # facet groups last: their "@seed" decisions need the seeds' clusters decided first
+    for unit, u in sorted(units.items(), key=lambda x: (-len(x[1]["members"]), x[1]["rank"])):
+        if unit[0] == "facet":
+            ordered.append(("group", unit, u["members"]))
+    if args.only:  # review one kind of unit first, e.g. variants before facets
+        ordered = [it for it in ordered if (it[1][0] if it[0] == "group" else "single") == args.only]
+    max_units, max_kw = args.limit or cfg["review_batch"], cfg["review_max_keywords"]
+    batch, n_units, n_kw = [], 0, 0
+    for item in ordered:
+        size = len(item[2]) if item[0] == "group" else 1
+        if batch and (n_units >= max_units or n_kw + min(size, max_kw) > max_kw):
+            break
+        if item[0] == "group" and size > max_kw:  # oversized group: take one slice now, the rest queues again
+            item = ("group", item[1], item[2][:max_kw])
+            size = max_kw
+        batch.append(item)
+        n_units += 1
+        n_kw += size
     review_id = "rv_" + datetime.now().strftime("%Y%m%d%H%M%S") + "_" + os.urandom(2).hex()
     active = {cid: c for cid, c in clusters.items() if c["status"] in ("active", "hold")}
     members = Counter(d["cluster_id"] for d in decisions.values() if d["status"] == "included")
-    items = []
-    for _, _, kw, k, reason in batch:
-        e = pool[k]
-        obs = sorted(e["observations"], key=obs_strength)[:8]
-        d = decisions.get(k)
-        hints = [cid for cid, c in active.items() if c.get("entity") and norm(c["entity"]) in kw]
-        items.append({"keyword_id": k, "keyword": kw, "reason_queued": reason, "evidence_hash": e["evidence_hash"],
-                      "observation_count": len(e["observations"]), "observations": [compact_obs(o) for o in obs],
-                      "previous": {x: d.get(x) for x in ("status", "cluster_id", "actor", "reason", "attributes")} if d else None,
-                      "lexical_hints": hints[:5]})
+    items, groups = [], []
+    for item in batch:
+        if item[0] == "single":
+            kw, k, reason, attrs = item[2]
+            e = pool[k]
+            obs = sorted(e["observations"], key=obs_strength)[:8]
+            d = decisions.get(k)
+            hints = [cid for cid, c in active.items() if c.get("entity") and norm(c["entity"]) in kw]
+            items.append({"keyword_id": k, "keyword": kw, "seed": item[1], "reason_queued": reason,
+                          "evidence_hash": e["evidence_hash"], "observation_count": len(e["observations"]),
+                          "observations": [compact_obs(o) for o in obs], "attributes_detected": attrs,
+                          "previous": {x: d.get(x) for x in ("status", "cluster_id", "actor", "reason", "attributes")} if d else None,
+                          "lexical_hints": hints[:5]})
+        else:
+            unit = item[1]
+            gid = "g_" + sha("|".join(unit) + "|" + ",".join(sorted(m[1] for m in item[2])), 10)
+            gm = []
+            for kw, k, reason, attrs, seed in item[2]:
+                e = pool[k]
+                obs = sorted(e["observations"], key=obs_strength)
+                gm.append({"keyword_id": k, "keyword": kw, "seed": seed, "reason_queued": reason,
+                           "evidence_hash": e["evidence_hash"], "attributes_detected": attrs,
+                           "observation_ids": [o["id"] for o in obs[:3]],
+                           "sources": sorted({o["source"] for o in e["observations"]})})
+            groups.append({"group_id": gid, "kind": unit[0], "seed": unit[1] if unit[0] == "variants" else None,
+                           "facet": unit[1] if unit[0] == "facet" else None,
+                           "boundary": {"ring": unit[1], "term": unit[2]} if unit[0] == "boundary" else None,
+                           "members": gm})
     b = read_json(p.boundary, {}) or {}
     payload = {
         "schema": f"{S}/review-input@1",
@@ -325,13 +466,24 @@ def cmd_prepare_review(args):
                       "expected_result_set": c["expected_result_set"], "parent": c.get("parent"),
                       "definition": {x: c["definition"].get(x) for x in ("summary", "includes", "excludes", "neighbor_distinction")},
                       "members": members.get(cid, 0)} for cid, c in sorted(active.items())],
+        "groups": groups,
         "keywords": items,
     }
     out = p.reviews / review_id / "input.json"
     write_json(out, payload)
-    emit({"review_id": review_id, "batch": len(items), "queued_total": len(picked),
-          "by_reason": dict(Counter(i["reason_queued"] for i in items)), "skipped_out_terms": skipped_out,
-          "protected_human": protected, "input": str(out)})
+    in_batch = len(items) + sum(len(g["members"]) for g in groups)
+    emit({"review_id": review_id, "units": len(items) + len(groups), "groups": len(groups),
+          "grouped_keywords": in_batch - len(items), "single_keywords": len(items), "keywords_in_batch": in_batch,
+          "queued_total": len(picked), "protected_human": protected, "input": str(out)})
+
+
+def seed_clusters(decisions: dict, pending: list) -> dict:
+    """seed -> the cluster most of its included keywords belong to (applied decisions plus this batch)."""
+    votes = defaultdict(Counter)
+    for d in list(decisions.values()) + [x for x in pending if x.get("cluster_id") not in (None, "@seed")]:
+        if d.get("status") == "included" and d.get("seed") and d.get("cluster_id"):
+            votes[d["seed"]][d["cluster_id"]] += 1
+    return {s: c.most_common(1)[0][0] for s, c in votes.items()}
 
 
 def check_intent(kw: str, intent, cfg, where: str, errors: list):
@@ -427,7 +579,7 @@ def cmd_apply_review(args):
         inp = read_json(rdir / "input.json")
         if not inp:
             die(f"no prepared input for {review_id}")
-        for item in inp["keywords"]:
+        for item in inp["keywords"] + [m for g in inp.get("groups", []) for m in g["members"]]:
             e = pool.get(item["keyword_id"])
             if not e or e["evidence_hash"] != item["evidence_hash"]:
                 errors.append(f"{item['keyword']!r}: evidence changed since prepare; prepare a new review")
@@ -442,12 +594,53 @@ def cmd_apply_review(args):
         check_cluster(c, cfg, clusters, pool_obs, errors)
     usable = {cid for cid, c in clusters.items() if c["status"] in ("active", "hold")} | set(new_clusters)
 
-    decs = out.get("decisions", [])
+    decs = list(out.get("decisions", []))
+    seed_of = {i["keyword_id"]: i.get("seed") for i in (inp or {}).get("keywords", [])}
+    seed_of.update({m["keyword_id"]: m.get("seed") for g in (inp or {}).get("groups", []) for m in g["members"]})
+    for d in decs:
+        d.setdefault("seed", seed_of.get(d.get("keyword_id")))
+    groups_in = {g["group_id"]: g for g in (inp or {}).get("groups", [])}
+    for gd in out.get("group_decisions", []):
+        g = groups_in.get(gd.get("group_id"))
+        if not g:
+            errors.append(f"group decision for unknown group {gd.get('group_id')!r}")
+            continue
+        member_ids = {m["keyword_id"] for m in g["members"]}
+        exc = set(gd.get("except") or [])
+        if gd.get("cluster_id") == "@seed":
+            seed_cluster = seed_clusters(decisions, decs)
+            missing = [m["keyword"] for m in g["members"] if m["keyword_id"] not in exc
+                       and not seed_cluster.get(m.get("seed"))]
+            if missing:
+                errors.append(f"group {g['group_id']}: '@seed' needs each member's seed to have a cluster first; "
+                              f"decide those seeds or except: {missing[:5]}")
+        if exc - member_ids:
+            errors.append(f"group {g['group_id']}: except lists non-members {sorted(exc - member_ids)[:3]}")
+        for m in g["members"]:
+            if m["keyword_id"] in exc:
+                continue  # decided individually in "decisions"
+            cid = gd.get("cluster_id")
+            if cid == "@seed":
+                cid = seed_clusters(decisions, decs).get(m.get("seed"))
+            attrs = {k: list(v) for k, v in (m["attributes_detected"] or {}).items()}
+            member_st = stem_tuple(m["keyword"])
+            for axis, vals in (gd.get("add_attributes") or {}).items():
+                for v in vals:  # a group attribute only applies where the member actually says it
+                    if contains_seq(member_st, stem_tuple(v)) >= 0 and v not in attrs.setdefault(axis, []):
+                        attrs[axis].append(v)
+                if not attrs.get(axis):
+                    attrs.pop(axis, None)
+            decs.append({"keyword_id": m["keyword_id"], "status": gd.get("status"), "language": gd.get("language"),
+                         "intent": gd.get("intent"), "entity": gd.get("entity") or m.get("seed"),
+                         "attributes": attrs, "cluster_id": cid, "seed": m.get("seed"),
+                         "reason": f"{gd.get('reason') or ''} [group {g['group_id']}]" if gd.get("reason") else None,
+                         "evidence_ids": m["observation_ids"], "group_id": g["group_id"]})
     ids = [d.get("keyword_id") for d in decs]
     if len(ids) != len(set(ids)):
         errors.append("each keyword needs exactly one decision (duplicates found)")
     if inp:
-        expected = {i["keyword_id"] for i in inp["keywords"]}
+        expected = {i["keyword_id"] for i in inp["keywords"]} | {m["keyword_id"] for g in groups_in.values()
+                                                                  for m in g["members"]}
         if set(ids) != expected:
             errors.append(f"decisions must cover exactly the batch: missing {sorted(expected - set(ids))[:5]}, "
                           f"extra {sorted(set(ids) - expected)[:5]}")
@@ -481,9 +674,10 @@ def cmd_apply_review(args):
         if not isinstance(attrs, dict) or any(not isinstance(v, list) for v in attrs.values()):
             errors.append(f"{where}: attributes must map axis -> list")
         else:
+            kw_st = stem_tuple(kw)
             for axis, vals in attrs.items():
                 for v in vals:
-                    if norm(v) not in kw:
+                    if contains_seq(kw_st, stem_tuple(v)) < 0:
                         warnings.append(f"{where}: attribute {axis}={v!r} is not literally in the keyword")
         prev = decisions.get(k)
         if prev and prev["actor"] == "human" and actor == "model":
@@ -539,6 +733,7 @@ def cmd_apply_review(args):
             "language": d["language"], "intent": d["intent"], "entity": d.get("entity"),
             "attributes": d.get("attributes") or {}, "reason": d["reason"], "evidence_ids": d["evidence_ids"],
             "evidence_hash": pool[d["keyword_id"]]["evidence_hash"], "actor": actor, "review_id": review_id,
+            "group_id": d.get("group_id"), "seed": d.get("seed"),
             "reason_source": out.get("reason_source"), "decided_at": ts,
         })
     decided = {r["keyword_id"] for r in dec_rows}
@@ -1113,6 +1308,8 @@ def main(argv=None):
     a.add_argument("--limit", type=int)
     a.add_argument("--pending", action="store_true", help="also re-queue pending decisions")
     a.add_argument("--id", action="append", help="explicit keyword ids (overrides queue rules)")
+    a.add_argument("--no-groups", action="store_true", help="list every keyword on its own")
+    a.add_argument("--only", choices=["boundary", "variants", "facet", "single"], help="only this kind of unit")
     a.set_defaults(fn=cmd_prepare_review)
     a = sub.add_parser("apply-review", help="validate and apply a review output")
     a.add_argument("--file", required=True)

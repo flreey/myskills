@@ -76,6 +76,43 @@ Answer with `output.json`, then run `apply-review --file output.json`.
 Representative keywords must be members of the cluster. Existing clusters appear in `clusters`
 only for a definition update (with `version` + 1), and their identity fields must not change.
 
+## Grouped review (default)
+
+The pool is mostly the same demand said many ways, so `prepare-review` proposes review units
+mechanically. It uses only the discovery contract: seeds with their aliases, and the boundary's
+modifiers, head terms and adjacent/out terms. You still decide every unit.
+
+| Unit | Formed from | Typical decision |
+| --- | --- | --- |
+| `boundary` group | Keywords containing an out or adjacent term ("wiki", "how to make") | Exclude as a group; `except` in-scope members ("free to use sound effects" inside "use") |
+| `variants` group | A seed plus only modifiers, head terms and filler ("door knock sound effect mp3") | Include in the seed's cluster; `except` members with a different result set |
+| `facet` group | The same extra words across ≥ `review_facet_min` (3) seeds ("… meme", "crowd …") | `cluster_id: "@seed"` puts each member in its own seed's cluster, plus `add_attributes`; or exclude ("what does X sound like") |
+| single | Everything else, including keywords with no known seed | Decide one by one |
+
+Order: boundary groups, then per seed its variants group and its singles, then unseeded
+singles, and facet groups last. `@seed` needs every member's seed to be clustered already; the
+command rejects members whose seed has no cluster, so `except` them. Use `--only
+variants|facet|boundary|single` to work one kind at a time. `--no-groups` restores
+one-keyword-per-item review. A group decision:
+
+```json
+{"group_id": "g_…", "status": "included", "language": "en", "intent": {…},
+ "entity": "door knock", "cluster_id": "door_knock",
+ "except": ["kw_…"], "reason": "same result set; modifiers only"}
+```
+
+- Members get `attributes_detected` (modifier values literally in the keyword).
+  `add_attributes` applies a value only to members that literally contain it.
+- Evidence ids come from each member's own observations.
+- Every keyword in the batch is covered exactly once: by a group decision or by an entry in
+  `decisions`, which is required for every `except` id.
+- `explicit` intent bases must quote words present in every member, so groups normally use
+  `inferred`.
+- Group quality depends on seed alias hygiene. A generic alias ("reaction", "footsteps" on two
+  seeds) sends keywords to the wrong group, so clean aliases in discovery first. Finishing
+  discovery triage also shrinks review, because every term triaged as modifier, adjacent or out
+  turns singles into group members.
+
 ## Grouping tests
 
 Apply them in order. A cluster is a group of queries that the **same result set** satisfies.

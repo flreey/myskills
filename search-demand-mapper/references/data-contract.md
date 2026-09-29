@@ -28,7 +28,11 @@ its sorted observation ids; a change re-queues the keyword.
 
 ## decision@1
 
-`{keyword_id, keyword, status, cluster_id, cluster_version, language, intent{task, job, delivery: {value, basis, quote?, reason}}, entity, attributes{axis: [values]}, reason, evidence_ids[], evidence_hash, actor, review_id, reason_source, decided_at}`
+`{keyword_id, keyword, status, cluster_id, cluster_version, language, intent{task, job, delivery: {value, basis, quote?, reason}}, entity, attributes{axis: [values]}, reason, evidence_ids[], evidence_hash, actor, review_id, group_id, seed, reason_source, decided_at}`
+
+`group_id` is set when a group decision produced the row; `seed` is the discovery seed the
+keyword was grouped under. The mapper also reads `discovery/seeds.jsonl` (`text`, `aliases`,
+`status`) to form review groups.
 
 ## page@1
 
