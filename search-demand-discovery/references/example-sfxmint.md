@@ -117,7 +117,8 @@ index number or ran past 4 words).
 | Inferred modifier words | fast, slow, long, bright, metallic, muffled, muted, rapid, smooth, warm… The looping, heavy, distant and gentle axes were added to the boundary |
 | Probe | About 2,000 entity names and leaf samples × 2 engines; about 45 min through a flaky proxy; every network error recovered with backoff |
 | Signal (relevance rule) | 380 with signal, 289 without |
-| Model review | **341 active seeds, 1,663 aliases, 284 parked, 1 out** |
+| Model review (`seed review` / `seed apply-review`, every row decided explicitly) | **340 active seeds (1 promoted), 45 rows merged as aliases, 284 parked, 1 out** |
+| Alias review from usage evidence (2 passes) | 84 one-word aliases dropped (hit, game, door, click, tap…), 27 confirmed as true synonyms; the widest remaining alias fell from 83 seeds to 10 |
 | Standard expansion cost | 6,116 queries (about 4,800 after the gate), about 1 hour, instead of about 145,000 queries (about 40 h) for the raw list |
 
 Review decisions that recur in any catalog:
@@ -131,6 +132,6 @@ Review decisions that recur in any catalog:
 - **Single generic words ("gold", "sale", "incoming", "flag") are parked.** They would expand into
   unrelated demand.
 
-Known follow-up: some aliases are single generic words carried over from role lists ("click",
-"press", "tap" on button click). Concept extraction treats them as part of that seed, so prune
-such aliases during review when they are shared by several seeds.
+- **Validation caught folded umbrellas.** "footsteps" and "notification" had been folded into
+  one family each as aliases. The reviewer promoted "footsteps" and renamed "notification chime"
+  to "notification" instead of hard-coding extra seeds.

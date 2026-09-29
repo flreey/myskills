@@ -55,7 +55,10 @@ observations; readers take the latest period per source.
 - `origin`: gsc | onsite | inventory | reviewed_concept | topdown | taxonomy | user
 - `status`: pending | active | exhausted | rejected | deferred | parked. `parked` seeds are known,
   so extraction does not propose them again, but they are never expanded.
-- `aliases` count as the seed during concept extraction.
+- `aliases` count as the seed during concept extraction. `aliases_confirmed` are one-word aliases
+  a reviewer kept on purpose.
+- `discovery/seed-review-decisions.jsonl` is append-only: every `seed apply-review` decision
+  (`names`, `action`, `text`/`target`, `reason`), keyed by `review_hash`.
 
 ## seed-candidates@1 (input to `consolidate`)
 

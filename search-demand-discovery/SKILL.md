@@ -39,8 +39,10 @@ seeds, then ask one batch of multiple-choice questions, each with a recommended 
 anything the research can answer, and do not run an open-ended interview.
 
 When candidate seeds run to hundreds or thousands (catalog items, SKUs, aliases, a legacy seed
-list), consolidate them first: `consolidate` → `probe` → `consolidate` → review → `seed add`. See
-"Consolidating raw candidates" in the bootstrap reference. Never expand raw item titles directly.
+list), consolidate them first: `consolidate` → `probe` → `consolidate` → `seed review` →
+`seed apply-review`. The scripts only prepare evidence and validate. You decide every row and
+every ambiguous alias; there are no default actions. See "Consolidating raw candidates" in the
+bootstrap reference. Never expand raw item titles directly.
 
 ### 1. Round loop
 

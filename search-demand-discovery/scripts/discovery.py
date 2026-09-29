@@ -490,6 +490,10 @@ def cmd_init(args):
 def cmd_seed(args):
     p = Paths(args.root)
     state = require_init(p)
+    if args.action == "review":
+        return seed_review(p, args)
+    if args.action == "apply-review":
+        return seed_apply_review(p, state, args)
     seeds = load_seeds(p)
     by_text = {s["text"]: s for s in seeds}
     if args.action == "list":
@@ -537,6 +541,169 @@ def cmd_seed(args):
         added.append(rec["text"])
     write_jsonl(p.seeds, seeds)
     emit({"added": len(added), "skipped_existing": len(skipped), "seeds_total": len(seeds), "added_texts": added[:50]})
+
+
+def load_seed_review(p: Paths):
+    rv = read_json(p.work / "seed-review.json")
+    if not rv or rv.get("status") != "ready_for_review":
+        die("no seed review yet: run consolidate (and probe) until it writes seo/work/seed-review.json")
+    rows = {r["name"]: r for r in rv["review"] + rv["no_signal"]}
+    decided = {}
+    for d in read_jsonl(p.d / "seed-review-decisions.jsonl"):
+        if d["review_hash"] == rv["review_hash"]:
+            for n in d["names"]:
+                decided[n] = d
+    return rv, rows, decided
+
+
+def seed_review(p: Paths, args):
+    """Show undecided consolidation rows with their evidence. Every row needs an explicit decision."""
+    rv, rows, decided = load_seed_review(p)
+    todo = [r for n, r in rows.items() if n not in decided]
+    todo.sort(key=lambda r: (-(r["signal"] > 0 or bool(r["signal_leaves"])), -r["items"], r["name"]))
+    batch = todo[: args.limit] if args.limit else todo
+    active = sorted(x["text"] for x in load_seeds(p) if x["status"] in ("pending", "active", "exhausted"))
+    emit({
+        "review_hash": rv["review_hash"], "rows_total": len(rows), "decided": len(decided), "undecided": len(todo),
+        "actions": ["seed", "alias", "park", "out"],
+        "seeds_so_far": active,
+        "rows": [{"name": r["name"], "kind": r["kind"], "signal": r["probe"], "items": r["items"],
+                  "groups": len(r["groups"]), "aliases": r["aliases"][:30], "children": r["children"][:10],
+                  "signal_leaves": r["signal_leaves"][:10], "samples": r["samples"][:6], "origins": r["origins"]}
+                 for r in batch],
+    })
+
+
+def seed_apply_review(p: Paths, state: dict, args):
+    """Apply explicit model decisions for consolidation rows; the command never decides on its own."""
+    rv, rows, decided = load_seed_review(p)
+    data = read_json(Path(args.file)) or {}
+    if data.get("review_hash") != rv["review_hash"]:
+        die("review_hash does not match the current seed-review.json; run `seed review` again")
+    seeds = load_seeds(p)
+    by_text = {x["text"]: x for x in seeds}
+    errors, warnings = [], []
+    seen = set()
+    new_seed_texts = set()
+    for i, d in enumerate(data.get("decisions", [])):
+        names = d.get("names") or ([d["name"]] if d.get("name") else [])
+        where = f"decision {i} ({d.get('action')} {names[:2]})"
+        if d.get("action") not in ("seed", "alias", "park", "out"):
+            errors.append(f"{where}: action must be seed|alias|park|out")
+        if not d.get("reason"):
+            errors.append(f"{where}: reason required")
+        if not names:
+            errors.append(f"{where}: names required")
+        for n in names:
+            if n not in rows:
+                errors.append(f"{where}: unknown row {n!r}")
+            elif n in seen:
+                errors.append(f"{where}: row {n!r} decided twice in this file")
+            elif n in decided and not args.revise:
+                errors.append(f"{where}: row {n!r} already decided (use --revise to change it)")
+            seen.add(n)
+        if d.get("action") == "seed":
+            text = norm(d.get("text") or (names[0] if len(names) == 1 else ""))
+            if not text:
+                errors.append(f"{where}: seed decisions over several rows need text")
+            new_seed_texts.add(text)
+            d["_text"] = text
+            for pr in d.get("promote") or []:
+                if not norm(pr.get("text", "")) or not pr.get("reason"):
+                    errors.append(f"{where}: promote entries need text and reason")
+                new_seed_texts.add(norm(pr.get("text", "")))
+    active_texts = {t for t, x in by_text.items() if x["status"] in ("pending", "active", "exhausted")}
+    for i, d in enumerate(data.get("decisions", [])):
+        if d.get("action") == "alias":
+            tgt = norm(d.get("target", ""))
+            if tgt not in new_seed_texts | active_texts:
+                errors.append(f"decision {i}: alias target {tgt!r} is not an active seed or a seed decided in this file")
+            d["_target"] = tgt
+    if errors:
+        die("apply-review rejected:\n  " + "\n  ".join(errors[:60]))
+
+    def ensure(text, origin, note):
+        x = by_text.get(text)
+        if x is None:
+            x = seed_record(text, origin, "in", 0, state["run"], note=note)
+            seeds.append(x)
+            by_text[text] = x
+        elif x["status"] in ("parked", "rejected"):
+            x["status"] = "pending"
+        return x
+
+    def attach(x, names, add, drop):
+        al = set(x.get("aliases") or [])
+        for n in names:
+            al.add(norm(n))
+            al.update(norm(a) for a in rows[n]["aliases"])
+        al.update(norm(a) for a in add or [])
+        al -= {norm(a) for a in drop or []}
+        al.discard(x["text"])
+        x["aliases"] = sorted(a for a in al if a)
+
+    counts = Counter()
+    for d in data["decisions"]:
+        names, act = d.get("names") or [d["name"]], d["action"]
+        if act == "seed":
+            x = ensure(d["_text"], d.get("origin", "inventory"), d["reason"])
+            first_time = not any(n in decided for n in names)  # a revision only applies its own add/drop
+            attach(x, names if first_time else [], d.get("add_aliases"), d.get("drop_aliases"))
+            if d.get("confirm_aliases"):
+                x["aliases_confirmed"] = sorted(set(x.get("aliases_confirmed") or []) | {norm(a) for a in d["confirm_aliases"]})
+            for pr in d.get("promote") or []:
+                ensure(norm(pr["text"]), d.get("origin", "inventory"), pr["reason"])
+                counts["promoted"] += 1
+        elif act == "park":
+            for n in names:
+                x = by_text.get(norm(n)) or ensure(norm(n), d.get("origin", "inventory"), d["reason"])
+                if x["status"] == "pending" and not x.get("expanded"):
+                    x["status"] = "parked"
+        counts[act] += len(names)
+    for d in data["decisions"]:  # aliases after seeds so same-file targets exist
+        if d["action"] == "alias":
+            names = d.get("names") or [d["name"]]
+            first_time = not any(n in decided for n in names)
+            attach(by_text[d["_target"]], names if first_time else [], d.get("add_aliases"), d.get("drop_aliases"))
+    # ambiguity checks: the model resolves these, the command does not pick a side
+    owners = defaultdict(set)
+    live = [x for x in seeds if x["status"] in ("pending", "active", "exhausted")]
+    live_texts = {x["text"] for x in live}
+    for x in live:
+        for a in x.get("aliases") or []:
+            owners[a].add(x["text"])
+    for a, o in owners.items():
+        if len(o) > 1:
+            errors.append(f"alias {a!r} is attached to several seeds {sorted(o)}; drop it where it does not belong")
+        if a in live_texts:
+            errors.append(f"alias {a!r} of {sorted(o)} is also a seed; drop the alias or merge the seed")
+    if errors:
+        die("apply-review rejected (nothing written):\n  " + "\n  ".join(errors[:60]))
+    confirmed = {a for x in live for a in x.get("aliases_confirmed") or []}
+    single = {a for a in owners if len(tokens(a)) == 1 and a not in confirmed}
+    if single:
+        # evidence, not a word list: a one-word alias that shows up under many different seeds' searches
+        # would pull unrelated keywords into its seed during concept extraction
+        spread = defaultdict(set)
+        for o in read_jsonl(p.obs):
+            src = (o.get("via") or {}).get("seed")
+            if src:
+                for w in set(tokens(o["keyword"])) & single:
+                    spread[w].add(src)
+        risky = sorted(((len(spread[a]), a, sorted(owners[a])[0]) for a in single if len(spread[a]) >= args.alias_spread),
+                       reverse=True)
+        warnings.append({"single_word_aliases": len(single),
+                         "ambiguous_by_evidence": [{"alias": a, "seed": o, "seen_under_seeds": n} for n, a, o in risky[:80]],
+                         "how": "drop the ones that are not specific to their seed (seed decision with --revise and drop_aliases)"})
+    write_jsonl(p.seeds, seeds)
+    log = []
+    for d in data["decisions"]:
+        log.append({"review_hash": rv["review_hash"], "names": d.get("names") or [d["name"]], "action": d["action"],
+                    "text": d.get("_text"), "target": d.get("_target"), "reason": d["reason"], "at": now()})
+    append_jsonl(p.d / "seed-review-decisions.jsonl", log)
+    remaining = len(rows) - len(set(decided) | seen)
+    emit({"applied": dict(counts), "undecided_rows": remaining, "active_seeds": len(live),
+          "parked_seeds": sum(1 for x in seeds if x["status"] == "parked"), "warnings": warnings})
 
 
 def seed_queries(seed: dict, group: str, boundary: dict, dc: dict) -> list[str]:
@@ -1624,7 +1791,9 @@ def cmd_consolidate(args):
                                  for v in e["signal_leaves"]],
                "collapsed_leaves": e["collapsed_leaves"]}
         (review if sig >= args.min_signal or row["signal_leaves"] else parked).append(row)
-    result = {"schema": f"{S}/seed-review@1", "status": "ready_for_review", "engines": engines, "market": market,
+    rows_sig = sorted((r["name"], r["signal"], len(r["signal_leaves"])) for r in review + parked)
+    result = {"schema": f"{S}/seed-review@1", "status": "ready_for_review",
+              "review_hash": sha(json.dumps(rows_sig, ensure_ascii=False)), "engines": engines, "market": market,
               "min_signal": args.min_signal, "summary": dict(summary, with_signal=len(review), no_signal=len(parked)),
               "review": review, "no_signal": parked}
     write_json(p.work / "seed-review.json", result)
@@ -1840,8 +2009,12 @@ def main(argv=None):
     a.add_argument("--language")
     a.set_defaults(fn=cmd_init)
 
-    a = sub.add_parser("seed", help="add, list or reject seeds")
-    a.add_argument("action", choices=["add", "list", "reject"])
+    a = sub.add_parser("seed", help="add, list, reject seeds; review/apply-review consolidation decisions")
+    a.add_argument("action", choices=["add", "list", "reject", "review", "apply-review"])
+    a.add_argument("--limit", type=int, help="review: rows per batch")
+    a.add_argument("--revise", action="store_true", help="apply-review: allow changing earlier decisions")
+    a.add_argument("--alias-spread", type=int, default=5,
+                   help="apply-review: flag one-word aliases seen under this many different seeds' searches")
     a.add_argument("--text", action="append")
     a.add_argument("--file")
     a.add_argument("--origin", default="user", choices=SEED_ORIGINS)

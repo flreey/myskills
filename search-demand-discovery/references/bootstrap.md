@@ -102,14 +102,38 @@ result set. Probing, not a fixed rule, decides how fine the entities get.
    SFXMint, counting any suggestion would have marked 629 of 668 entities as demanded; the
    relevance rule marks 380. Review rows carry suggestion samples, so an entity can be renamed
    to the phrasing users actually type ("radio tuning sweep" → "radio tuning").
-4. **Review** `seo/work/seed-review.json` in one or a few batches. For every row, decide:
-   - `seed`, with the user's wording as the text and the aliases kept;
-   - merge into another seed as an alias;
-   - promote a signal leaf to its own seed, only when its result set differs ("iphone 15 pro max"
-     yes, "clear iphone 15 case" no);
-   - `parked`, for no signal or marketing names; it stays known and is never expanded;
-   - `out`.
-5. **Write** the decisions as a seeds file (`status`: `pending` or `parked`) and run `seed add`.
+4. **Review. You decide every row; the command never decides.** Run `seed review --limit 80` to
+   see undecided rows. Each row comes with evidence: signal per engine, raw suggestion samples,
+   item count, aliases, children and signal leaves. Write a decisions file and apply it with
+   `seed apply-review --file decisions.json`. Repeat until `undecided_rows` is 0.
+   ```json
+   {"review_hash": "<from seed review>", "decisions": [
+     {"names": ["notification chime"], "action": "seed", "text": "notification",
+      "drop_aliases": ["ding", "message"], "reason": "users search the broad term; samples show it"},
+     {"names": ["footsteps on concrete"], "action": "seed", "drop_aliases": ["footsteps"],
+      "promote": [{"text": "footsteps", "reason": "generic query users type"}], "reason": "..."},
+     {"names": ["enemy die", "mob death"], "action": "alias", "target": "enemy defeated", "reason": "same result set"},
+     {"names": ["crisp ui sound set", "gold"], "action": "park", "reason": "marketing name / generic word, no signal"},
+     {"names": ["gen"], "action": "out", "reason": "not an entity name"}]}
+   ```
+   How to judge:
+   - **seed**: a distinct result set users ask for. Take the text from how users phrase it in
+     the samples; renames without sample evidence are fine, because the first base expansion
+     verifies them.
+   - **alias**: the same result set under another name.
+   - **promote**: a leaf or alias that deserves its own seed.
+   - **park**: no signal, a marketing name, or a word too generic to expand. Parked seeds stay
+     known and are never expanded.
+   - **out**: not an entity.
+   - Rows without signal need a decision too. Group many rows with the same decision into one
+     entry with a shared reason.
+5. **Resolve ambiguity.** `apply-review` writes nothing while an alias belongs to several seeds or
+   equals another seed; decide which side keeps it. It then lists one-word aliases with usage
+   evidence: how many different seeds' searches each word appears under. For each, drop it
+   (`drop_aliases`) or keep it (`confirm_aliases`, which removes it from later lists), using a
+   `seed` decision with `--revise`. Stop when the remaining words are true synonyms. Otherwise a
+   word like "hit" or "door" would pull unrelated keywords into one seed during concept
+   extraction.
 
 On SFXMint (2026-09-29), 8,042 legacy seeds consolidated to 668 candidate entities before probing.
 The detailed numbers are in [example-sfxmint.md](example-sfxmint.md).
