@@ -153,3 +153,26 @@ Review decisions that recur in any catalog:
 - **Validation caught folded umbrellas.** "footsteps" and "notification" had been folded into
   one family each as aliases. The reviewer promoted "footsteps" and renamed "notification chime"
   to "notification" instead of hard-coding extra seeds.
+
+## Triage, alias hygiene and saturation (2026-09-29)
+
+| Round | New keywords | Seeds from triage | Yield | Verdict |
+| --- | --- | --- | --- | --- |
+| 1 (341 entity seeds) | 10,917 | 220 | 2.02% | CONTINUE |
+| 2 (206 new seeds, 2,752 requests, 27 min) | 5,037 | 69 | 1.37% | CONTINUE (first round below 2%) |
+| 3 (69 new seeds, 869 requests, 9 min) | 1,454 | 5 | 0.34% | **STOP** |
+
+The pool ended at 17,408 keywords and 69,178 observations.
+
+- **Alias hygiene on the grown pool** (`seed aliases`): 104 aliases dropped (woods, white,
+  reaction, car crash on "debris crash"…), 87 confirmed. The consolidation-time check only saw
+  one-word aliases and a much smaller pool.
+- **Triage was corrected, not only extended.** `text`, `windows`, `library`, `get` and `use` had
+  been marked adjacent; the pool showed "text message sound", "windows error sound" and "free to
+  use sound effects" are in scope. Re-deciding them withdrew the old boundary terms, and
+  `boundary` ops recorded "how to use" and "free to use" instead.
+- **Seed names must be observed.** `as` let triage name the searched entity ("emotional" →
+  "emotional damage", "race" → "race car"); validation rejected 7 names that no keyword contained
+  (for example "rimshot", "bed creak").
+- Triage leaned toward `seed`; the rule "when unsure, choose modifier" would have ended discovery
+  one round earlier.

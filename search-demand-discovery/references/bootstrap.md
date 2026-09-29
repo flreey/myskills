@@ -138,6 +138,10 @@ result set. Probing, not a fixed rule, decides how fine the entities get.
    word like "hit" or "door" would pull unrelated keywords into one seed during concept
    extraction.
 
+   Repeat the check after each expansion round with `seed aliases`: the pool is then much larger
+   than at consolidation time, and multi-word aliases can be too broad as well ("car crash" on
+   "debris crash"). Dropping an alias lets its keywords surface as concepts of their own.
+
 6. **Re-consolidation keeps earlier work.** After a boundary or rule change, rerun `consolidate`.
    Decisions carry over by row name, so only new or renamed rows come back as undecided.
    `seed review` also lists `stale_seeds`: seeds whose source rows vanished because a renamed row

@@ -52,7 +52,8 @@ point at.
    router, sitemap and experiment/cohort config so live experiments are not disturbed.
 2. **Review loop.** `prepare-review` builds a batch of review units: boundary groups, per-seed
    variant groups, cross-seed facet groups and single keywords (up to 100 units / 600 keywords).
-   Read `input.json`, write `output.json` following
+   `--plan` sizes the whole queue first. Read `input.json`, write `output.json` (shorthand
+   allowed) following
    [references/review-protocol.md](references/review-protocol.md), then run `apply-review`. Decide
    every group, and use `except` for members that differ. Repeat until the queue is empty or the
    batch budget is spent. The engine rejects outputs whose evidence changed since

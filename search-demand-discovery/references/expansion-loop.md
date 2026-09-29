@@ -60,6 +60,14 @@ contain a newly accepted seed are marked `subsumed` automatically and re-extract
 time. Candidates need at least `concept_min_count` keywords (default 2), unless they come from GSC,
 Planner or on-site requests.
 
+## Correcting earlier triage
+
+Triage is not final. When the pool shows that a term was decided too broadly (for example
+`adjacent: text` while "text message sound" is in scope), decide the concept again, and use
+`boundary` ops to record the narrower phrase ("how to use" instead of "use"). The old boundary
+entry is withdrawn automatically. Run `seed aliases` after each round for the same reason, then
+`concepts` again: pending concepts that are no longer extracted become `stale`.
+
 ## Triage heuristics
 
 - **Seed** only if it points to a different result set that users want and the product could

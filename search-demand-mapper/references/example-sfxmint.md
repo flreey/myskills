@@ -34,3 +34,33 @@ vocabulary.
 `keep_or_improve_existing`. "Retro button click" with 1 member, 4 retro items and no SERP pair
 stays a `filter`. Promotion would need at least 3 phrasings, 8 or more retro items, a SERP pair
 with `different_result_set`, and later a confirmed `promotion_signal`.
+
+## Full review of the 17,408-keyword pool (2026-09-29)
+
+`prepare-review --plan` sized the queue at 63 batches. Reviewing one kind at a time kept each
+decision simple:
+
+| Order | Units | Keywords | Batches |
+| --- | --- | --- | --- |
+| Variants (`--only variants`), clusters defined here | 591 groups | 6,009 | 11 |
+| Facets (`@seed` plus exceptions) | 384 groups | 2,932 | 5 |
+| Boundary groups (exclude, except in-scope members) | 205 groups | 2,622 | 5 |
+| Singles (the last third had no seed) | 4,674 | 4,674 | 31 |
+
+Outcome: 10,916 included, 5,475 excluded, 1,017 pending, 412 active clusters. After inventory,
+`analyze` suggested `keep_or_improve_existing` for the 25 clusters with live pages. 170 clusters
+lacked only a SERP check; 211 had demand but no matching catalog items. Live searches of the
+SFXMint API confirmed several gaps (no air horn, fire alarm, dinosaur or coin toss sounds).
+
+Lessons:
+
+- **`@seed` follows the longest seed match, not the meaning.** "gun fire sound effect" matched
+  the seed "fire"; "funny scream" matched "funny". Show each member's resolved cluster before
+  approving a facet group, and use a fixed cluster when the facet word is the entity.
+- **Broad boundary terms cost review time.** "music", "spell" and "curtains" swept in "music box",
+  "magic spell" and "curtain opening"; exceptions fixed them, and discovery should narrow them.
+- **Collection hubs need their own inventory rule.** Count them from catalog categories or child
+  clusters; leave them out when neither applies.
+- Pending keywords are mostly franchise clips (Free Fire, Star Wars, Mario), named memes and sets
+  for streamers. They are real demand, but not for asset pages until rights and page type are
+  decided.

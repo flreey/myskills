@@ -55,8 +55,8 @@ observations; readers take the latest period per source.
 - `origin`: gsc | onsite | inventory | reviewed_concept | topdown | taxonomy | user
 - `status`: pending | active | exhausted | rejected | deferred | parked. `parked` seeds are known,
   so extraction does not propose them again, but they are never expanded.
-- `aliases` count as the seed during concept extraction. `aliases_confirmed` are one-word aliases
-  a reviewer kept on purpose.
+- `aliases` count as the seed during concept extraction and mapper grouping. `aliases_confirmed`
+  are aliases a reviewer kept on purpose; they leave later alias reports.
 - `discovery/seed-review-decisions.jsonl` is append-only: every `seed apply-review` decision
   (`names`, `action`, `text`/`target`, `reason`), keyed by `review_hash`.
 
@@ -76,7 +76,9 @@ observations; readers take the latest period per source.
 `{key, text, kind, status, count, examples[], evidence[], parent_seed_ids[], origins[], first_run, decided_run, reason, axis}`
 
 - `kind`: phrase | term | hypothesis
-- `status`: pending | seed | modifier | head_term | adjacent | out | noise | subsumed
+- `status`: pending | seed | modifier | head_term | adjacent | out | noise | subsumed | stale.
+  `stale` means a later extraction no longer produces it (an alias or boundary edit covered its
+  keywords); it returns to `pending` if it reappears.
 
 ## Triage input and output
 
@@ -88,5 +90,23 @@ The triage file answers every item it decides:
   {"text": "mouse click", "decision": "seed", "reason": "different sound source and result set"},
   {"text": "discord", "decision": "modifier", "axis": "context", "reason": "platform context, same sounds"},
   {"text": "id roblox", "decision": "out", "reason": "platform ID lookup, not an asset download"}
+],
+ "boundary": [
+  {"op": "add", "field": "modifier", "axis": "license", "term": "free to use", "reason": "license request"},
+  {"op": "remove", "field": "adjacent", "term": "text", "reason": "'text message sound' is in scope"}
 ]}
 ```
+
+- Deciding an already decided concept again is a revision: its old boundary entry (modifier,
+  head term, adjacent or out term) is withdrawn first. A `seed` concept is retired with
+  `seed reject --text` instead.
+- `boundary` ops edit phrases directly: a phrase narrower or wider than any concept ("how to
+  use" instead of "use"), or a term set during bootstrap. `field` is modifier (with `axis`),
+  head_term, adjacent or out. An added phrase must occur in at least one observed keyword.
+
+## Alias review (`seed aliases`)
+
+Without `--file` it reports every unconfirmed alias that other seeds' searches also produced
+(`--alias-spread`, default 5) or that sits inside another seed's name, with foreign samples. The
+decisions file is `{"decisions": [{"seed", "drop": [], "confirm": [], "reason"}]}`; it is logged
+to `runs.jsonl` as `alias_review`.

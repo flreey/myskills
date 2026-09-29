@@ -76,6 +76,29 @@ Answer with `output.json`, then run `apply-review --file output.json`.
 Representative keywords must be members of the cluster. Existing clusters appear in `clusters`
 only for a definition update (with `version` + 1), and their identity fields must not change.
 
+### Shorthand
+
+Large pools make the full form expensive. `apply-review` expands these before validating, so
+every decision still states its own status, cluster and reason:
+
+- `"defaults": {"language": "en", "intent": "cluster"}` at the top of the output fills decisions
+  and group decisions that leave those fields out.
+- `"intent": "cluster"` on an included decision takes the cluster's task and delivery as
+  `inferred` and the job as `unknown`. On excluded or pending decisions it is rejected.
+- Compact intent: `{"task": "learn", "delivery": null}`. A string becomes `inferred` with the
+  decision's reason; null or a missing dimension becomes `unknown`.
+- `entity` left out on an included decision is the cluster's entity.
+- `evidence_ids` left out are the keyword's observations from the input; `attributes` left out
+  are its `attributes_detected`. Write `attributes` whenever the keyword states more.
+- A new cluster's `definition.evidence_ids` left out are its representative keywords'
+  observations. Summary, includes, excludes and the neighbor distinction stay required.
+
+## Sizing the queue
+
+`prepare-review --plan` counts every queued unit by kind and the batches the current limits
+need, without writing a batch. Run it before a full review and after discovery changes (aliases,
+boundary terms, new seeds), which move keywords from singles into groups.
+
 ## Grouped review (default)
 
 The pool is mostly the same demand said many ways, so `prepare-review` proposes review units

@@ -337,6 +337,28 @@ def lexicon(boundary: dict) -> set:
     return {stem_tuple(x) for x in phrases if stem_tuple(x)}
 
 
+BOUNDARY_FIELDS = {"modifier": "modifiers", "head_term": "head_terms", "adjacent": "adjacent_terms", "out": "out_terms"}
+DECISION_FIELD = {"modifier": "modifier", "head_term": "head_term", "adjacent": "adjacent", "out": "out"}
+
+
+def boundary_lists(b: dict, field: str, axis=None) -> list[list]:
+    """The boundary list(s) a triage field writes to; modifiers without an axis means every axis."""
+    if field == "modifier":
+        mods = b.setdefault("modifiers", {})
+        return [mods[axis]] if axis and axis in mods else ([] if axis else list(mods.values()))
+    return [b.setdefault(BOUNDARY_FIELDS[field], [])]
+
+
+def boundary_list(b: dict, field: str, axis=None, create=False, all_axes=False):
+    if field == "modifier":
+        if all_axes and not axis:
+            return [t for lst in b.get("modifiers", {}).values() for t in lst]
+        if create:
+            return b.setdefault("modifiers", {}).setdefault(axis or "_generic", [])
+        return b.get("modifiers", {}).get(axis or "_generic", [])
+    return b.setdefault(BOUNDARY_FIELDS[field], [])
+
+
 def phrase_set(items) -> list[tuple]:
     return [t for t in (stem_tuple(x) for x in items or []) if t]
 
@@ -501,6 +523,8 @@ def cmd_seed(args):
         return seed_review(p, args)
     if args.action == "apply-review":
         return seed_apply_review(p, state, args)
+    if args.action == "aliases":
+        return seed_aliases(p, state, args)
     seeds = load_seeds(p)
     by_text = {s["text"]: s for s in seeds}
     if args.action == "list":
@@ -720,6 +744,77 @@ def seed_apply_review(p: Paths, state: dict, args):
     remaining = len(rows) - len(set(decided) | seen)
     emit({"applied": dict(counts), "undecided_rows": remaining, "active_seeds": len(live),
           "parked_seeds": sum(1 for x in seeds if x["status"] == "parked"), "warnings": warnings})
+
+
+def seed_aliases(p: Paths, state: dict, args):
+    """Alias hygiene on the current pool. Without --file: evidence report. With --file: apply model decisions."""
+    seeds = load_seeds(p)
+    live = [x for x in seeds if x["status"] in ("pending", "active", "exhausted")]
+    by_text = {x["text"]: x for x in live}
+    if args.file:
+        data = read_json(Path(args.file)) or {}
+        items = data.get("decisions", data) if isinstance(data, dict) else data
+        errors = []
+        for i, d in enumerate(items):
+            x = by_text.get(norm(d.get("seed", "")))
+            if not x:
+                errors.append(f"decision {i}: {d.get('seed')!r} is not an active seed")
+                continue
+            if not d.get("reason") or not (d.get("drop") or d.get("confirm")):
+                errors.append(f"decision {i} ({x['text']}): drop or confirm, and reason, are required")
+            have = set(x.get("aliases") or [])
+            for a in (d.get("drop") or []) + (d.get("confirm") or []):
+                if norm(a) not in have:
+                    errors.append(f"decision {i} ({x['text']}): {a!r} is not one of its aliases")
+        if errors:
+            die("alias review rejected:\n  " + "\n  ".join(errors[:60]))
+        counts = Counter()
+        for d in items:
+            x = by_text[norm(d["seed"])]
+            drop = {norm(a) for a in d.get("drop") or []}
+            x["aliases"] = [a for a in x.get("aliases") or [] if a not in drop]
+            x["aliases_confirmed"] = sorted((set(x.get("aliases_confirmed") or []) - drop)
+                                            | {norm(a) for a in d.get("confirm") or []})
+            counts["dropped"] += len(drop)
+            counts["confirmed"] += len(d.get("confirm") or [])
+        write_jsonl(p.seeds, seeds)
+        log_run(p, {"type": "alias_review", "run": state["run"], **counts,
+                    "decisions": [{k: d.get(k) for k in ("seed", "drop", "confirm", "reason")} for d in items]})
+        emit({"applied": dict(counts)})
+        return
+    # evidence: which other seeds' searches produced keywords containing the alias
+    kw_seeds = defaultdict(set)
+    for o in read_jsonl(p.obs):
+        src = (o.get("via") or {}).get("seed")
+        kw_seeds[o["keyword"]].add(src or f"source:{o['source']}")
+    index = defaultdict(list)  # first stem -> [(stemmed keyword, keyword)]
+    for kw in kw_seeds:
+        st = stem_tuple(kw)
+        for t in set(st):
+            index[t].append((st, kw))
+    seed_stems = {x["text"]: stem_tuple(x["text"]) for x in live}
+    rows = []
+    for x in live:
+        confirmed = set(x.get("aliases_confirmed") or [])
+        for a in x.get("aliases") or []:
+            ph = stem_tuple(a)
+            if not ph or a in confirmed:
+                continue
+            hits = [kw for st, kw in index.get(ph[0], []) if contains_seq(st, ph) >= 0]
+            other = {s for kw in hits for s in kw_seeds[kw]} - {x["text"]}
+            inside = sorted(t for t, st in seed_stems.items() if t != x["text"] and contains_seq(st, ph) >= 0)
+            if len(other) < args.alias_spread and not inside:
+                continue
+            foreign = [kw for kw in hits if not kw_seeds[kw] & {x["text"]}]
+            rows.append({"seed": x["text"], "alias": a, "keywords": len(hits), "seen_under_other_seeds": len(other),
+                         "inside_other_seed_names": inside[:8], "foreign_samples": sorted(foreign)[:6]})
+    rows.sort(key=lambda r: (-len(r["inside_other_seed_names"]) - r["seen_under_other_seeds"], r["seed"]))
+    lim = args.limit or 150
+    emit({"flagged": len(rows), "shown": min(lim, len(rows)), "min_spread": args.alias_spread,
+          "how": "an alias routes every keyword that contains it to its seed (concept extraction, mapper groups). "
+                 "Drop aliases that are not specific to the seed; confirm true synonyms. "
+                 "Write {decisions:[{seed, drop:[], confirm:[], reason}]} and run `seed aliases --file`.",
+          "rows": rows[:lim]})
 
 
 def seed_queries(seed: dict, group: str, boundary: dict, dc: dict) -> list[str]:
@@ -1530,6 +1625,8 @@ def cmd_concepts(args):
         count = len(a["keywords"])
         c = concepts.get(key)
         if c:
+            if c["status"] == "stale":
+                c.update(status="pending", reason=None)
             c["count"] = max(c["count"], count)
             c["examples"] = (c["examples"] + sorted(a["keywords"])[:5])[:5] if len(c["examples"]) < 5 else c["examples"]
             if "observed" not in c["origins"]:
@@ -1543,6 +1640,11 @@ def cmd_concepts(args):
         concepts[key] = concept_record(a["text"], a["kind"], count, sorted(a["keywords"])[:5], a["obs"],
                                        [s for s, _ in a["parents"].most_common(10)], "observed", state["run"])
         added += 1
+    stale = 0
+    for key, c in concepts.items():  # alias or boundary edits can make an old extraction disappear
+        if c["status"] == "pending" and c["kind"] != "hypothesis" and key not in agg:
+            c.update(status="stale", decided_run=state["run"], reason="no longer extracted from the pool")
+            stale += 1
     live_seeds = [(k, " ".join(k)) for k, _ in seed_keys]
     subsumed = 0
     for c in concepts.values():
@@ -1580,7 +1682,7 @@ def cmd_concepts(args):
     }
     out = p.work / "triage-input.json"
     write_json(out, triage)
-    emit({"new_concepts": added, "subsumed": subsumed, "pending_total": len(pending), "batch": len(batch),
+    emit({"new_concepts": added, "subsumed": subsumed, "stale": stale, "pending_total": len(pending), "batch": len(batch),
           "held_as_variants": sum(len(v) for v in variants.values()), "triage_input": str(out)})
 
 
@@ -1596,26 +1698,78 @@ def cmd_triage(args):
     seed_by_id = {s["id"]: s for s in seeds}
     seed_texts = {s["text"] for s in seeds}
     allowed = {"seed", "modifier", "head_term", "adjacent", "out", "noise"}
+    ops = data.get("boundary", []) if isinstance(data, dict) else []
     errors = []
     for d in decisions:
         key = " ".join(stem_tuple(d.get("text", "")))
         if key not in concepts:
             errors.append(f"unknown concept {d.get('text')!r}")
+        elif concepts[key]["status"] == "seed" and d.get("decision") != "seed":
+            errors.append(f"{d.get('text')!r} is already a seed: retire it with `seed reject --text` first")
         if d.get("decision") not in allowed:
             errors.append(f"{d.get('text')!r}: decision must be one of {sorted(allowed)}")
         if not d.get("reason"):
             errors.append(f"{d.get('text')!r}: reason is required")
+    observed = None
+    for d in decisions:
+        if d.get("as"):
+            if d.get("decision") != "seed":
+                errors.append(f"{d.get('text')!r}: `as` only applies to seed decisions")
+                continue
+            if observed is None:
+                observed = {stem_tuple(o["keyword"]) for o in read_jsonl(p.obs)}
+            ph = stem_tuple(d["as"])
+            if not ph or not any(contains_seq(k, ph) >= 0 for k in observed):
+                errors.append(f"{d.get('text')!r}: seed text {d['as']!r} occurs in no observed keyword")
+    for i, op in enumerate(ops):
+        where = f"boundary op {i} ({op.get('op')} {op.get('term')!r})"
+        if op.get("op") not in ("add", "remove") or op.get("field") not in BOUNDARY_FIELDS:
+            errors.append(f"{where}: op must be add|remove and field one of {sorted(BOUNDARY_FIELDS)}")
+            continue
+        if not stem_tuple(op.get("term", "")) or not op.get("reason"):
+            errors.append(f"{where}: term and reason are required")
+            continue
+        if op["op"] == "add":
+            if observed is None:
+                observed = {stem_tuple(o["keyword"]) for o in read_jsonl(p.obs)}
+            ph = stem_tuple(op["term"])
+            if not any(contains_seq(k, ph) >= 0 for k in observed):
+                errors.append(f"{where}: no observed keyword contains this phrase")
+        elif norm(op["term"]) not in boundary_list(b, op["field"], op.get("axis"), all_axes=True):
+            errors.append(f"{where}: not in the boundary")
     if errors:
         die("triage rejected:\n  " + "\n  ".join(errors))
     counts = Counter()
+    for op in ops:  # explicit boundary edits (phrases narrower or wider than a concept, bootstrap terms)
+        term = norm(op["term"])
+        if op["op"] == "add":
+            lst = boundary_list(b, op["field"], op.get("axis") or "_generic", create=True)
+            if term not in lst:
+                lst.append(term)
+        else:
+            for lst in boundary_lists(b, op["field"], op.get("axis")):
+                while term in lst:
+                    lst.remove(term)
+        counts[f"boundary_{op['op']}"] += 1
     for d in decisions:
         c = concepts[" ".join(stem_tuple(d["text"]))]
         dec = d["decision"]
+        if c["status"] in DECISION_FIELD:  # a re-decision withdraws the earlier boundary entry
+            for lst in boundary_lists(b, DECISION_FIELD[c["status"]], c.get("axis")):
+                while c["text"] in lst:
+                    lst.remove(c["text"])
+            counts["revised"] += 1
         c.update(status=dec, decided_run=state["run"], reason=d["reason"], axis=d.get("axis"))
         counts[dec] += 1
         text = c["text"]
         if dec == "seed":
+            text = norm(d.get("as") or text)  # the name users actually search ("emotional" -> "emotional damage")
             if text in seed_texts:
+                old = next(s for s in seeds if s["text"] == text)
+                if old["status"] == "parked":  # parked for lack of signal; the pool now shows demand
+                    old.update(status="pending", note=f"unparked by triage: {d['reason']}")
+                    old["evidence"] = (old.get("evidence") or []) + c["evidence"][:10]
+                    counts["unparked"] += 1
                 continue
             if c["kind"] == "hypothesis" and not c["parent_seed_ids"]:
                 rec = seed_record(text, "topdown", d.get("ring", "in"), 0, state["run"], evidence=c["evidence"],
@@ -1648,8 +1802,9 @@ def cmd_triage(args):
     write_json(p.boundary, b)
     write_jsonl(p.concepts, concepts.values())
     write_jsonl(p.seeds, seeds)
-    log_run(p, {"type": "triage", "run": state["run"], "decisions": dict(counts)})
-    emit({"applied": sum(counts.values()), "by_decision": dict(counts), "boundary_version": b["version"]})
+    log_run(p, {"type": "triage", "run": state["run"], "decisions": dict(counts),
+                "boundary_ops": [{k: op.get(k) for k in ("op", "field", "axis", "term", "reason")} for op in ops]})
+    emit({"applied": len(decisions) + len(ops), "by_decision": dict(counts), "boundary_version": b["version"]})
 
 
 # ---------------------------------------------------------------- seed consolidation and probing
@@ -2088,12 +2243,12 @@ def main(argv=None):
     a.add_argument("--language")
     a.set_defaults(fn=cmd_init)
 
-    a = sub.add_parser("seed", help="add, list, reject seeds; review/apply-review consolidation decisions")
-    a.add_argument("action", choices=["add", "list", "reject", "review", "apply-review"])
-    a.add_argument("--limit", type=int, help="review: rows per batch")
+    a = sub.add_parser("seed", help="add, list, reject seeds; review/apply-review consolidation decisions; alias hygiene")
+    a.add_argument("action", choices=["add", "list", "reject", "review", "apply-review", "aliases"])
+    a.add_argument("--limit", type=int, help="review/aliases: rows per batch")
     a.add_argument("--revise", action="store_true", help="apply-review: allow changing earlier decisions")
     a.add_argument("--alias-spread", type=int, default=5,
-                   help="apply-review: flag one-word aliases seen under this many different seeds' searches")
+                   help="apply-review/aliases: flag aliases seen under this many different seeds' searches")
     a.add_argument("--text", action="append")
     a.add_argument("--file")
     a.add_argument("--origin", default="user", choices=SEED_ORIGINS)

@@ -410,6 +410,22 @@ def cmd_prepare_review(args):
     if args.only:  # review one kind of unit first, e.g. variants before facets
         ordered = [it for it in ordered if (it[1][0] if it[0] == "group" else "single") == args.only]
     max_units, max_kw = args.limit or cfg["review_batch"], cfg["review_max_keywords"]
+    if args.plan:  # size the whole queue without writing a batch
+        kinds = defaultdict(lambda: {"units": 0, "keywords": 0})
+        n_batches, n_units, n_kw = 0, 0, 0
+        for item in ordered:
+            kind = item[1][0] if item[0] == "group" else "single"
+            size = len(item[2]) if item[0] == "group" else 1
+            kinds[kind]["units"] += 1
+            kinds[kind]["keywords"] += size
+            while size > 0:
+                take = min(size, max_kw)
+                if n_units and (n_units >= max_units or n_kw + take > max_kw):
+                    n_batches, n_units, n_kw = n_batches + 1, 0, 0
+                n_units, n_kw, size = n_units + 1, n_kw + take, size - take
+        emit({"queued_keywords": len(picked), "by_kind": dict(kinds), "batches": n_batches + (1 if n_units else 0),
+              "batch_limits": {"units": max_units, "keywords": max_kw}, "protected_human": protected})
+        return
     batch, n_units, n_kw = [], 0, 0
     for item in ordered:
         size = len(item[2]) if item[0] == "group" else 1
@@ -486,7 +502,42 @@ def seed_clusters(decisions: dict, pending: list) -> dict:
     return {s: c.most_common(1)[0][0] for s, c in votes.items()}
 
 
+SHORTHAND_DEFAULTS = {"language", "intent"}
+
+
+def expand_shorthand(d: dict, defaults: dict, cluster_defs: dict, item: dict | None) -> None:
+    """Fill what a decision may leave out. The model still decides status, cluster and reason per keyword."""
+    for f in SHORTHAND_DEFAULTS:
+        if d.get(f) is None and defaults.get(f) is not None:
+            d[f] = json.loads(json.dumps(defaults[f]))
+    cid = d.get("cluster_id")
+    c = cluster_defs.get(cid) if cid and cid != "@seed" else None
+    if d.get("intent") == "cluster" and c and d.get("status") == "included":
+        d["intent"] = {
+            "task": {"value": c["intent"]["task"], "basis": "inferred", "reason": f"asks for what {cid} delivers"},
+            "job": {"value": None, "basis": "unknown", "reason": "no concrete use stated"},
+            "delivery": {"value": c["intent"]["delivery"], "basis": "inferred", "reason": f"same delivery as {cid}"},
+        }
+    it = d.get("intent")
+    if isinstance(it, dict) and any(not isinstance(it.get(dim), dict) for dim in ("task", "job", "delivery")):
+        # compact form {"task": "learn", "delivery": null}: a string is inferred with the decision's reason
+        d["intent"] = {dim: it[dim] if isinstance(it.get(dim), dict) else (
+            {"value": it[dim], "basis": "inferred", "reason": d.get("reason") or "see decision reason"}
+            if it.get(dim) is not None else {"value": None, "basis": "unknown", "reason": "not stated"})
+            for dim in ("task", "job", "delivery")}
+    if d.get("status") == "included" and not d.get("entity") and c:
+        d["entity"] = c["entity"]
+    if item is not None:
+        if not d.get("evidence_ids"):
+            d["evidence_ids"] = [o["id"] for o in item.get("observations") or []] or list(item.get("observation_ids") or [])
+        if "attributes" not in d:
+            d["attributes"] = {k: list(v) for k, v in (item.get("attributes_detected") or {}).items()}
+
+
 def check_intent(kw: str, intent, cfg, where: str, errors: list):
+    if intent == "cluster":
+        errors.append(f"{where}: intent \"cluster\" only resolves for an included decision with a cluster")
+        return
     if not isinstance(intent, dict):
         errors.append(f"{where}: intent must be an object with task/job/delivery")
         return
@@ -591,9 +642,21 @@ def cmd_apply_review(args):
 
     new_clusters = {c.get("id"): c for c in out.get("clusters", [])}
     for c in out.get("clusters", []):
+        d = c.get("definition") or {}
+        if isinstance(d, dict) and not d.get("evidence_ids"):  # shorthand: the representative keywords' own observations
+            d["evidence_ids"] = [o["id"] for r in d.get("representative_keywords") or []
+                                 for o in sorted((pool.get(kw_id(norm(r))) or {}).get("observations", []), key=obs_strength)[:3]]
         check_cluster(c, cfg, clusters, pool_obs, errors)
     usable = {cid for cid, c in clusters.items() if c["status"] in ("active", "hold")} | set(new_clusters)
 
+    defaults = out.get("defaults") or {}
+    if not isinstance(defaults, dict) or set(defaults) - SHORTHAND_DEFAULTS:
+        errors.append(f"defaults may only set {sorted(SHORTHAND_DEFAULTS)}")
+        defaults = {}
+    for gd in out.get("group_decisions", []):
+        for f in SHORTHAND_DEFAULTS:
+            if gd.get(f) is None and defaults.get(f) is not None:
+                gd[f] = json.loads(json.dumps(defaults[f]))
     decs = list(out.get("decisions", []))
     seed_of = {i["keyword_id"]: i.get("seed") for i in (inp or {}).get("keywords", [])}
     seed_of.update({m["keyword_id"]: m.get("seed") for g in (inp or {}).get("groups", []) for m in g["members"]})
@@ -635,6 +698,13 @@ def cmd_apply_review(args):
                          "attributes": attrs, "cluster_id": cid, "seed": m.get("seed"),
                          "reason": f"{gd.get('reason') or ''} [group {g['group_id']}]" if gd.get("reason") else None,
                          "evidence_ids": m["observation_ids"], "group_id": g["group_id"]})
+    cluster_defs = {cid: c for cid, c in clusters.items()}
+    cluster_defs.update(new_clusters)
+    single_items = {i["keyword_id"]: i for i in (inp or {}).get("keywords", [])}
+    member_items = {m["keyword_id"]: m for g in groups_in.values() for m in g["members"]}
+    for d in decs:
+        k = d.get("keyword_id")
+        expand_shorthand(d, defaults, cluster_defs, single_items.get(k) or (None if d.get("group_id") else member_items.get(k)))
     ids = [d.get("keyword_id") for d in decs]
     if len(ids) != len(set(ids)):
         errors.append("each keyword needs exactly one decision (duplicates found)")
@@ -1310,6 +1380,7 @@ def main(argv=None):
     a.add_argument("--id", action="append", help="explicit keyword ids (overrides queue rules)")
     a.add_argument("--no-groups", action="store_true", help="list every keyword on its own")
     a.add_argument("--only", choices=["boundary", "variants", "facet", "single"], help="only this kind of unit")
+    a.add_argument("--plan", action="store_true", help="size the whole queue (units, keywords, batches); write nothing")
     a.set_defaults(fn=cmd_prepare_review)
     a = sub.add_parser("apply-review", help="validate and apply a review output")
     a.add_argument("--file", required=True)
