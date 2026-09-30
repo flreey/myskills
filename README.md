@@ -68,6 +68,39 @@ https://github.com/flreey/myskills/tree/main/prompt-builder
    - **显式调用**：直接说 `用 prompt-builder skill ...` 或在 Claude Code 输入 `/prompt-builder`
 3. **验证装好了** — 问 agent："你看到 prompt-builder 这个 skill 了吗？" 它能背出 description 就说明装对了。
 
+## Search Demand 两件套快速上手
+
+`search-demand-discovery`（找词）和 `search-demand-mapper`（定页面）是一组，按顺序配合使用，共用项目根目录下的 `seo/`：discovery 写关键词池，mapper 读它并写需求簇和页面注册表。平时只用两个斜杠命令或自然语言，引擎子命令由 agent 按流程调用。
+
+```text
+/search-demand-discovery   给 ~/Projects/xxx 做关键词挖掘
+（回答不超过 5 道选择题，或说"你定"；扩词在后台跑，可选在内置浏览器登录 GSC / Keyword Planner）
+/search-demand-mapper      把 seo 关键词池归簇，给出页面方案
+（审阅变更集，批准后才写入注册表；不包括改代码、建页或部署）
+……上线满 28 天后……
+/search-demand-mapper      我导出了 GSC，看看要不要拆页合页
+```
+
+| 项目情况 | 怎么用 |
+| --- | --- |
+| 新站（未上线、没有 GSC） | discovery 找词 → mapper 规划页面，不需要同步 |
+| 已上线的站 | 先让 mapper `sync-check --sitemap` 登记现有页面，并尽早导入 GSC：真实查询里常有大量补全扩词找不到的需求 |
+| 已有自己的关键词引擎 | 只借用方法（种子收敛、分组审核、页面门槛），不另建第二套数据 |
+
+| 阶段 | discovery 子命令（`scripts/discovery.py --root <项目>`） | mapper 子命令（`scripts/mapper.py --root <项目>`） |
+| --- | --- | --- |
+| 建目录 | `init` | `init` |
+| 种子 | `seed add/list/reject`；内容或 SKU 上千时先 `consolidate` → `probe` → `seed review` → `seed apply-review` | |
+| 扩词与导入 | `suggest --level quick\|standard\|deep`、`import --format gkp\|gsc\|trends\|csv\|json\|lines`、`sitemap --url` | |
+| 每轮整理 | `seed aliases`、`concepts`、`triage`、`boundary audit`、`round`（给出继续或停止） | |
+| 同步现有页面 | | `sync-check --sitemap <文件或URL>` |
+| 归簇审核 | | `prepare-review`（`--plan` 估批数）→ `apply-review` |
+| 页面方案 | | `analyze`、`serp add/compare`、`apply-changes --dry-run` → 批准后 `apply-changes`、`validate` |
+| 上线后复盘 | | `gsc import`、`gsc review` |
+| 查看 | `status`、`export` | `status`、`sitemap` |
+
+准备：项目路径和线上网址（已上线的站加 sitemap）、内容或库存数据来源（库存数由项目数据计数，不能估）、可选的 GSC / Planner 登录。建议 `.gitignore` 忽略 `seo/discovery/cache/`、`seo/discovery/raw/`、`seo/mapper/evidence/gsc/`；边界、种子、需求簇和注册表可以提交。参考规模（SFXMint 试跑）：300 个种子跑 standard 约 45 分钟，1.7 万词归簇审核约 50 批。已知限制见两个 SKILL.md 末尾。
+
 ## 与 superpowers 等其他 skill 共存
 
 `prompt-builder` 跟 `superpowers:brainstorming` 这类 skill **职能不同**，理解清楚就不会混淆：
