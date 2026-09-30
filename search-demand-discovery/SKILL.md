@@ -123,3 +123,13 @@ derived from Search Console stays out of public repositories.
   often relative, so pass `--period`. Tables cap at 1,000 rows, so export in slices.
 - Worked example: SFXMint (free CC0 sound effects). See
   [references/example-sfxmint.md](references/example-sfxmint.md).
+
+## Known limits (as of 2026-09-30)
+
+- Keyword Planner and Trends imports were tested only on sample files, never on a real export.
+- Autocomplete misses much real demand: in the SFXMint trial 264 of 330 visible Search Console
+  queries were not in a 17,408-keyword autocomplete pool. Import GSC early when the site has it.
+- Not yet checked in a fresh session whether another model follows the skill without guidance.
+- When the project already has its own keyword engine, use this skill's method with that engine;
+  do not build a second pool as the project's source of truth (the SFXMint trial was a skill test).
+

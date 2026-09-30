@@ -150,3 +150,13 @@ example is in [references/example-sfxmint.md](references/example-sfxmint.md).
   similar queries as doorway or scaled content abuse; the publish gate exists because of this.
 - Thresholds are defaults, not truths. Tune them in `seo/config.json` (`mapper.*`) once a site has
   its own GSC history.
+
+## Known limits (as of 2026-09-30)
+
+- Review mode has not run on real per-page Search Console data (the trial site had one window).
+- Canonicalized variant URLs are not folded into their owner page yet. On SFXMint they carried
+  about 31% of page impressions; fold them before trusting `wrong_owner`, cannibalization or
+  retire flags.
+- Thresholds (gates, SERP overlap, promotion, GSC windows) are uncalibrated defaults.
+- Not yet checked in a fresh session whether another model follows the skill without guidance.
+
