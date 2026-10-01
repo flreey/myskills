@@ -1,0 +1,4 @@
+interface:
+  display_name: "Site Analytics"
+  short_description: "Replace Google Analytics with the self-hosted Umami in two safe releases"
+  default_prompt: "Use $site-analytics to scan this project's analytics, then plan Release 1 (Umami next to GA with ported guards, bridged events, CSP and privacy updates) or Release 2 (remove GA after the parallel check). Ask before committing or deploying."
