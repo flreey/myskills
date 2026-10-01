@@ -21,8 +21,8 @@
 | [ai-feature-delivery](./ai-feature-delivery) | 把业务级功能修改请求变成受控交付流程：先只读识别影响面、验收场景、non-goals 和验证计划，确认后再实现，最后输出验证证据与剩余风险。 |
 | [chatgpt-pro-engineering-loop](./chatgpt-pro-engineering-loop) | Codex Desktop 通过已登录的 ChatGPT Pro 委派复杂仓库任务：优先用独立 GitHub 任务分支 + Draft PR 交换代码，以持久 conversation ID 恢复中断任务，并在本地隔离验收；GitHub 不可用或源码不能发布时回退到安全源码包。 |
 | [project-truth](./project-truth) | 让 AI 从经过校验的 Capability、Receipt 和 Git 状态驱动实现：只读获取紧凑真相上下文，通过固定版本 CLI 记录真实证据，重建离线 Dashboard，并停在人工验收和外部动作边界。 |
-| [search-demand-discovery](./search-demand-discovery) | 从免费来源（自动补全、Keyword Planner、Trends、Search Console、SERP 相关搜索、竞品 sitemap）构建有证据的关键词观测池：先自动调研再一次性选择题确认边界，种子递归扩展经 triage 把关，按轮次 yield 判断何时停止；关键词只来自外部观测，不编造需求。 |
-| [search-demand-mapper](./search-demand-mapper) | 把关键词池变成需求簇和页面决策：模型分批做语义归簇（稳定 ID、定义版本、合并/拆分谱系），修饰词默认是属性，按证据门槛决定 keep / improve / filter / create / defer，变更集经批准才写入页面注册表，并用 GSC 窗口复盘互抢排名、属性升级与下线。 |
+| [site-keywords](./site-keywords) | 从免费来源（自动补全、Keyword Planner、Trends、Search Console、SERP 相关搜索、竞品 sitemap）构建有证据的关键词观测池：先自动调研再一次性选择题确认边界，种子递归扩展经 triage 把关，按轮次 yield 判断何时停止；关键词只来自外部观测，不编造需求。 |
+| [site-pages](./site-pages) | 把关键词池变成需求簇和页面决策：模型分批做语义归簇（稳定 ID、定义版本、合并/拆分谱系），修饰词默认是属性，按证据门槛决定 keep / improve / filter / create / defer，变更集经批准才写入页面注册表，并用 GSC 窗口复盘互抢排名、属性升级与下线。 |
 
 ## 📋 一键安装（直接复制粘贴）
 
@@ -42,8 +42,8 @@
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/ai-feature-delivery
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/chatgpt-pro-engineering-loop
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/project-truth
-帮我装这个 skill：https://github.com/flreey/myskills/tree/main/search-demand-discovery
-帮我装这个 skill：https://github.com/flreey/myskills/tree/main/search-demand-mapper
+帮我装这个 skill：https://github.com/flreey/myskills/tree/main/site-keywords
+帮我装这个 skill：https://github.com/flreey/myskills/tree/main/site-pages
 ```
 
 > **就这一行。** 现代 coding agent 已经原生理解 GitHub `tree/main/<subdir>` 这种子目录 URL + `SKILL.md` 标准 + skills 目录约定，不需要手把手写步骤。
@@ -68,26 +68,28 @@ https://github.com/flreey/myskills/tree/main/prompt-builder
    - **显式调用**：直接说 `用 prompt-builder skill ...` 或在 Claude Code 输入 `/prompt-builder`
 3. **验证装好了** — 问 agent："你看到 prompt-builder 这个 skill 了吗？" 它能背出 description 就说明装对了。
 
-## Search Demand 两件套快速上手
+## site-keywords + site-pages 快速上手
 
-`search-demand-discovery`（找词）和 `search-demand-mapper`（定页面）是一组，按顺序配合使用，共用项目根目录下的 `seo/`：discovery 写关键词池，mapper 读它并写需求簇和页面注册表。平时只用两个斜杠命令或自然语言，引擎子命令由 agent 按流程调用。
+> 2026-10-01 起改名：`search-demand-discovery` → `site-keywords`，`search-demand-mapper` → `site-pages`。项目里的 `seo/` 目录和数据格式不变；按旧链接装过的，用上面的新链接重新安装。
+
+`site-keywords`（找词）和 `site-pages`（定页面）是一组，按顺序配合使用，共用项目根目录下的 `seo/`：site-keywords 写关键词池，site-pages 读它并写需求簇和页面注册表。平时只用两个斜杠命令或自然语言，引擎子命令由 agent 按流程调用。
 
 ```text
-/search-demand-discovery   给 ~/Projects/xxx 做关键词挖掘
+/site-keywords   给 ~/Projects/xxx 做关键词挖掘
 （回答不超过 5 道选择题，或说"你定"；扩词在后台跑，可选在内置浏览器登录 GSC / Keyword Planner）
-/search-demand-mapper      把 seo 关键词池归簇，给出页面方案
+/site-pages      把 seo 关键词池归簇，给出页面方案
 （审阅变更集，批准后才写入注册表；不包括改代码、建页或部署）
 ……上线满 28 天后……
-/search-demand-mapper      我导出了 GSC，看看要不要拆页合页
+/site-pages      我导出了 GSC，看看要不要拆页合页
 ```
 
 | 项目情况 | 怎么用 |
 | --- | --- |
-| 新站（未上线、没有 GSC） | discovery 找词 → mapper 规划页面，不需要同步 |
-| 已上线的站 | 先让 mapper `sync-check --sitemap` 登记现有页面，并尽早导入 GSC：真实查询里常有大量补全扩词找不到的需求 |
+| 新站（未上线、没有 GSC） | site-keywords 找词 → site-pages 规划页面，不需要同步 |
+| 已上线的站 | 先让 site-pages 用 `sync-check --sitemap` 登记现有页面，并尽早导入 GSC：真实查询里常有大量补全扩词找不到的需求 |
 | 已有自己的关键词引擎 | 只借用方法（种子收敛、分组审核、页面门槛），不另建第二套数据 |
 
-| 阶段 | discovery 子命令（`scripts/discovery.py --root <项目>`） | mapper 子命令（`scripts/mapper.py --root <项目>`） |
+| 阶段 | site-keywords 子命令（`scripts/discovery.py --root <项目>`） | site-pages 子命令（`scripts/mapper.py --root <项目>`） |
 | --- | --- | --- |
 | 建目录 | `init` | `init` |
 | 种子 | `seed add/list/reject`；内容或 SKU 上千时先 `consolidate` → `probe` → `seed review` → `seed apply-review` | |
