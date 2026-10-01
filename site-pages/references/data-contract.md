@@ -2,7 +2,7 @@
 
 Paths are relative to `<project>/seo/`. The mapper reads `config.json` (`market`, `mapper.*`),
 `boundary.json` (`product.url` is required when the registry uses path URLs) and
-`discovery/observations.jsonl` (owned by search-demand-discovery). It writes only under `mapper/`
+`discovery/observations.jsonl` (owned by site-keywords). It writes only under `mapper/`
 and `work/`.
 
 | File | Kind | Notes |

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Search demand mapper (Python stdlib only).
 
-Reads the observation pool written by search-demand-discovery (<root>/seo/discovery/) and keeps
+Reads the observation pool written by site-keywords (<root>/seo/discovery/) and keeps
 the demand-to-page registry under <root>/seo/mapper/. Semantic judgement comes from the model in
 reviewed batches; this script prepares batches, validates structure, applies confirmed changes,
 computes evidence gates and checks registry invariants. It never decides semantics by keyword rules.
@@ -206,7 +206,7 @@ def load_decisions(p: Paths) -> dict:
 def load_pool(p: Paths) -> dict:
     """keyword_id -> {keyword, observations[]} from the discovery pool."""
     if not p.obs.exists():
-        die(f"{p.obs} missing; build the pool with search-demand-discovery first")
+        die(f"{p.obs} missing; build the pool with site-keywords first")
     pool = {}
     for o in read_jsonl(p.obs):
         k = kw_id(o["keyword"])
@@ -222,7 +222,7 @@ def stem_tuple(text: str) -> tuple:
     return tuple(t[:-1] if len(t) > 3 and t.endswith("s") and not t.endswith("ss") else t for t in toks)
 
 
-# keep in sync with search-demand-discovery (generic modifiers and function words)
+# keep in sync with site-keywords (generic modifiers and function words)
 GENERIC_MODIFIERS = ["free", "download", "downloads", "best", "top", "online", "new", "latest", "hd", "4k",
                      "official", "cheap", "for free", "free download"]
 FILLER = set("a an the of for to with without and or by from at is are be this that these those my your".split())
@@ -384,7 +384,7 @@ def cmd_init(args):
         d.mkdir(parents=True, exist_ok=True)
     for f in (p.clusters, p.decisions, p.pages, p.mappings):
         f.touch(exist_ok=True)
-    warn = [] if p.boundary.exists() else ["seo/boundary.json missing: bootstrap with search-demand-discovery"]
+    warn = [] if p.boundary.exists() else ["seo/boundary.json missing: bootstrap with site-keywords"]
     emit({"initialized": str(p.m), "warnings": warn})
 
 
@@ -1436,7 +1436,7 @@ def cmd_apply_changes(args):
 def read_sitemap(src: str, depth: int = 0) -> list[tuple]:
     """(url, lastmod) from a sitemap (urlset or index, file or URL, optionally gzipped) or a plain URL list."""
     if re.match(r"https?://", src):
-        req = urllib.request.Request(src, headers={"User-Agent": "search-demand-mapper/1"})
+        req = urllib.request.Request(src, headers={"User-Agent": "site-pages/1"})
         with urllib.request.urlopen(req, timeout=30) as r:
             raw = r.read()
     else:
@@ -1560,7 +1560,7 @@ def cmd_status(args):
 # ---------------------------------------------------------------- cli
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="search-demand mapper")
+    ap = argparse.ArgumentParser(description="site-pages: search demand mapper")
     ap.add_argument("--root", default=".", help="project root that holds seo/")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("init").set_defaults(fn=cmd_init)

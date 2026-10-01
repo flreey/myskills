@@ -47,7 +47,7 @@ close variants and repeats the group's volume on each variant; never add up vari
    <seed>", or one export per important page (Page filter).
 4. Import with `import --format gsc --file <zip> --period YYYY-MM-DD..YYYY-MM-DD`. The UI range is
    relative ("Last 3 months"), so compute the absolute dates. Data lags about 3 days.
-5. Per-page exports also feed `search-demand-mapper gsc import` for the page feedback loop.
+5. Per-page exports also feed `site-pages gsc import` for the page feedback loop.
 
 Small properties can skip the download: set Rows per page to 500, read the table rows from the
 page, save them as a CSV with the header `Top queries,Clicks,Impressions,CTR,Position`, and check
@@ -74,7 +74,7 @@ bulk source.
 Search a representative query in the target market. Copy the "People also ask" questions and
 "Related searches" into a text file with one per line, then run
 `import --format lines --source google_serp --kind related_search --ref "<query>"`.
-Keep the result URLs and result types too: `search-demand-mapper` needs them as SERP evidence.
+Keep the result URLs and result types too: `site-pages` needs them as SERP evidence.
 Budget about 30 searches per session; stop on a CAPTCHA.
 
 ## Bing Webmaster Tools

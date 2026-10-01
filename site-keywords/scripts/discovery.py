@@ -2306,7 +2306,7 @@ def cmd_export(args):
 # ---------------------------------------------------------------- cli
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="search-demand discovery engine")
+    ap = argparse.ArgumentParser(description="site-keywords: search demand discovery engine")
     ap.add_argument("--root", default=".", help="project root that holds (or will hold) seo/")
     sub = ap.add_subparsers(dest="cmd", required=True)
 

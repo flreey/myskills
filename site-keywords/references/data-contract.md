@@ -1,7 +1,7 @@
 # Data contract (discovery side)
 
 All paths are relative to `<project>/seo/`. Schema tags use `search-demand/<type>@<version>`.
-Discovery writes these files. `search-demand-mapper` only reads `config.json`, `boundary.json` and
+Discovery writes these files. `site-pages` only reads `config.json`, `boundary.json` and
 `discovery/observations.jsonl`.
 
 | File | Kind | Owner | Notes |

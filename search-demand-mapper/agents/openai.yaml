@@ -1,4 +1,0 @@
-interface:
-  display_name: "Search Demand Mapper"
-  short_description: "Turn keywords into demand clusters and evidence-gated page decisions"
-  default_prompt: "Use $search-demand-mapper to review the keyword pool into demand clusters, gate page, section and filter decisions on evidence, propose a change set for approval, and review Search Console windows for enrich, split, merge or retire."

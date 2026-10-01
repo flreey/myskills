@@ -1,4 +1,0 @@
-interface:
-  display_name: "Search Demand Discovery"
-  short_description: "Build an evidence-backed keyword pool from free sources"
-  default_prompt: "Use $search-demand-discovery to bootstrap or continue the keyword pool in this project's seo/ directory: research first, ask one batch of choices, expand seeds with autocomplete and browser sources, triage concepts, and stop on the round yield verdict."

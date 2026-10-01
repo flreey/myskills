@@ -1,12 +1,12 @@
 ---
-name: search-demand-discovery
-description: Use when building or expanding the keyword pool for a product or site — finding many real search queries from free sources (autocomplete, Keyword Planner, Google Trends, Search Console, SERP related searches, competitor sitemaps), importing keyword exports, defining a product's search boundary and seeds, or judging whether keyword discovery is saturated. Also for 找关键词、扩词、关键词挖掘、需求发现.
+name: site-keywords
+description: Use when building or expanding the keyword pool for a product or site — finding many real search queries from free sources (autocomplete, Keyword Planner, Google Trends, Search Console, SERP related searches, competitor sitemaps), importing keyword exports, defining a product's search boundary and seeds, or judging whether keyword discovery is saturated. Also for 找关键词、扩词、关键词挖掘、需求发现. Formerly search-demand-discovery.
 ---
 
 # Search Demand Discovery
 
 Collect broadly without inventing demand. The output is an evidence-backed observation pool in
-`<project>/seo/`; `search-demand-mapper` turns it into clusters and page decisions.
+`<project>/seo/`; `site-pages` turns it into clusters and page decisions.
 
 Engine (Python stdlib, resumable): `python3 <skill-dir>/scripts/discovery.py --root <project> <command>`.
 If the project already runs its own keyword engine, keep that engine as the state layer and apply
@@ -76,7 +76,7 @@ When the verdict is `STOP`, or the user's budget is spent, run `status --coverag
   it "no demand");
 - deferred seeds and paused sources.
 
-Then hand off to `search-demand-mapper`.
+Then hand off to `site-pages`.
 
 ## Triage decisions
 
