@@ -23,6 +23,7 @@
 | [project-truth](./project-truth) | 让 AI 从经过校验的 Capability、Receipt 和 Git 状态驱动实现：只读获取紧凑真相上下文，通过固定版本 CLI 记录真实证据，重建离线 Dashboard，并停在人工验收和外部动作边界。 |
 | [site-keywords](./site-keywords) | 从免费来源（自动补全、Keyword Planner、Trends、Search Console、SERP 相关搜索、竞品 sitemap）构建有证据的关键词观测池：先自动调研再一次性选择题确认边界，种子递归扩展经 triage 把关，按轮次 yield 判断何时停止；关键词只来自外部观测，不编造需求。 |
 | [site-pages](./site-pages) | 把关键词池变成需求簇和页面决策：模型分批做语义归簇（稳定 ID、定义版本、合并/拆分谱系），修饰词默认是属性，按证据门槛决定 keep / improve / filter / create / defer，变更集经批准才写入页面注册表，并用 GSC 窗口复盘互抢排名、属性升级与下线。 |
+| [site-analytics](./site-analytics) | 把已有网站从 Google Analytics 迁到自建 Umami：先只读盘点（加载代码、事件、排除规则、CSP、隐私文字、测试、GA4 报表脚本），再分两次发布：先和 GA 并行、事件两边都发并补等待队列，对完数再删 GA；另带一个只读的 Umami 报表脚本。依赖本机 `~/Projects/umami` 的 umami-connect 和自建 Umami 服务；site-kit 建的站不用它。 |
 
 ## 📋 一键安装（直接复制粘贴）
 
@@ -44,6 +45,7 @@
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/project-truth
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/site-keywords
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/site-pages
+帮我装这个 skill：https://github.com/flreey/myskills/tree/main/site-analytics
 ```
 
 > **就这一行。** 现代 coding agent 已经原生理解 GitHub `tree/main/<subdir>` 这种子目录 URL + `SKILL.md` 标准 + skills 目录约定，不需要手把手写步骤。
