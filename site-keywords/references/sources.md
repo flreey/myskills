@@ -45,9 +45,14 @@ close variants and repeats the group's volume on each variant; never add up vari
 2. Queries tab → Export → download the CSV zip.
 3. The table caps at 1,000 rows. When a site has more, slice the export: Query filter "contains
    <seed>", or one export per important page (Page filter).
-4. Import with `import --format gsc --file <zip> --period YYYY-MM-DD..YYYY-MM-DD`. The UI range is
-   relative ("Last 3 months"), so compute the absolute dates. Data lags about 3 days.
-5. Per-page exports also feed `site-pages gsc import` for the page feedback loop.
+4. Before the site has a site-pages registry, import with
+   `import --format gsc --file <zip> --period YYYY-MM-DD..YYYY-MM-DD`. The UI range is relative
+   ("Last 3 months"), so compute the absolute dates. Data lags about 3 days.
+5. Once site-pages has a registry, Search Console data is stored once, in site-pages:
+   `mapper.py gsc import` (UI zip or API rows with query and page). `mapper.py gsc review` then
+   writes `seo/work/unmapped-queries.json`; import that file here with
+   `import --format json --source google_search_console --file seo/work/unmapped-queries.json`.
+   Do not also import the same export with `--format gsc`.
 
 Small properties can skip the download: set Rows per page to 500, read the table rows from the
 page, save them as a CSV with the header `Top queries,Clicks,Impressions,CTR,Position`, and check

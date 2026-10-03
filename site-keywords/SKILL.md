@@ -121,6 +121,11 @@ derived from Search Console stays out of public repositories.
   see volume ranges.
 - Search Console UI exports are a zip containing `Queries.csv` and `Filters.csv`. The date range is
   often relative, so pass `--period`. Tables cap at 1,000 rows, so export in slices.
+- Once a site-pages registry exists, Search Console data is imported once, with
+  `mapper.py gsc import`; its unmapped queries come back here through
+  `seo/work/unmapped-queries.json` (`import --format json`). See sources.md.
+- `export` reports a keyword's GSC impressions from its latest period only (largest row within
+  it), with that period in `gsc_period`.
 - Worked example: SFXMint (free CC0 sound effects). See
   [references/example-sfxmint.md](references/example-sfxmint.md).
 

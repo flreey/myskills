@@ -2265,7 +2265,7 @@ def cmd_export(args):
     b = load_boundary(p)
     out_ph = phrase_set(b.get("out_terms"))
     rows = defaultdict(lambda: {"observations": 0, "sources": set(), "kinds": set(), "planner_high": None,
-                                "gsc_impressions": 0.0, "first_run": None})
+                                "gsc_impressions": 0.0, "gsc_period": None, "first_run": None})
     for o in read_jsonl(p.obs):
         r = rows[o["keyword"]]
         r["observations"] += 1
@@ -2276,7 +2276,15 @@ def cmd_export(args):
         if o["kind"] == "historical_volume" and vol:
             r["planner_high"] = max(r["planner_high"] or 0, vol.get("high") or 0)
         if o["kind"] == "gsc_impression":
-            r["gsc_impressions"] += (o.get("metrics") or {}).get("impressions") or 0
+            # Latest period only; within it, the largest export row. Periods, query and query+page
+            # exports describe overlapping impressions, so they are never added together.
+            imp = (o.get("metrics") or {}).get("impressions") or 0
+            per = o.get("period") or {}
+            label = f"{per.get('start', '')}..{per.get('end', '')}"
+            if r["gsc_period"] is None or per.get("end", "") > r["gsc_period"].split("..")[1]:
+                r["gsc_period"], r["gsc_impressions"] = label, imp
+            elif label == r["gsc_period"]:
+                r["gsc_impressions"] = max(r["gsc_impressions"], imp)
     p.work.mkdir(parents=True, exist_ok=True)
     if args.format == "planner":
         market = cfg["market"]
@@ -2294,12 +2302,13 @@ def cmd_export(args):
     out = Path(args.out) if args.out else p.work / "keywords.csv"
     with out.open("w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
-        w.writerow(["keyword", "observations", "sources", "kinds", "planner_high", "gsc_impressions", "out_term", "first_run"])
+        w.writerow(["keyword", "observations", "sources", "kinds", "planner_high", "gsc_impressions", "out_term", "first_run",
+                    "gsc_period"])
         for k in sorted(rows):
             r = rows[k]
             w.writerow([k, r["observations"], "|".join(sorted(r["sources"])), "|".join(sorted(r["kinds"])),
                         r["planner_high"] or "", int(r["gsc_impressions"]) or "",
-                        int(matches_any(stem_tuple(k), out_ph)), r["first_run"]])
+                        int(matches_any(stem_tuple(k), out_ph)), r["first_run"], r["gsc_period"] or ""])
     emit({"exported": len(rows), "file": str(out)})
 
 

@@ -22,8 +22,8 @@
 | [chatgpt-pro-engineering-loop](./chatgpt-pro-engineering-loop) | Codex Desktop 通过已登录的 ChatGPT Pro 委派复杂仓库任务：优先用独立 GitHub 任务分支 + Draft PR 交换代码，以持久 conversation ID 恢复中断任务，并在本地隔离验收；GitHub 不可用或源码不能发布时回退到安全源码包。 |
 | [project-truth](./project-truth) | 让 AI 从经过校验的 Capability、Receipt 和 Git 状态驱动实现：只读获取紧凑真相上下文，通过固定版本 CLI 记录真实证据，重建离线 Dashboard，并停在人工验收和外部动作边界。 |
 | [site-keywords](./site-keywords) | 从免费来源（自动补全、Keyword Planner、Trends、Search Console、SERP 相关搜索、竞品 sitemap）构建有证据的关键词观测池：先自动调研再一次性选择题确认边界，种子递归扩展经 triage 把关，按轮次 yield 判断何时停止；关键词只来自外部观测，不编造需求。 |
-| [site-pages](./site-pages) | 把关键词池变成需求簇和页面决策：模型分批做语义归簇（稳定 ID、定义版本、合并/拆分谱系），修饰词默认是属性，按证据门槛决定 keep / improve / filter / create / defer，变更集经批准才写入页面注册表，并用 GSC 窗口复盘互抢排名、属性升级与下线。 |
-| [site-analytics](./site-analytics) | 把已有网站从 Google Analytics 迁到自建 Umami：先只读盘点（加载代码、事件、排除规则、CSP、隐私文字、测试、GA4 报表脚本），再分两次发布：先和 GA 并行、事件两边都发并补等待队列，对完数再删 GA；另带一个只读的 Umami 报表脚本。依赖本机 `~/Projects/umami` 的 umami-connect 和自建 Umami 服务；site-kit 建的站不用它。 |
+| [site-pages](./site-pages) | 把关键词池变成需求簇和页面决策：模型分批做语义归簇（稳定 ID、定义版本、合并/拆分谱系），修饰词默认是属性，按证据门槛决定 keep / improve / filter / create / defer，变更集经批准才写入页面注册表；建页或改版前为每页生成需求单（细分需求对照库存和页面已写到的内容），并用 GSC 窗口复盘互抢排名、属性升级与下线。 |
+| [site-analytics](./site-analytics) | 把已有网站从 Google Analytics 迁到自建 Umami：先只读盘点（加载代码、事件、排除规则、CSP、隐私文字、测试、GA4 报表脚本），再分两次发布：先和 GA 并行、事件两边都发并补等待队列，对完数再删 GA；另带一个只读的 Umami 报表脚本。依赖本机 `~/Projects/umami` 的 umami-connect 和自建 Umami 服务；迁移不用于 site-kit 建的站；报表脚本能读任何站点，包括 site-kit 站点。 |
 
 ## 📋 一键安装（直接复制粘贴）
 
@@ -76,6 +76,8 @@ https://github.com/flreey/myskills/tree/main/prompt-builder
 
 `site-keywords`（找词）和 `site-pages`（定页面）是一组，按顺序配合使用，共用项目根目录下的 `seo/`：site-keywords 写关键词池，site-pages 读它并写需求簇和页面注册表。平时只用两个斜杠命令或自然语言，引擎子命令由 agent 按流程调用。
 
+四个 site-* skill 的分工：每个事实只有一个主人。site-keywords 管外部需求证据（关键词池）；site-pages 管需求簇、页面归属、页面已覆盖的细分需求（`covered_attributes`）和 GSC 数据（唯一入口）；site-kit 的构建产物管页面实际状态（标题、可索引）；site-analytics 管 Umami 报表。交接都落成文件：词池 → 注册表和需求单 → 建页 → `sync-check` 回读构建产物 → GSC 回看，未归类查询经 `seo/work/unmapped-queries.json` 回到词池。节奏、队列和授权留在各项目里。
+
 ```text
 /site-keywords   给 ~/Projects/xxx 做关键词挖掘
 （回答不超过 5 道选择题，或说"你定"；扩词在后台跑，可选在内置浏览器登录 GSC / Keyword Planner）
@@ -100,8 +102,9 @@ https://github.com/flreey/myskills/tree/main/prompt-builder
 | 同步现有页面 | | `sync-check --sitemap <文件或URL>` |
 | 归簇审核 | | `prepare-review`（`--plan` 估批数）→ `apply-review` |
 | 页面方案 | | `analyze`、`serp add/compare`、`apply-changes --dry-run` → 批准后 `apply-changes`、`validate` |
-| 上线后复盘 | | `gsc import`、`gsc review` |
-| 查看 | `status`、`export` | `status`、`sitemap` |
+| 建页或改版前 | | `brief --page <url>` / `--all`（需求单）；部署后 `sync-check --pages .sitekit/reports/pages.json` |
+| 上线后复盘 | `import --format json --file seo/work/unmapped-queries.json`（未归类查询） | `gsc import`（UI 导出或 API 行数据，GSC 只存这一处）、`gsc review` |
+| 查看 | `status`、`export` | `status`（派生文件是否过期）、`sitemap` |
 
 准备：项目路径和线上网址（已上线的站加 sitemap）、内容或库存数据来源（库存数由项目数据计数，不能估）、可选的 GSC / Planner 登录。建议 `.gitignore` 忽略 `seo/discovery/cache/`、`seo/discovery/raw/`、`seo/mapper/evidence/gsc/`；边界、种子、需求簇和注册表可以提交。参考规模（SFXMint 试跑）：300 个种子跑 standard 约 45 分钟，1.7 万词归簇审核约 50 批。已知限制见两个 SKILL.md 末尾。
 

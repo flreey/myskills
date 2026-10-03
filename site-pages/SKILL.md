@@ -134,17 +134,21 @@ The registry says which page owns which demand; the brief says what that page mu
 
 ## Review mode
 
-1. Export per-page query data from Search Console for every primary page. Include at least the
-   last `windows_required` (2) windows of 28 days each. Run
-   `gsc import --file <zip> --period START..END` for each export.
+1. Get query + page data for consecutive, non-overlapping 28-day windows (at least
+   `windows_required`, 2): the Search Console API (`searchAnalytics.query`, dimensions
+   `["query", "page"]`, `dataState: "final"`, saved as the JSON response or a list of them) or one UI
+   export per primary page. Run `gsc import --file <file> --period START..END` once per file.
+   This is the only place GSC data is stored once a registry exists; `analyze` and `brief` read it
+   too (a query's page rows are never summed; the largest is used).
 2. `gsc review` writes `seo/work/gsc-review.json`, which flags:
    - `cannibalization`, `wrong_owner` and `unowned_cluster`;
    - `promotion_signal` (an attribute's queries growing on its parent page);
    - `retire_candidates`;
-   - `unmapped_queries`.
+   - `unmapped_queries`, also written to `seo/work/unmapped-queries.json` for discovery.
 3. Act on `confirmed` flags; keep watching `watch` flags; leave `cooldown` alone. Decide per
-   [references/feedback-loop.md](references/feedback-loop.md). Unmapped queries go back through
-   discovery import and review, never straight onto a page.
+   [references/feedback-loop.md](references/feedback-loop.md). Unmapped queries go back to the pool
+   (`discovery.py import --format json --source google_search_console --file
+   seo/work/unmapped-queries.json`) and through review, never straight onto a page.
 4. To enrich an owner page, regenerate its brief: it then lists the page's GSC queries next to
    the sub-needs.
 
@@ -200,6 +204,6 @@ example is in [references/example-sfxmint.md](references/example-sfxmint.md).
 - Briefs (2026-10-03, first run on AtlasWhiz): sub-need values come from review tags, so
   near-synonyms (`mode=guess`, `mode=guessing`) stay separate, and their statuses are only as good
   as the inventory `attrs` the agent counted.
-- GSC impressions live in two places: discovery observations (read by `analyze`) and
-  `mapper/evidence/gsc/` (read by `gsc review` and `brief`).
+- Projects that imported GSC into discovery before 2026-10-03 keep those observations; `analyze`
+  falls back to them only while `mapper/evidence/gsc/` has no window.
 

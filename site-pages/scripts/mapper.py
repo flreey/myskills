@@ -933,17 +933,25 @@ def cluster_members(decisions: dict, pool: dict) -> dict:
     return members
 
 
-def attribute_stats(mem: list) -> dict:
+def keyword_gsc(e: dict, gsc_q: dict | None) -> float:
+    """Latest-window impressions of a keyword: from mapper/evidence/gsc when a window exists (gsc_q from
+    gsc_by_query), otherwise from discovery observations (projects that imported GSC there)."""
+    if gsc_q is not None:
+        return gsc_q.get(norm(e["keyword"]), 0)
+    return ((latest_gsc(e) or {}).get("metrics") or {}).get("impressions") or 0
+
+
+def attribute_stats(mem: list, gsc_q: dict | None = None) -> dict:
     """axis=value -> member count, top examples by volume, best Planner bound, latest GSC impressions."""
     attrs = defaultdict(lambda: {"members": 0, "examples": [], "gsc": 0.0, "planner_high": 0})
     for e, d in mem:
-        ph, g = planner_high(e), latest_gsc(e)
+        ph, g = planner_high(e), keyword_gsc(e, gsc_q)
         for axis, vals in (d.get("attributes") or {}).items():
             for v in vals:
                 a = attrs[f"{axis}={norm(v)}"]
                 a["members"] += 1
                 a["planner_high"] = max(a["planner_high"], ph)
-                a["gsc"] += ((g or {}).get("metrics") or {}).get("impressions") or 0
+                a["gsc"] += g
                 a["examples"].append((ph, e["keyword"]))
     for a in attrs.values():
         a["examples"] = [k for _, k in sorted(a["examples"], key=lambda x: (-x[0], len(x[1])))[:3]]
@@ -959,6 +967,7 @@ def attr_need(cfg: dict, page_type: str) -> int:
 DERIVED = {  # derived file in work/ -> fingerprint keys it depends on (None = all)
     "analysis.json": None,
     "gsc-review.json": ("registry", "decisions", "gsc_windows"),
+    "unmapped-queries.json": ("registry", "decisions", "gsc_windows"),
     "sync-check.json": ("registry",),
 }
 
@@ -1020,6 +1029,8 @@ def cmd_analyze(args):
         u: url_tokens(u) | {stem(t) for t in tokens((snap.get("titles") or {}).get(u, ""))}
         for u in snap["urls"] if page_key(u, host) not in registered}
     members = cluster_members(decisions, pool)
+    gsc_window, gsc_q = gsc_by_query(p)
+    gsc_q = gsc_q if gsc_window else None
     by_cluster_maps = defaultdict(list)
     for m in mappings:
         by_cluster_maps[m["cluster_id"]].append(m)
@@ -1037,11 +1048,12 @@ def cmd_analyze(args):
                 vol = (o.get("metrics") or {}).get("avg_monthly_searches")
                 if o["kind"] == "historical_volume" and vol and (planner_best is None or vol["high"] > planner_best[1]):
                     planner_best = (e["keyword"], vol["high"], o.get("period"))
-            lg = latest_gsc(e)
-            if lg:
-                gsc_sum += (lg.get("metrics") or {}).get("impressions") or 0
-                gsc_periods.add(f"{lg['period']['start']}..{lg['period']['end']}")
-        attrs = attribute_stats(mem)
+            imp = keyword_gsc(e, gsc_q)
+            if imp:
+                gsc_sum += imp
+                per = gsc_window or latest_gsc(e)["period"]
+                gsc_periods.add(f"{per['start']}..{per['end']}")
+        attrs = attribute_stats(mem, gsc_q)
         evidence = {"external": bool(mem), "serp": any(norm(e["keyword"]) in serp for e, _ in mem),
                     "gsc": gsc_sum > 0}
         planner_high = planner_best[1] if planner_best else 0
@@ -1103,7 +1115,9 @@ def cmd_analyze(args):
             "cluster_id": cid, "label": c.get("label"), "status": c["status"], "page_type": c["page_type"],
             "members": len(mem), "tier": tier, "evidence": evidence,
             "demand": {"planner_best": planner_best, "gsc_impressions_latest_sum": gsc_sum,
-                       "gsc_periods": sorted(gsc_periods), "sources": dict(sources), "kinds": dict(kinds),
+                       "gsc_periods": sorted(gsc_periods),
+                       "gsc_source": "mapper/evidence/gsc" if gsc_window else "discovery observations",
+                       "sources": dict(sources), "kinds": dict(kinds),
                        "note": "signals are listed per source; they are never summed into one demand score"},
             "mappings": [{k: m.get(k) for k in ("page", "role", "decision", "conditions")} for m in maps],
             "suggestion": suggestion, "checks": checks, "attribute_candidates": promotions,
@@ -1182,6 +1196,7 @@ def cmd_brief(args):
             serp_pairs[cb].append((ca, row))
     windows = sorted(p.gsc.glob("*.jsonl"))
     gsc_rows = read_jsonl(windows[-1]) if windows else []
+    gsc_q = gsc_by_query(p)[1] if windows else None
     exclude = set(cfg["promotion"]["exclude_axes"] if bc["exclude_axes"] is None else bc["exclude_axes"])
     brand, qwords = set(bc["brand_axes"]), set(bc["question_words"])
     fp = inputs_fingerprint(p)
@@ -1213,7 +1228,7 @@ def cmd_brief(args):
                     break
             inv_attrs = (inv.get(c["id"]) or {}).get("attrs", {})
             subneeds, competitors = [], []
-            stats = attribute_stats(mem)
+            stats = attribute_stats(mem, gsc_q)
             for key, a in sorted(stats.items(), key=lambda kv: (-kv[1]["members"], -kv[1]["planner_high"], kv[0])):
                 axis, value = key.split("=", 1)
                 if axis in brand:
@@ -1339,12 +1354,64 @@ def parse_period(text: str):
     return m.group(1), m.group(2)
 
 
+def gsc_rows_json(path: Path, dims: str | None, page_arg: str | None) -> list[dict]:
+    """Search Console API rows: one searchAnalytics.query response, a list of them (pages of startRow),
+    or a list of plain {query, page, clicks, impressions, ctr, position} rows (CTR in percent, as in UI
+    exports). API rows carry `keys` in the order of `dimensions` (file field or --dimensions) and CTR as
+    a fraction, which is converted to percent."""
+    data = read_json(path)
+    order = [d.strip().lower() for d in ((data.get("dimensions") if isinstance(data, dict) else None)
+                                         or (dims or "query,page").split(","))]
+    rows = []
+    for chunk in data if isinstance(data, list) else [data]:
+        for r in chunk.get("rows", []) if isinstance(chunk, dict) and "rows" in chunk else [chunk]:
+            if not isinstance(r, dict):
+                continue
+            if "keys" in r:
+                keyed, ctr = dict(zip(order, r["keys"])), (r["ctr"] * 100 if r.get("ctr") is not None else None)
+            else:
+                keyed, ctr = r, r.get("ctr")
+            if not keyed.get("query"):
+                continue
+            page = keyed.get("page") or page_arg
+            rows.append({"clicks": r.get("clicks"), "impressions": r.get("impressions"), "ctr": ctr,
+                         "position": r.get("position"), "query": norm(keyed["query"]),
+                         "page": norm_url(page) if page else None})
+    return rows
+
+
+def gsc_by_query(p: Paths):
+    """Latest imported window -> {query: impressions}. One impression can show several of the site's
+    pages, so a query's page rows are never summed: the largest page row is the lower bound."""
+    windows = sorted(p.gsc.glob("*.jsonl"))
+    if not windows:
+        return None, {}
+    best = {}
+    for r in read_jsonl(windows[-1]):
+        v = r.get("impressions") or 0
+        if v > best.get(r["query"], 0):
+            best[r["query"]] = v
+    start, end = windows[-1].stem.split("_")
+    return {"start": start, "end": end}, best
+
+
 def cmd_gsc(args):
     p = Paths(args.root)
     require(p)
     if args.action == "import":
         start, end = parse_period(args.period)
         path = Path(args.file).expanduser()
+        if path.suffix.lower() == ".json":
+            rows = gsc_rows_json(path, args.dimensions, args.page)
+            dest = p.gsc / f"{start}_{end}.jsonl"
+            existing = {(x["query"], x["page"]) for x in read_jsonl(dest)}
+            new = [dict(r, schema=f"{S}/gsc-row@1", period={"start": start, "end": end}) for r in rows
+                   if (r["query"], r["page"]) not in existing]
+            append_jsonl(dest, new)
+            emit({"window": f"{start}..{end}", "rows": len(rows), "added": len(new), "format": "api-json",
+                  "note": "no rows in this file" if not rows else None if any(r["page"] for r in rows) else
+                  "no page dimension: rows only feed unmapped-demand checks"})
+            return
         filters = {}
         if zipfile.is_zipfile(path):
             with zipfile.ZipFile(path) as z:
@@ -1423,8 +1490,8 @@ def cmd_gsc(args):
             impr = r.get("impressions") or 0
             d = by_kw.get(r["query"])
             if not d or d["status"] != "included":
-                if w == use[-1]:
-                    unmapped[r["query"]] += impr
+                if w == use[-1]:  # page rows of one query can share impressions: keep the largest
+                    unmapped[r["query"]] = max(unmapped[r["query"]], impr)
                 continue
             if not r.get("page"):
                 continue
@@ -1479,9 +1546,19 @@ def cmd_gsc(args):
               "notes": ["anonymized queries are absent from exports; missing queries do not mean missing demand",
                         "query and query+page views describe the same impressions; never add them together"]}
     write_json(p.work / "gsc-review.json", result)
+    # Unmapped queries go back to the keyword pool, in the shape `discovery.py import --format json` reads.
+    start, end = use[-1].stem.split("_")
+    write_json(p.work / "unmapped-queries.json", {
+        "schema": f"{S}/unmapped-queries@1", "generated_at": now(), "inputs": result["inputs"],
+        "import": f"discovery.py --root {p.root} import --format json --source google_search_console "
+                  f"--file {p.work / 'unmapped-queries.json'}",
+        "observations": [{"keyword": q, "kind": "gsc_impression", "source": "google_search_console",
+                          "market": {"country": "ALL", "language": "und"}, "period": {"start": start, "end": end},
+                          "metrics": {"impressions": v}} for q, v in unmapped.most_common()]})
     emit({"review": str(p.work / "gsc-review.json"), "windows": result["windows"],
           "flags": {k: dict(Counter(r["status"] for r in v)) for k, v in out.items()},
-          "retire_candidates": len(retire), "unmapped_queries": len(unmapped)})
+          "retire_candidates": len(retire), "unmapped_queries": len(unmapped),
+          "unmapped_import_file": str(p.work / "unmapped-queries.json")})
 
 
 # ---------------------------------------------------------------- registry changes
@@ -1859,9 +1936,10 @@ def main(argv=None):
     a.set_defaults(fn=cmd_serp)
     a = sub.add_parser("gsc", help="import GSC windows or review them against the registry")
     a.add_argument("action", choices=["import", "review"])
-    a.add_argument("--file")
+    a.add_argument("--file", help="UI export (zip or Queries.csv) or Search Console API rows (.json)")
     a.add_argument("--period")
     a.add_argument("--page")
+    a.add_argument("--dimensions", help="key order of API rows when the file does not say (default query,page)")
     a.set_defaults(fn=cmd_gsc)
     a = sub.add_parser("apply-changes", help="apply a user-approved change set to the registry")
     a.add_argument("--file", required=True)

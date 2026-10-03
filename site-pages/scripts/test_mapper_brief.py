@@ -42,7 +42,7 @@ def run(root, *argv):
     return json.loads(out.getvalue())
 
 
-class BriefTest(unittest.TestCase):
+class Fixture(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = root = Path(self.tmp.name)
@@ -94,6 +94,8 @@ class BriefTest(unittest.TestCase):
         run(self.root, "brief", "--page", "https://demo-quiz.io/states-quiz")
         return json.loads((self.root / "seo" / "work" / "briefs" / "states-quiz.json").read_text())
 
+
+class BriefTest(Fixture):
     def test_statuses_follow_inventory_and_covered_attributes(self):
         b = self.brief()
         c = b["clusters"][0]
@@ -151,6 +153,66 @@ class BriefTest(unittest.TestCase):
         self.assertFalse((self.root / "seo" / "work" / "sync-refresh.json").exists())
         page =mapper.load_pages(mapper.Paths(str(self.root)))["/states-quiz/"]
         self.assertEqual(page["covered_attributes"], {"difficulty": ["no borders"], "mode": ["typing"]})
+
+
+class GscStoreTest(Fixture):
+    """Search Console rows live once, in mapper/evidence/gsc; analyze, brief and review read them there."""
+
+    def import_api_rows(self):
+        api = self.root / "gsc.json"
+        api.write_text(json.dumps({"dimensions": ["query", "page"], "rows": [
+            {"keys": ["us states quiz", "https://demo-quiz.io/states-quiz"], "clicks": 5, "impressions": 100,
+             "ctr": 0.05, "position": 8.2},
+            {"keys": ["us states quiz", "https://demo-quiz.io/capitals-quiz"], "clicks": 0, "impressions": 40,
+             "ctr": 0.0, "position": 30.1},
+            {"keys": ["guess the us state", "https://demo-quiz.io/states-quiz"], "clicks": 1, "impressions": 30,
+             "ctr": 0.033, "position": 12.0},
+            {"keys": ["world map quiz", "https://demo-quiz.io/states-quiz"], "clicks": 0, "impressions": 20,
+             "ctr": 0.0, "position": 40.0},
+            {"keys": ["world map quiz", "https://demo-quiz.io/capitals-quiz"], "clicks": 0, "impressions": 15,
+             "ctr": 0.0, "position": 45.0}]}))
+        return run(self.root, "gsc", "import", "--file", str(api), "--period", "2026-10-02..2026-10-29")
+
+    def test_api_rows_import_with_page_and_percent_ctr(self):
+        out = self.import_api_rows()
+        self.assertEqual((out["rows"], out["added"], out["note"]), (5, 5, None))
+        rows = mapper.read_jsonl(self.root / "seo" / "mapper" / "evidence" / "gsc" / "2026-10-02_2026-10-29.jsonl")
+        first = rows[0]
+        self.assertEqual((first["query"], first["page"], first["ctr"]), ("us states quiz", "demo-quiz.io/states-quiz", 5.0))
+        self.assertEqual(self.import_api_rows()["added"], 0)  # re-import adds nothing
+
+    def test_analyze_and_brief_read_the_mapper_store_without_summing_pages(self):
+        self.import_api_rows()
+        run(self.root, "analyze")
+        analysis = json.loads((self.root / "seo" / "work" / "analysis.json").read_text())
+        demand = next(c for c in analysis["clusters"] if c["cluster_id"] == "us_states")["demand"]
+        # us states quiz: largest page row 100 (not 100 + 40); guess the us state: 30
+        self.assertEqual(demand["gsc_impressions_latest_sum"], 130)
+        self.assertEqual(demand["gsc_source"], "mapper/evidence/gsc")
+        b = self.brief()
+        guess = next(s for s in b["clusters"][0]["subneeds"] if s["attribute"] == "mode=guess")
+        self.assertEqual(guess["gsc_impressions"], 30)
+        self.assertEqual([q["query"] for q in b["gsc"]["queries"]], ["us states quiz", "guess the us state",
+                                                                      "world map quiz"])
+        self.assertFalse(b["gsc"]["queries"][2]["owned_here"])
+
+    def test_review_writes_unmapped_queries_that_discovery_imports(self):
+        self.import_api_rows()
+        run(self.root, "gsc", "review")
+        data = json.loads((self.root / "seo" / "work" / "unmapped-queries.json").read_text())
+        self.assertEqual([(o["keyword"], o["metrics"]["impressions"]) for o in data["observations"]],
+                         [("world map quiz", 20)])
+        dspec = importlib.util.spec_from_file_location(
+            "site_keywords_discovery", HERE.parent.parent / "site-keywords" / "scripts" / "discovery.py")
+        discovery = importlib.util.module_from_spec(dspec)
+        dspec.loader.exec_module(discovery)
+
+        class Args:
+            kind = period = None
+
+        rows = discovery.import_json(self.root / "seo" / "work" / "unmapped-queries.json", Args())
+        self.assertEqual([(r[0], r[1], r[3]) for r in rows],
+                         [("world map quiz", "gsc_impression", {"start": "2026-10-02", "end": "2026-10-29"})])
 
 
 if __name__ == "__main__":

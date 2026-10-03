@@ -17,9 +17,10 @@ and `work/`.
 | `mapper/site-urls.json` | snapshot | Written by `sync-check`: `{source, captured_at, host, urls[], lastmod{url: date}, titles{url: title}}`; `analyze` and `validate` compare the registry with it |
 | `mapper/evidence/serp.jsonl` | append-only | Captures (normalized top-N URLs, result types, market, date, `served_host`, `localized`) |
 | `mapper/evidence/serp-compare.jsonl` | append-only | Pair overlaps and verdicts |
-| `mapper/evidence/gsc/<start>_<end>.jsonl` | per window | Query, page, clicks, impressions, CTR, position; git-ignored |
+| `mapper/evidence/gsc/<start>_<end>.jsonl` | per window | Query, page, clicks, impressions, CTR (percent), position; git-ignored. The only GSC store once a registry exists; `analyze`, `brief` and `gsc review` read the latest window(s) |
 | `work/analysis.json`, `work/gsc-review.json`, `work/sync-check.json` | derived | Regenerate at any time. `analysis.json` carries `registry_coverage`; `sync-check.json` carries `drift` |
 | `work/briefs/<slug>.json` | derived | `brief@1`, one per page (`home` for `/`) |
+| `work/unmapped-queries.json` | derived | Written by `gsc review`: `{observations: [{keyword, kind: gsc_impression, source, market, period, metrics{impressions}}]}`, the shape `discovery.py import --format json` reads |
 | `work/sync-refresh.json` | draft change set | Title snapshots from the built site; fill `approved_by` before applying. Each `sync-check` rewrites or removes it |
 
 Every derived file carries `inputs`: `{latest_changeset, registry (hash of pages + mappings),

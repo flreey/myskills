@@ -27,7 +27,7 @@ when present in fewer, and `cooldown` when a page involved was published less th
 | `unowned_cluster` | Impressions for a cluster with no primary page | Map it to the page Google already chose, if that page fits |
 | `promotion_signal` | An attribute's queries on the parent page ≥ 100 impressions per window | Run the promotion gate (SERP pair and inventory). Otherwise enrich the section or filter |
 | `retire_candidates` | Published ≥ 120 days, ≤ 10 impressions in the latest window | Check indexing and content first. If demand is truly absent, redirect to the parent or return 410 |
-| `unmapped_queries` | Queries with no included decision | Import them into the pool (discovery, `--format gsc`), review them, then enrich or map |
+| `unmapped_queries` | Queries with no included decision | Import `seo/work/unmapped-queries.json` into the pool (discovery, `--format json`), review them, then enrich or map |
 
 **Enrich** is the default response to new member queries: add the sub-need, attribute section,
 FAQ or selection guidance to the owner page. It needs no new URL. Regenerate the page's brief
