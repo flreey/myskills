@@ -1,5 +1,6 @@
 ---
 name: overseas-micro-product-scout
+disable-model-invocation: true
 description: "Use when the user wants to discover, evaluate, or rank overseas micro-product opportunities for a solo indie developer — tool sites, browser extensions, platform plugins, file converters, QA/preflight checkers, diff tools, overlays, report generators. Hard filter: overseas users only (no China), real-case-accessible input data, competitor-adjacent wedge (not a free clone), 7-10 day MVP, no local-regulatory domains."
 ---
 

@@ -1,5 +1,6 @@
 ---
 name: loop-spec-author
+disable-model-invocation: true
 description: "Use when the user wants to turn a goal into a runnable, self-terminating loop spec before handing it to an executor — \"帮我定个 loop / 逼出退出条件 / 这个该怎么 loop / 反复做到符合预期\". Forces a machine-checkable DONE (turning subjective \"cliffs\" into measurable gradients), scopes uncheckable parts out as human votes, emits a consumer-agnostic loop spec. Explicit-invoke only. NOT for requirements/PRD/idea discovery (use brainstorming / agile-prd), NOT a loop executor (hand the spec to agile-dev-agent / ralph-loop / manual)."
 ---
 

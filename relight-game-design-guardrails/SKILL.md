@@ -1,5 +1,6 @@
 ---
 name: relight-game-design-guardrails
+disable-model-invocation: true
 description: Use when proposing or planning Relight gameplay changes, new mechanics, new chapters, large level batches, reward systems, playability fixes, or when the user says the game feels like connecting for its own sake. NOT for bug fixes, build issues, small visual polish, or post-implementation playtest review.
 ---
 

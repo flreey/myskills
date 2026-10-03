@@ -1,5 +1,6 @@
 ---
 name: skill-forge
+disable-model-invocation: true
 description: Use when the user wants to create or improve an agent skill — turn an incident, lesson, or repeated correction into a skill; bootstrap a primer skill for a new domain or tech stack (game engine, framework, platform) the user is starting; distill entries from lessons.md into reusable rules; or fix an existing skill that misfires, never triggers, or reads like generic advice. Also use when the user asks "what skills does this project need".
 ---
 

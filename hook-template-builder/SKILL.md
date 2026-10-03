@@ -1,5 +1,6 @@
 ---
 name: hook-template-builder
+disable-model-invocation: true
 description: "Use when the user wants agent hooks for Codex or Claude Code: scan a project, recommend safety/productivity hooks, generate hook templates, or decide whether a rule belongs in hooks, git hooks, CI, or project instructions. NOT for React hooks or product webhooks."
 ---
 

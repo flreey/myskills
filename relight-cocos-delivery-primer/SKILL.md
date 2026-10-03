@@ -1,5 +1,6 @@
 ---
 name: relight-cocos-delivery-primer
+disable-model-invocation: true
 description: Use when working in the Relight Cocos Creator project or planning changes for it, especially gameplay logic, level data, Cocos view code, visual polish, browser verification, or Web/Android/iOS delivery.
 ---
 

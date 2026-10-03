@@ -1,5 +1,6 @@
 ---
 name: prompt-builder
+disable-model-invocation: true
 description: Use this skill when the user gives a vague request AND specifically wants a copy-ready prompt to send to another LLM (Claude/GPT/Gemini/image models/etc.). Turns rough ideas into structured prompts via guided choices, sensible defaults, self-critique, and model-aware adaptation. Covers image, product, writing, code/automation, business, research, and agent/automation tasks. NOT for design/planning workflows that produce engineering specs or implementation plans (use brainstorming-style skills), and NOT for system-level diagnosis, feedback-loop design, or smallest-experiment analysis (use system-evolution-skill).
 ---
 

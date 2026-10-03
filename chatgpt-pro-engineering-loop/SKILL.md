@@ -1,5 +1,6 @@
 ---
 name: chatgpt-pro-engineering-loop
+disable-model-invocation: true
 description: Use when the user explicitly asks Codex Desktop to delegate substantial repository implementation to an already signed-in ChatGPT Pro session, including a short natural-language requirement that needs an execution proposal first. NOT for ordinary local coding, simple review, generic research, login-only requests, or work that must not leave the local environment.
 ---
 
