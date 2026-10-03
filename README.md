@@ -13,6 +13,7 @@
 | [cross-cli-review](./cross-cli-review) | 让 Claude Code 调用 Codex CLI 做 review，或反过来。把每次都做不好的跨 CLI review 固化成模板：正确的命令（sandbox / cwd / reasoning effort / base branch）+ 正确的 prompt（文件系统边界 / 焦点 / 输出格式 / DO NOT）+ 输出原样呈现。覆盖 general / security / performance / architecture / plan / challenge 六种 review 类型。 |
 | [overseas-micro-product-scout](./overseas-micro-product-scout) | 挖掘和评估海外微型产品机会的硬过滤器：先查付费/免费竞品，再找未满足的小动作，只保留数据源可见、业务浅、能 7-10 天验证的工具站 / 插件 / 平台 app / QA preflight / converter / report generator。 |
 | [skill-forge](./skill-forge) | 构建"效果经过验证"的领域 skill，而不是通用货。三模式：bootstrap（新领域薄引导 skill）/ forge（完整构建：搜现有 → 定位分诊 → 萃取访谈 → 生成 → 验证）/ harvest（从 lessons.md 把重复纠正结晶成 skill）。两道硬门禁：生成前必须访谈，交付前必须跑分级 A/B 验证；产出 skill 工具无关，Claude Code / Codex 双侧可用。 |
+| [steelman-deliberation](./steelman-deliberation) | 显式触发的双向钢人决策流程：第一轮强化真实问题与正反最强论证，定位分歧和关键变量，只问一个决定性问题；收到回答后才给明确判断与下一步。 |
 | [loop-spec-author](./loop-spec-author) | 把“反复做到符合预期”的模糊目标逼成可执行 loop spec：先定义 runnable DONE、进度信号、不变量和三种出口，再交给执行器；明确不负责执行 loop。 |
 | [relight-cocos-delivery-primer](./relight-cocos-delivery-primer) | Relight Cocos Creator 项目的工程交付 primer：固定 Cocos 3.8.8、TypeScript、Web/Android/iOS 边界，区分纯玩法逻辑与 Cocos view 层，并要求视觉/交互改动做浏览器验证。 |
 | [relight-game-design-guardrails](./relight-game-design-guardrails) | Relight 玩法设计护栏：任何新机制/章节/关卡批量规划先回答“连线后恢复了什么意义”，避免为了连线而连线，强调 star-chart/world-state 的可见回报。 |
@@ -35,6 +36,7 @@
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/cross-cli-review
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/overseas-micro-product-scout
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/skill-forge
+帮我装这个 skill：https://github.com/flreey/myskills/tree/main/steelman-deliberation
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/loop-spec-author
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/relight-cocos-delivery-primer
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/relight-game-design-guardrails

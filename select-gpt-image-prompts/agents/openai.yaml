@@ -1,0 +1,4 @@
+interface:
+  display_name: "GPT Image Prompt Selector"
+  short_description: "按生成场景检索并改写精选 GPT Image 提示词"
+  default_prompt: "使用 $select-gpt-image-prompts 为我的生图场景检索、选择并改写合适的提示词。"
