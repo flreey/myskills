@@ -29,7 +29,8 @@ Present one initialization plan containing:
 
 - repository root, project ID, display name, default branch, remote name (or `null`), and target
   language;
-- Dashboard locale (`zh-CN` for Simplified Chinese when requested, otherwise `en`);
+- Dashboard locale (`zh-CN` by default; use `en` only when the human explicitly requests an
+  English Dashboard);
 - proposed Product Intent, Journey, Feature, Outcome, and Capability boundaries derived from
   reviewed project intent;
 - each Capability's bindings and observable command/manual criteria;
@@ -55,6 +56,12 @@ Run the no-write preview first:
 
 Show the planned paths and wait for confirmation. After confirmation, rerun without `--dry-run`.
 Never remove or overwrite a non-empty `.project-truth/` directory.
+
+The pinned `ptruth init` command currently writes the engine's `en` locale default and does not
+accept a locale option. For Skill-driven initialization, set `dashboard.locale: zh-CN` and use a
+localized Dashboard title as part of the confirmed Authority draft before the first `validate` or
+`build`. Preserve `en` only when the human explicitly requested an English Dashboard. This locale
+normalization is configuration, not evidence, and must not create a Receipt.
 
 ## 4. Draft proposed Authority
 

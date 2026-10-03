@@ -1,5 +1,6 @@
 ---
 name: project-truth
+disable-model-invocation: true
 description: Use to initialize Project Truth in a new or existing Git repository, inspect capability status, update reviewed authority, implement or continue capabilities, record receipts, handle human acceptance, and rebuild the truth dashboard. Trigger when the user invokes $project-truth, asks what is complete or next, or mentions Project Truth, capability truth, authority, criteria, receipts, coverage, or the truth dashboard. Drive work from validated machine state and stop at authority approval, manual acceptance, Git, deployment, and other external-action boundaries.
 ---
 
@@ -38,7 +39,7 @@ Skills.
 | Uninitialized repository | Assess, propose parameters and Authority scope, dry-run, then wait |
 | Explanation, status, or review | Report compact machine context without writing |
 | Missing Product mapping, Capability, criterion, or required dimension | Propose a versioned Authority change and wait |
-| Reviewed actionable criterion | Select one slice and use the project's matching implementation flow |
+| Reviewed actionable criterion | Select one explicit slice; it may be one criterion or a confirmed Capability batch |
 | Product failure or runtime mismatch | Use the matching investigation flow before rerunning evidence |
 | `MANUAL` or `CONFLICT` | Stop for the required human decision or evidence-source review |
 | New evidence or confirmed Authority change | Rebuild state and Dashboard, then reread context |
@@ -62,7 +63,9 @@ Truth command.
 
 ## Implement against Authority
 
-1. Select one reviewed criterion or one explicit user-selected slice.
+1. Select one reviewed criterion or one explicit user-selected slice. A slice may cover a
+   Capability's reviewed non-manual criteria when the plan lists its evidence, build, and Git
+   effects.
 2. Keep changes inside confirmed bindings and impact surface.
 3. Establish the required public-seam test before behavior-changing implementation.
 4. Run focused and regression validation, but do not call ordinary test output a Project Truth
@@ -84,6 +87,14 @@ run one only after the human explicitly supplies the decision and note in the cu
 
 Treat `revoke`, commit, push, deployment, publication, credentials, paid calls, live environments,
 and an engine pin upgrade as separate authorization boundaries.
+
+Separate boundaries may be authorized together in one explicit plan. "Separate" means unlisted
+actions are not implied; it does not require a new conversation turn for every listed step. When a
+confirmed local Capability closeout explicitly includes Receipt commits, continue through
+criterion execution, Receipt inspection, status/build, the scoped Receipt commit, and the next
+reviewed non-manual criterion without re-confirming. Stop on product failure or configuration
+error, `MANUAL` or `CONFLICT`, an Authority or implementation scope change, unexpected workspace
+changes, or an external action not already listed in the confirmed plan.
 
 ## Rebuild and close the loop
 
