@@ -1,6 +1,6 @@
 ---
 name: site-analytics
-description: Use when an existing website project (not a site-kit site) should start using the self-hosted Umami analytics, replace or remove Google Analytics (GA4, gtag.js, Google Tag Manager) in favor of Umami, finish a GA-to-Umami cutover after a parallel period, or pull Umami traffic and event reports. Also for 接入 Umami、用 Umami 替换 GA、去掉 GA、GA 迁移、统计迁移、Umami 报表. NOT for site-kit sites (their analytics live in site.config.ts) or for only reading existing GA4 reports.
+description: Use when an existing website project (not a site-kit site) should start using the self-hosted Umami analytics, replace or remove Google Analytics (GA4, gtag.js, Google Tag Manager) in favor of Umami, or finish a GA-to-Umami cutover after a parallel period; and when pulling Umami traffic and event reports for any site, site-kit sites included. Also for 接入 Umami、用 Umami 替换 GA、去掉 GA、GA 迁移、统计迁移、Umami 报表. NOT for wiring analytics into site-kit sites (their analytics live in site.config.ts) or for only reading existing GA4 reports.
 ---
 
 # Site Analytics
@@ -15,7 +15,8 @@ Scripts (Python 3.9+ stdlib, read-only):
 - `python3 <skill-dir>/scripts/scan.py --project <dir> [--domain <host>] [--format json]`: inventory with
   file:line evidence, framework, phase, and a ready `umami-connect --dry-run` command when the layout is unambiguous.
 - `python3 <skill-dir>/scripts/report.py --domain <host> [--days 7 | --start D --end D] [--daily] [--format json]`:
-  Umami totals with the previous period, top pages, referrers, channels, events, countries.
+  Umami totals with the previous period, top pages, referrers, channels, events, countries. It reads any
+  website registered in Umami, site-kit sites included; only the migration steps are limited to non-kit sites.
 
 The user's Umami tool does registration and layout wiring: `~/Projects/umami` (override with `UMAMI_TOOL_ROOT`).
 

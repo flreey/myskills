@@ -30,7 +30,9 @@ when present in fewer, and `cooldown` when a page involved was published less th
 | `unmapped_queries` | Queries with no included decision | Import them into the pool (discovery, `--format gsc`), review them, then enrich or map |
 
 **Enrich** is the default response to new member queries: add the sub-need, attribute section,
-FAQ or selection guidance to the owner page. It needs no new URL.
+FAQ or selection guidance to the owner page. It needs no new URL. Regenerate the page's brief
+first: with a GSC window imported it shows the page's queries next to the sub-needs, and the
+`write_it` rows are the enrich list. Record what the page now covers in `covered_attributes`.
 
 ## Hysteresis
 

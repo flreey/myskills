@@ -45,7 +45,16 @@ DEFAULT_MAPPER = {
              "require_serp_for_create": True},
     # exclude_axes: axes whose values narrow a result set but almost never deserve a page of their own
     # (license, format); analyze does not list them as promotion candidates. A project can clear it.
-    "promotion": {"min_keywords": 3, "min_items": 8, "exclude_axes": ["license", "format"]},
+    # min_items_by_type: a tool satisfies an attribute with one mode; resources need a real selection.
+    "promotion": {"min_keywords": 3, "min_items": 8, "min_items_by_type": {"tool": 1},
+                  "exclude_axes": ["license", "format"]},
+    # brief: per-page requirement list. exclude_axes (axes or exact axis=value pairs; None =
+    # promotion.exclude_axes) drops values that only restate a cluster's identity, e.g. quiz_type=maps on
+    # a map quiz. brand_axes are listed as competitors.
+    "brief": {"min_members": 3, "phrasings": 12, "questions": 15, "gsc_queries": 30, "exclude_axes": None,
+              "brand_axes": ["competitor_brand", "brand"],
+              "question_words": ["how", "what", "which", "who", "where", "why", "when", "is", "are", "can",
+                                 "do", "does", "should"]},
     "priority": {"p0_planner_high": 1000, "p0_gsc_impressions": 100, "p1_planner_high": 100, "p1_members": 5},
     "serp": {"top_n": 10, "merge_min_shared": 6, "split_max_shared": 3, "budget_per_session": 30},
     "gsc": {"windows_required": 2, "split_min_impressions": 100, "cannibal_min_share": 0.2,
@@ -897,6 +906,101 @@ def serp_captures(p: Paths) -> dict:
     return current([dict(r, _key=norm(r["query"])) for r in read_jsonl(p.serp)], "_key")
 
 
+def planner_high(e: dict) -> int:
+    """Largest Planner upper bound among a keyword's observations. Planner merges close variants: never sum."""
+    best = 0
+    for o in e["observations"]:
+        vol = (o.get("metrics") or {}).get("avg_monthly_searches")
+        if o["kind"] == "historical_volume" and vol and vol.get("high"):
+            best = max(best, vol["high"])
+    return best
+
+
+def latest_gsc(e: dict):
+    latest = None
+    for o in e["observations"]:
+        if o["kind"] == "gsc_impression" and (latest is None or o["period"]["end"] > latest["period"]["end"]):
+            latest = o
+    return latest
+
+
+def cluster_members(decisions: dict, pool: dict) -> dict:
+    """cluster_id -> [(pool entry, decision)] for included keywords."""
+    members = defaultdict(list)
+    for k, d in decisions.items():
+        if d["status"] == "included" and d.get("cluster_id") and k in pool:
+            members[d["cluster_id"]].append((pool[k], d))
+    return members
+
+
+def attribute_stats(mem: list) -> dict:
+    """axis=value -> member count, top examples by volume, best Planner bound, latest GSC impressions."""
+    attrs = defaultdict(lambda: {"members": 0, "examples": [], "gsc": 0.0, "planner_high": 0})
+    for e, d in mem:
+        ph, g = planner_high(e), latest_gsc(e)
+        for axis, vals in (d.get("attributes") or {}).items():
+            for v in vals:
+                a = attrs[f"{axis}={norm(v)}"]
+                a["members"] += 1
+                a["planner_high"] = max(a["planner_high"], ph)
+                a["gsc"] += ((g or {}).get("metrics") or {}).get("impressions") or 0
+                a["examples"].append((ph, e["keyword"]))
+    for a in attrs.values():
+        a["examples"] = [k for _, k in sorted(a["examples"], key=lambda x: (-x[0], len(x[1])))[:3]]
+    return attrs
+
+
+def attr_need(cfg: dict, page_type: str) -> int:
+    """Items an attribute needs before the inventory counts as satisfying it."""
+    promo = cfg["promotion"]
+    return promo.get("min_items_by_type", {}).get(page_type, promo["min_items"])
+
+
+DERIVED = {  # derived file in work/ -> fingerprint keys it depends on (None = all)
+    "analysis.json": None,
+    "gsc-review.json": ("registry", "decisions", "gsc_windows"),
+    "sync-check.json": ("registry",),
+}
+
+
+def inputs_fingerprint(p: Paths) -> dict:
+    """The state a derived file was computed from; status compares it with the current state."""
+    def lines(path):
+        if not path.exists():
+            return 0
+        with path.open(encoding="utf-8") as fh:
+            return sum(1 for _ in fh)
+
+    def digest(*paths):
+        return sha("".join(x.read_text(encoding="utf-8") if x.exists() else "" for x in paths))
+
+    applied = sorted(((read_json(f, {}) or {}).get("applied_at", ""), f.stem) for f in p.changesets.glob("*.json"))
+    inv = read_json(p.inventory, None)
+    return {"latest_changeset": applied[-1][1] if applied else None,
+            "registry": digest(p.pages, p.mappings),
+            "clusters": lines(p.clusters), "decisions": lines(p.decisions),
+            "pool": p.obs.stat().st_size if p.obs.exists() else 0,
+            "inventory": {"as_of": inv.get("as_of"), "sha": sha(json.dumps(inv, sort_keys=True), 8)} if inv else None,
+            "gsc_windows": sorted(w.stem for w in p.gsc.glob("*.jsonl")),
+            "serp": lines(p.serp) + lines(p.serp_cmp)}
+
+
+def staleness(p: Paths) -> list:
+    cur = inputs_fingerprint(p)
+    files = [(p.work / n, keys) for n, keys in DERIVED.items()]
+    files += [(f, None) for f in sorted((p.work / "briefs").glob("*.json"))]
+    out = []
+    for f, keys in files:
+        if not f.exists():
+            continue
+        data = read_json(f, {}) or {}
+        got = data.get("inputs")
+        changed = ["no inputs fingerprint"] if not got else [k for k in (keys or cur) if got.get(k) != cur.get(k)]
+        out.append({"file": str(f.relative_to(p.seo)), "generated_at": data.get("generated_at"),
+                    "stale": bool(changed), "changed": changed})
+    return out
+
+
 def cmd_analyze(args):
     p = Paths(args.root)
     require(p)
@@ -915,10 +1019,7 @@ def cmd_analyze(args):
     unregistered = {} if not snap else {
         u: url_tokens(u) | {stem(t) for t in tokens((snap.get("titles") or {}).get(u, ""))}
         for u in snap["urls"] if page_key(u, host) not in registered}
-    members = defaultdict(list)
-    for k, d in decisions.items():
-        if d["status"] == "included" and d.get("cluster_id") and k in pool:
-            members[d["cluster_id"]].append((pool[k], d))
+    members = cluster_members(decisions, pool)
     by_cluster_maps = defaultdict(list)
     for m in mappings:
         by_cluster_maps[m["cluster_id"]].append(m)
@@ -929,26 +1030,18 @@ def cmd_analyze(args):
             continue
         mem = members.get(cid, [])
         planner_best, gsc_sum, gsc_periods, sources, kinds = None, 0.0, set(), Counter(), Counter()
-        attrs = defaultdict(lambda: {"members": 0, "examples": [], "gsc": 0.0, "planner_high": 0})
         for e, d in mem:
-            latest_gsc = None
             for o in e["observations"]:
                 sources[o["source"]] += 1
                 kinds[o["kind"]] += 1
                 vol = (o.get("metrics") or {}).get("avg_monthly_searches")
                 if o["kind"] == "historical_volume" and vol and (planner_best is None or vol["high"] > planner_best[1]):
                     planner_best = (e["keyword"], vol["high"], o.get("period"))
-                if o["kind"] == "gsc_impression" and (latest_gsc is None or o["period"]["end"] > latest_gsc["period"]["end"]):
-                    latest_gsc = o
-            if latest_gsc:
-                gsc_sum += (latest_gsc.get("metrics") or {}).get("impressions") or 0
-                gsc_periods.add(f"{latest_gsc['period']['start']}..{latest_gsc['period']['end']}")
-            for axis, vals in (d.get("attributes") or {}).items():
-                for v in vals:
-                    a = attrs[f"{axis}={norm(v)}"]
-                    a["members"] += 1
-                    if len(a["examples"]) < 3:
-                        a["examples"].append(e["keyword"])
+            lg = latest_gsc(e)
+            if lg:
+                gsc_sum += (lg.get("metrics") or {}).get("impressions") or 0
+                gsc_periods.add(f"{lg['period']['start']}..{lg['period']['end']}")
+        attrs = attribute_stats(mem)
         evidence = {"external": bool(mem), "serp": any(norm(e["keyword"]) in serp for e, _ in mem),
                     "gsc": gsc_sum > 0}
         planner_high = planner_best[1] if planner_best else 0
@@ -993,12 +1086,14 @@ def cmd_analyze(args):
             needs_serp.append({"type": "page_type", "cluster_id": cid, "queries": [rep]})
         promotions = []
         inv_attrs = (inv.get(cid) or {}).get("attrs", {})
+        need = attr_need(cfg, c["page_type"])
         for key, a in sorted(attrs.items(), key=lambda kv: -kv[1]["members"]):
             if a["members"] < promo["min_keywords"] or key.split("=", 1)[0] in promo.get("exclude_axes", []):
                 continue
             ai = inv_attrs.get(key)
-            cand = {"attribute": key, "members": a["members"], "examples": a["examples"], "inventory": ai,
-                    "inventory_ok": ai is not None and ai >= promo["min_items"]}
+            cand = {"attribute": key, "members": a["members"], "examples": a["examples"],
+                    "planner_high": a["planner_high"] or None, "inventory": ai, "inventory_need": need,
+                    "inventory_ok": ai is not None and ai >= need}
             promotions.append(cand)
             rep = (c.get("definition") or {}).get("representative_keywords", [None])[0]
             if rep and a["examples"]:
@@ -1025,7 +1120,8 @@ def cmd_analyze(args):
     else:
         coverage = {"snapshot_captured_at": None,
                     "warning": "registry completeness unknown: run sync-check --sitemap <sitemap> first"}
-    result = {"schema": f"{S}/analysis@1", "generated_at": now(), "registry_coverage": coverage, "clusters": report,
+    result = {"schema": f"{S}/analysis@1", "generated_at": now(), "inputs": inputs_fingerprint(p),
+              "registry_coverage": coverage, "clusters": report,
               "needs_serp": needs_serp[:budget], "needs_serp_total": len(needs_serp),
               "undecided_keywords": sum(1 for k in pool if k not in decisions),
               "pending_keywords": sum(1 for d in decisions.values() if d["status"] == "pending")}
@@ -1035,6 +1131,152 @@ def cmd_analyze(args):
           "by_tier": dict(Counter(r["tier"] for r in report)),
           "needs_serp": len(needs_serp), "undecided_keywords": result["undecided_keywords"],
           "pending_keywords": result["pending_keywords"]})
+
+
+BRIEF_STATUSES = {
+    "covered": "the inventory has it and the page says so",
+    "write_it": "the inventory has it but the page does not say so: add it to a section, the copy or the FAQ",
+    "feature_candidate": "the inventory does not have it: product backlog; never claim it on the page",
+    "unbacked_claim": "covered_attributes claims it but the inventory does not back it: fix the page or the record",
+    "unknown": "no inventory count for this attribute: count it into inventory.json first",
+}
+
+
+def cmd_brief(args):
+    """Per-page requirement list: what the owned clusters ask for, what the inventory and the page cover."""
+    p = Paths(args.root)
+    require(p)
+    cfg = cfg_of(p)
+    bc = cfg["brief"]
+    pool = load_pool(p)
+    clusters = load_clusters(p)
+    decisions = load_decisions(p)
+    pages = load_pages(p)
+    mappings = load_mappings(p)
+    inv = (read_json(p.inventory, {}) or {}).get("clusters", {})
+    host = site_host(p)
+    keyed = {page_key(u, host): u for u in pages}
+    by_page, primary_of = defaultdict(list), {}
+    for m in mappings:
+        by_page[m["page"]].append(m)
+        if m["role"] == "primary":
+            primary_of[m["cluster_id"]] = m["page"]
+    if args.all:
+        targets = sorted({m["page"] for m in mappings if m["role"] == "primary" and m["page"] in pages})
+    else:
+        targets = []
+        for u in args.page or []:
+            if page_key(u, host) not in keyed:
+                die(f"{u} is not in the registry")
+            targets.append(keyed[page_key(u, host)])
+    if not targets:
+        die("brief needs --page <url> (repeatable) or --all")
+    members = cluster_members(decisions, pool)
+    kw_cluster = {norm(d["keyword"]): d["cluster_id"] for d in decisions.values() if d["status"] == "included"}
+    serp_pairs = defaultdict(list)
+    for r in read_jsonl(p.serp_cmp):
+        ca, cb = kw_cluster.get(r["a"]), kw_cluster.get(r["b"])
+        if ca and cb and ca != cb:
+            row = {k: r.get(k) for k in ("a", "b", "shared", "verdict")}
+            serp_pairs[ca].append((cb, row))
+            serp_pairs[cb].append((ca, row))
+    windows = sorted(p.gsc.glob("*.jsonl"))
+    gsc_rows = read_jsonl(windows[-1]) if windows else []
+    exclude = set(cfg["promotion"]["exclude_axes"] if bc["exclude_axes"] is None else bc["exclude_axes"])
+    brand, qwords = set(bc["brand_axes"]), set(bc["question_words"])
+    fp = inputs_fingerprint(p)
+    outdir = p.work / "briefs"
+    role_rank = {"primary": 0, "secondary": 1, "filter": 2}
+    summary = []
+    for url in targets:
+        page = pages[url]
+        covered = {f"{axis}={norm(v)}" for axis, vals in (page.get("covered_attributes") or {}).items() for v in vals}
+        owned = sorted(by_page[url], key=lambda m: (role_rank.get(m["role"], 3), m["cluster_id"]))
+        owned_ids = {m["cluster_id"] for m in owned}
+        need = attr_need(cfg, page.get("page_type") or "")
+        out_clusters, counts = [], Counter()
+        for m in owned:
+            c = clusters.get(m["cluster_id"])
+            if not c:
+                continue
+            mem = members.get(c["id"], [])
+            defn = c.get("definition") or {}
+            ph = {norm(e["keyword"]): planner_high(e) for e, _ in mem}
+            phrasings, seen = [], set()
+            ranked = sorted(mem, key=lambda ed: (-ph[norm(ed[0]["keyword"])], len(ed[0]["keyword"])))
+            for kw in list(defn.get("representative_keywords") or []) + [e["keyword"] for e, _ in ranked]:
+                if norm(kw) in seen:
+                    continue
+                seen.add(norm(kw))
+                phrasings.append({"keyword": kw, "planner_high": ph.get(norm(kw)) or None})
+                if len(phrasings) >= bc["phrasings"]:
+                    break
+            inv_attrs = (inv.get(c["id"]) or {}).get("attrs", {})
+            subneeds, competitors = [], []
+            stats = attribute_stats(mem)
+            for key, a in sorted(stats.items(), key=lambda kv: (-kv[1]["members"], -kv[1]["planner_high"], kv[0])):
+                axis, value = key.split("=", 1)
+                if axis in brand:
+                    competitors.append({"name": value, "members": a["members"], "examples": a["examples"]})
+                    continue
+                if a["members"] < bc["min_members"] or axis in exclude or key in exclude:
+                    continue
+                cap, is_cov = inv_attrs.get(key), key in covered
+                if cap is None:
+                    status = "unknown"
+                elif cap < need:
+                    status = "unbacked_claim" if is_cov else "feature_candidate"
+                else:
+                    status = "covered" if is_cov else "write_it"
+                counts[status] += 1
+                subneeds.append({"attribute": key, "status": status, "members": a["members"],
+                                 "planner_high": a["planner_high"] or None, "gsc_impressions": a["gsc"] or None,
+                                 "examples": a["examples"], "inventory": cap, "inventory_need": need,
+                                 "covered": is_cov})
+            questions = sorted((e["keyword"] for e, _ in mem if (tokens(e["keyword"]) or [""])[0] in qwords),
+                               key=lambda k: (-ph[norm(k)], k))[: bc["questions"]]
+            text = " ".join(list(defn.get("excludes") or []) + [defn.get("neighbor_distinction") or ""])
+            neighbors = {}
+            for cid in clusters:
+                if cid != c["id"] and re.search(rf"(?<![a-z0-9_]){re.escape(cid)}(?![a-z0-9_])", text):
+                    neighbors[cid] = {"cluster_id": cid, "label": clusters[cid].get("label"),
+                                      "primary_page": primary_of.get(cid), "named_in_definition": True, "serp": []}
+            for cid, row in serp_pairs.get(c["id"], []):
+                n = neighbors.setdefault(cid, {"cluster_id": cid, "label": (clusters.get(cid) or {}).get("label"),
+                                               "primary_page": primary_of.get(cid), "named_in_definition": False,
+                                               "serp": []})
+                n["serp"].append(row)
+            out_clusters.append({
+                "cluster_id": c["id"], "role": m["role"], "decision": m.get("decision"), "label": c.get("label"),
+                "entity": c.get("entity"), "intent": c.get("intent"), "page_type": c.get("page_type"),
+                "expected_result_set": c.get("expected_result_set"), "summary": defn.get("summary"),
+                "excludes": defn.get("excludes") or [], "neighbor_distinction": defn.get("neighbor_distinction"),
+                "members": len(mem), "phrasings": phrasings, "subneeds": subneeds, "competitors": competitors,
+                "questions": questions, "neighbors": sorted(neighbors.values(), key=lambda n: n["cluster_id"]),
+            })
+        gsc = None
+        if gsc_rows:
+            mine = sorted((r for r in gsc_rows if r.get("page") == page_key(url, host)),
+                          key=lambda r: -(r.get("impressions") or 0))
+            gsc = {"window": windows[-1].stem, "queries": [
+                {"query": r["query"], "impressions": r.get("impressions"), "clicks": r.get("clicks"),
+                 "position": r.get("position"), "cluster_id": kw_cluster.get(r["query"]),
+                 "owned_here": kw_cluster.get(r["query"]) in owned_ids} for r in mine[: bc["gsc_queries"]]]}
+        brief = {"schema": f"{S}/brief@1", "generated_at": now(), "inputs": fp, "page": url,
+                 "page_type": page.get("page_type"), "page_status": page.get("status"),
+                 "covered_attributes": page.get("covered_attributes") or {}, "clusters": out_clusters, "gsc": gsc,
+                 "statuses": BRIEF_STATUSES,
+                 "notes": ["phrasings, examples and questions show the demand structure; never paste every member "
+                           "keyword into the page",
+                           "planner_high is a Planner bucket bound; never add it across keywords or attributes",
+                           "record what the page covers with a page_upsert covered_attributes change, capabilities "
+                           "in inventory.json, and feature candidates in the project backlog; this file is derived"]}
+        slug = re.sub(r"[^a-z0-9]+", "-", urllib.parse.urlparse(url).path.lower()).strip("-") or "home"
+        dest = outdir / f"{slug}.json"
+        write_json(dest, brief)
+        summary.append({"page": url, "brief": str(dest), "clusters": [x["cluster_id"] for x in out_clusters],
+                        "subneeds": dict(counts)})
+    emit({"briefs": summary})
 
 
 def cmd_serp(args):
@@ -1230,7 +1472,8 @@ def cmd_gsc(args):
         a = age_days(k)
         if a is not None and a >= cfg["retire_after_days"] and page_impr.get(k, 0) <= cfg["retire_max_impressions"]:
             retire.append({"page": url, "age_days": a, "impressions_latest": page_impr.get(k, 0)})
-    result = {"schema": f"{S}/gsc-review@1", "generated_at": now(), "windows": [w.stem for w in use],
+    result = {"schema": f"{S}/gsc-review@1", "generated_at": now(), "inputs": inputs_fingerprint(p),
+              "windows": [w.stem for w in use],
               "windows_required": cfg["windows_required"], "flags": out, "retire_candidates": retire,
               "unmapped_queries": [{"query": q, "impressions": v} for q, v in unmapped.most_common(200)],
               "notes": ["anonymized queries are absent from exports; missing queries do not mean missing demand",
@@ -1502,16 +1745,43 @@ def cmd_sync_check(args):
     absent = [u for k, u in keys.items() if k not in live_keys and pages[u].get("status") == "published"
               and pages[u].get("indexable")]
     unowned = sorted(cid for cid in clusters if cid not in owned)
-    out = {"schema": f"{S}/sync-check@1", "generated_at": now(), "source": args.sitemap, "live_urls": len(live),
+    # The built site owns titles, page types and indexability; the registry keeps snapshots of them.
+    drift, refresh = [], []
+    by_key = {page_key(u, host): f for u, f in facts.items()}
+    for u, pg in sorted(pages.items()):
+        f = by_key.get(page_key(u, host))
+        if not f:
+            continue
+        site = {"title": f.get("title"), "page_type": f.get("page_type") or f.get("pageType"),
+                "indexable": f.get("indexable")}
+        for field, val in site.items():
+            if val is not None and pg.get(field) != val:
+                drift.append({"url": u, "field": field, "registry": pg.get(field), "site": val})
+        if site["title"] and pg.get("title") != site["title"]:
+            refresh.append({"kind": "page_upsert", "url": u, "title": site["title"],
+                            "reason": "title snapshot refreshed from the built site (sync-check)"})
+    refresh_path = None
+    (p.work / "sync-refresh.json").unlink(missing_ok=True)  # a draft from an earlier run is not current
+    if refresh:
+        refresh_path = p.work / "sync-refresh.json"
+        write_json(refresh_path, {"id": f"cs_{datetime.now(timezone.utc):%Y%m%d_%H%M}_sync_refresh",
+                                  "approved_by": None,
+                                  "reason": "refresh registry title snapshots from the built site; page_type and "
+                                            "indexable drift are decisions and are only reported",
+                                  "changes": refresh})
+    out = {"schema": f"{S}/sync-check@1", "generated_at": now(), "inputs": inputs_fingerprint(p),
+           "source": args.sitemap, "live_urls": len(live),
            "registered": len(pages), "unregistered": unregistered, "live_but_not_published_indexable": mismatch,
-           "published_but_not_live": absent, "clusters_without_primary": unowned,
+           "published_but_not_live": absent, "clusters_without_primary": unowned, "drift": drift,
+           "refresh_changeset": str(refresh_path) if refresh_path else None,
            "note": "cluster_hints are lexical (URL/title contains every stem of the entity or label); the model decides ownership"}
     write_json(p.work / "sync-check.json", out)
     emit({"sync_check": str(p.work / "sync-check.json"), "snapshot": str(p.site_urls), "live_urls": len(live),
           "registered": len(pages), "unregistered": len(unregistered),
           "unregistered_with_hints": sum(1 for x in unregistered if x["cluster_hints"]),
           "live_but_not_published_indexable": len(mismatch), "published_but_not_live": len(absent),
-          "clusters_without_primary": len(unowned)})
+          "clusters_without_primary": len(unowned), "drift": dict(Counter(d["field"] for d in drift)),
+          "refresh_changeset": str(refresh_path) if refresh_path else None})
 
 
 def cmd_validate(args):
@@ -1554,6 +1824,7 @@ def cmd_status(args):
         "mappings": dict(Counter(f"{m['role']}:{m['decision']}" for m in mappings)),
         "gsc_windows": sorted(w.stem for w in p.gsc.glob("*.jsonl")),
         "serp_captures": len(read_jsonl(p.serp)),
+        "derived": staleness(p),
     })
 
 
@@ -1577,6 +1848,10 @@ def main(argv=None):
     a.add_argument("--actor", choices=["model", "human"], default="model")
     a.set_defaults(fn=cmd_apply_review)
     sub.add_parser("analyze", help="cluster evidence, gates and SERP needs").set_defaults(fn=cmd_analyze)
+    a = sub.add_parser("brief", help="per-page requirement list (sub-needs vs inventory vs covered_attributes)")
+    a.add_argument("--page", action="append", help="registry page URL or path (repeatable)")
+    a.add_argument("--all", action="store_true", help="every page that is a primary owner")
+    a.set_defaults(fn=cmd_brief)
     a = sub.add_parser("serp", help="store SERP captures or compare result overlap")
     a.add_argument("action", choices=["add", "compare"])
     a.add_argument("--file")

@@ -79,6 +79,10 @@ fully matched only when **one item** meets all its requirements. Unknown is neit
 failed. Zero full matches is a gap to report; it does not authorize creating assets. Naming or
 model-generated labels do not prove that an item fits; human review evidence does.
 
+At page level, `brief` computes this per attribute: inventory `attrs` against the page's
+`covered_attributes` (statuses in SKILL.md, Brief mode). Use it before building or rewriting the
+page; the per-keyword matrix above still applies to asset-level fit.
+
 ## Change set
 
 ```json

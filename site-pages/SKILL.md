@@ -1,6 +1,6 @@
 ---
 name: site-pages
-description: Use when deciding which search demand a site should serve and where — grouping keywords into demand clusters, deciding whether a keyword, modifier or cluster deserves its own page, a section, a filter or nothing, planning SEO information architecture from keyword data, reviewing Search Console data to enrich, split, merge or retire pages, or diagnosing keyword cannibalization. Also for 需求簇、关键词归类、要不要建页、拆页合页. Formerly search-demand-mapper.
+description: Use when deciding which search demand a site should serve and where — grouping keywords into demand clusters, deciding whether a keyword, modifier or cluster deserves its own page, a section, a filter or nothing, planning SEO information architecture from keyword data, briefing which sub-needs a page must cover before it is built or rewritten, reviewing Search Console data to enrich, split, merge or retire pages, or diagnosing keyword cannibalization. Also for 需求簇、关键词归类、要不要建页、拆页合页. Formerly search-demand-mapper.
 ---
 
 # Search Demand Mapper
@@ -45,6 +45,7 @@ point at.
 | Search Console data after launch | **review** | `gsc import` → `gsc review` → decisions → change set |
 | A question about a few keywords ("does X need its own page?") | **decide** | Answer the ten questions below, read-only, with whatever evidence exists |
 | Existing site whose registry does not cover every live URL | **sync** | `sync-check` → ownership review → change set, before trusting any page plan |
+| A page is about to be built or rewritten | **brief** | `brief --page <url>` → copy and backlog by status → `covered_attributes` in the change set |
 
 ## Map mode
 
@@ -63,7 +64,9 @@ point at.
    before a seed is clustered, or that overwrite human decisions.
 3. **Inventory.** Write `seo/mapper/inventory.json` from project data: items per cluster and per
    `axis=value`. Count; never estimate. If items cannot be counted, leave them out; the gate then
-   reads "inventory unknown".
+   reads "inventory unknown". On a tool page an `axis=value` count is the number of modes that do
+   it (often 1 or 0); record 0 for what the product does not do, so briefs can tell a missing
+   feature from an uncounted one.
 4. **Analyze.** `analyze` writes `seo/work/analysis.json` with evidence flags, a demand tier,
    suggestions (`keep_or_improve_existing`, `check_existing_page`, `create_candidate`,
    `improve_parent_or_defer`, `defer`, `hold`), attribute candidates, `needs_serp` and
@@ -82,15 +85,44 @@ point at.
    a priority. Use [references/page-decisions.md](references/page-decisions.md).
 7. **Propose.** Write the change set (JSON plus a short Markdown summary), check it with
    `apply-changes --dry-run`, and present it. After explicit approval, run `apply-changes` and
-   `validate`. Page work itself is handed to the
-   project's implementation workflow.
+   `validate`. Page work itself is handed to the project's implementation workflow, with a
+   **brief** for each page it builds or rewrites.
+
+## Brief mode
+
+The registry says which page owns which demand; the brief says what that page must satisfy.
+
+1. `brief --page <url>` (repeatable) or `--all` writes `work/briefs/<slug>.json` per page: the
+   owned clusters with their definition and excludes, representative phrasings, sub-needs
+   (`axis=value` with at least `brief.min_members` keywords), competitors named in queries,
+   question-shaped queries, neighbour clusters and their pages, and the page's GSC queries when a
+   window exists. A planned page can be briefed once its `page_upsert` and `map` are registered.
+2. Each sub-need has a status from the inventory (`attrs`, need = `promotion.min_items_by_type`
+   or `promotion.min_items`) and the page's `covered_attributes`:
+   - `covered`: the inventory has it and the page says so;
+   - `write_it`: the inventory has it, the page does not say so: write it into a section, step or
+     FAQ in natural language;
+   - `feature_candidate`: the inventory does not have it: product backlog, never claimed on the page;
+   - `unbacked_claim`: `covered_attributes` claims what the inventory does not back: fix one of them;
+   - `unknown`: not counted: settle what the attribute means, then count it.
+3. Leave neighbours' demand to their pages (link, don't expand). Never paste member keywords.
+4. Record the result where it belongs: what the page now covers as `covered_attributes` in the
+   page's `page_upsert`; capabilities in `inventory.json`; feature candidates in the project
+   backlog. The brief itself is derived; regenerate it instead of editing it.
+5. `exclude_axes` in `mapper.brief` drops axes or exact `axis=value` pairs that only restate a
+   cluster's identity (e.g. `entity_type`). Keep axes that carry sub-needs, even `format` (blank
+   map, multiple choice) when the site's pages differ on them.
 
 ## Sync mode
 
 1. `sync-check --sitemap <file|URL> [--pages facts.json]` snapshots the live URLs
    (`mapper/site-urls.json`) and writes `work/sync-check.json`: unregistered URLs with lexical
    cluster hints, registry pages missing from the sitemap, and clusters without a primary page.
-   `--pages` adds page facts from the project (title, kind, item count) as JSON `[{url, title, …}]`.
+   `--pages` adds page facts from the project (title, kind, item count) as JSON `[{url, title, …}]`
+   or a site-kit `.sitekit/reports/pages.json`. With it, `drift` lists registry titles, page types
+   and indexability that differ from the built site, and title drift becomes a draft change set
+   `work/sync-refresh.json` (the built site owns titles; the registry keeps snapshots). Run it
+   after each deploy that changes titles or URLs.
 2. **Ownership review** (model): for each live page, decide the clusters it owns (`primary`) or
    partly serves (`secondary`), and its page type. One primary page per cluster; the page whose
    result set best matches the cluster wins. Mark a thin or mixed owner `improve_existing`. When
@@ -113,6 +145,8 @@ point at.
 3. Act on `confirmed` flags; keep watching `watch` flags; leave `cooldown` alone. Decide per
    [references/feedback-loop.md](references/feedback-loop.md). Unmapped queries go back through
    discovery import and review, never straight onto a page.
+4. To enrich an owner page, regenerate its brief: it then lists the page's GSC queries next to
+   the sub-needs.
 
 ## Decide mode — the ten questions
 
@@ -138,6 +172,10 @@ Each run reports:
 - the proposed change set;
 - **next data needed**: SERP captures, inventory counts, GSC windows, pending keywords.
 
+Derived files (`analysis.json`, `gsc-review.json`, `sync-check.json`, briefs) carry an `inputs`
+fingerprint. `status` lists them with `stale` and what changed; regenerate a stale file before
+acting on it.
+
 Keep six verdicts apart and never collapse them into one "verified": `semantic_fit`, `page_plan`,
 `local_functionality`, `asset_fit`, `production`, `traffic`.
 
@@ -159,4 +197,9 @@ example is in [references/example-sfxmint.md](references/example-sfxmint.md).
   retire flags.
 - Thresholds (gates, SERP overlap, promotion, GSC windows) are uncalibrated defaults.
 - Not yet checked in a fresh session whether another model follows the skill without guidance.
+- Briefs (2026-10-03, first run on AtlasWhiz): sub-need values come from review tags, so
+  near-synonyms (`mode=guess`, `mode=guessing`) stay separate, and their statuses are only as good
+  as the inventory `attrs` the agent counted.
+- GSC impressions live in two places: discovery observations (read by `analyze`) and
+  `mapper/evidence/gsc/` (read by `gsc review` and `brief`).
 
