@@ -27,11 +27,12 @@ SSR = f"""<!doctype html><html><head><title>Random Password Generator – Free a
 SPA = """<!doctype html><html><head><title>App</title><script src="/a.js"></script><script src="/b.js"></script>
 <script src="/c.js"></script></head><body><div id="root"></div></body></html>"""
 ROBOTS = "User-agent: GPTBot\nDisallow: /\n\nUser-agent: OAI-SearchBot\nDisallow: /private\n\nUser-agent: *\nAllow: /\n"
-NOINDEX = f"""<html><head><title>Tool</title><meta name="robots" content="noindex"></head>
-<body><main><h1>Tool</h1><p>{FILLER}</p></main></body></html>"""
+NOINDEX = """<html><head><title>{name}</title><meta name="robots" content="noindex"></head>
+<body><main><h1>{name}</h1><p>{filler}</p><h3>How do I use {lower}?</h3><p>Press go.</p>
+<h3>Will changing settings replace my result?</h3><p>No.</p></main></body></html>"""
 INDEX = """<?xml version="1.0"?><sitemapindex><sitemap><loc>{base}/sitemap-pages.xml</loc></sitemap></sitemapindex>"""
 PAGES = """<urlset>""" + "".join(f"<url><loc>https://example.com{p}</loc></url>" for p in
-                                  ["/random-password-generator", "/spa", "/tools/a", "/tools/b", "/private"]) + "</urlset>"
+                                  ["/random-password-generator", "/spa", "/tools/alpha", "/tools/beta", "/tools/gamma", "/private"]) + "</urlset>"
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -49,7 +50,8 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/sitemap-pages.xml":
             return self.send(200, PAGES, "application/xml")
         if self.path.startswith("/tools/"):
-            return self.send(200, NOINDEX, "text/html")
+            name = self.path.rsplit("/", 1)[1].title() + " Widget"
+            return self.send(200, NOINDEX.format(name=name, lower=name.lower(), filler=FILLER), "text/html")
         if self.path == "/spa":
             return self.send(200, SPA, "text/html")
         return self.send(200, SSR, "text/html; charset=utf-8")
@@ -121,11 +123,13 @@ class PageCheckTest(unittest.TestCase):
 
     def test_sweep_groups_issues_by_pattern(self):
         r = pc.sweep(self.base + "/sitemap.xml", base=self.base)
-        self.assertEqual(r["urls"], 5)
+        self.assertEqual(r["urls"], 6)
         self.assertTrue(all(u["url"].startswith(self.base) for u in r["pages"]))
         issues = r["issues"]
-        self.assertEqual(issues["noindex"]["patterns"][0], {"pattern": "/tools/*", "hit": 2, "of": 2,
-                                                           "urls": [self.base + "/tools/a", self.base + "/tools/b"]})
+        self.assertEqual(issues["noindex"]["patterns"][0], {"pattern": "/tools/*", "hit": 3, "of": 3, "urls": [
+            self.base + "/tools/alpha", self.base + "/tools/beta", self.base + "/tools/gamma"]})
+        shapes = {t["question_shape"]: t["pages"] for t in r["faq"]["templated_questions"]}
+        self.assertEqual(shapes, {"how do i use {page}": 3, "will changing settings replace my result": 3})
         self.assertEqual(issues["client_rendered_shell"]["count"], 1)
         self.assertEqual(issues["oai_searchbot_disallowed"]["patterns"][0]["urls"], [self.base + "/private"])
         self.assertEqual(issues["faq_schema_only"]["count"], 2)
@@ -134,6 +138,18 @@ class PageCheckTest(unittest.TestCase):
         text = pc.render_sweep(r)
         self.assertIn("likely a shared template", text)
         self.assertEqual(pc.main(["--sitemap", self.base + "/sitemap-pages.xml", "--base", self.base, "--limit", "2"]), 0)
+
+    def test_pool_questions(self):
+        rows = ["is a random password safe", "is a random password safe", "how long should a password be",
+                "how to spell generator", "password generator", "what is a uuid"]
+        with tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False) as f:
+            f.write("\n".join(json.dumps({"keyword": k}) for k in rows))
+        found = pc.pool_questions(f.name, ["random password generator"])
+        self.assertEqual(found, ["is a random password safe", "how long should a password be"])
+        r = pc.check(self.base + "/random-password-generator", ["random password generator"], pool_path=f.name)
+        Path(f.name).unlink()
+        hints = {q["question"]: q["hint"] for q in r["pool_questions"]}
+        self.assertEqual(hints["how long should a password be"], "likely_answered")
 
     def test_unreachable(self):
         self.assertEqual(pc.main(["--url", "http://127.0.0.1:9/none", "--format", "json"]), 1)

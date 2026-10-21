@@ -16,8 +16,9 @@ Engine (Python stdlib, read-only), `python3 <skill-dir>/scripts/page_check.py`:
 - `--sitemap <url|file> [--base <origin>] [--limit N]`: sweep. Follows sitemap indexes; `--base`
   fetches the listed paths from another origin (a local build or preview). Groups issues by URL
   shape (`/`, `/<page>`, `/<section>/*`); a shape where every page has the issue points at a shared
-  template or component. About one second per URL.
-- `--url <url> [--keyword "<phrase>"]... [--brief <brief.json>]`: one page in depth. With
+  template or component. Also lists FAQ question shapes repeated on 3+ pages (`templated_questions`). About one second per URL.
+- `--url <url> [--keyword "<phrase>"]... [--brief <brief.json>] [--pool <observations.jsonl>]`: one
+  page in depth. With
   `--brief seo/work/briefs/<slug>.json` from site-plan it takes the primary phrasings, questions
   and sub-needs from there.
 
@@ -72,18 +73,47 @@ Both take `--format json`.
   before anything else? Sub-needs marked `covered` or `write_it` in the brief are stated in the copy.
 - Fail on stuffing as well: the same exact phrase repeated where a person would not say it.
 
-### 2. FAQ answers what users ask
+### 2. FAQ: nothing missing, everything right
 
-- Sources of questions, in this order: the brief's `questions`, GSC queries for the page (the
-  brief's `gsc` block), People Also Ask and related searches from a SERP capture, the product's
-  own support and reviews. List each with answered / missing / partly.
+Two separate verdicts. A page can answer every question and still be wrong, or be right and miss
+what people ask.
+
+**2a. Missing.** Which questions do searchers have that the page does not answer?
+
+- Sources, in this order: the brief's `questions`; GSC queries for the page (the brief's `gsc`
+  block); question queries from the site-research pool (`--pool seo/discovery/observations.jsonl`,
+  matched on the page's subject words); People Also Ask from a SERP capture; the product's own
+  support mail and reviews. List each with answered / partly / missing.
+- A missing question goes on the page when it is about this page's task and the product can answer
+  it truthfully. Questions about a different task belong to another page or to site-plan; questions
+  the product cannot answer honestly stay out.
+- The sweep's `templated_questions` shows FAQs repeated across pages with only the tool name
+  swapped. Templated questions are rarely the ones searchers ask: treat them as missing coverage on
+  every page they fill, and fix them at the template.
+
+**2b. Right.** Is each answer true, specific and direct?
+
+- **True to the product.** Check every factual claim against the code or by using the tool in the
+  browser: limits, formats, counts, what is stored or sent, how randomness is produced
+  (`Math.random` is not "cryptographically secure"), what happens on reload. Quote the code
+  location or the observed behaviour. A false or unverifiable claim is a fix before anything else.
+- **Consistent.** Same facts as the rest of the page, the schema answer, other pages and the
+  privacy policy.
+- **Answers the question asked**, first sentence first, in the searcher's words. Marketing copy,
+  "it depends" without the dependency, or an answer that only restates the question is a fix.
+- **Specific to this page.** The same answer word for word on many pages (`same_answer_pages`) is a
+  template, not an answer.
+- **Current.** Numbers, tool counts, versions and dates match today's product.
+
+Mechanics, for both:
+
 - `visible_questions` is every question-like text outside nav, header, footer and aside; drop demo
   text and headings that are not FAQ items. `schema_answer_not_visible` means the question shows
   but its answer is not in the server HTML (often an accordion that renders on click): a fix.
-- Every answer is visible on the page, in the server HTML, starting with the direct answer in the
-  first sentence. Questions found only in `FAQPage` schema (`schema_only`) are a fix.
-- Since 2023-08 Google shows FAQ rich results only for well-known government and health sites, so `FAQPage`
-  markup is optional; visible questions and answers are what counts.
+- Every answer is visible in the server HTML. Questions found only in `FAQPage` schema
+  (`schema_only`) are a fix.
+- Since 2023-08 Google shows FAQ rich results only for well-known government and health sites, so
+  `FAQPage` markup is optional; visible questions and answers are what counts.
 
 ### 3. Server-rendered
 
@@ -134,5 +164,10 @@ asks, outside `seo/`.
 - Checked 2026-10-21 (news reports, not Cloudflare docs): from 2026-09-15 Cloudflare groups bots as
   Search, Agent and Training; new domains block Training and Agent crawlers by default on pages with
   ads, with Search allowed. Where OpenAI's bots fall was not confirmed, so check the zone's settings.
+- FAQ checks first run 2026-10-21 on randtools.com: the sweep found 3 templated questions on
+  13–14 tool pages while each tool's specific FAQs sat unused in the code; a code reading suggested
+  dates stop at day 28, but 400 dates generated on the live page covered 1–31, so behaviour wins
+  over code reading. Pool matching is lexical: "how random number generator works" was marked
+  `likely_answered` against "How do I use …?", so judge every pool hint yourself.
 - Sweep first run 2026-10-21 on randtools.com: 39 URLs in 34 s; it confirmed the home FAQ answers missing from HTML and flagged 13 tool pages at 150–180 words. Not yet run in a fresh session; thresholds (`thin_server_html` below 200 words,
   question overlap 0.5 / 0.34) are uncalibrated.

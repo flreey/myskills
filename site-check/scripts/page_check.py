@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Read-only evidence for one page's SEO acceptance, from the raw HTML a crawler receives.
 
-    python3 page_check.py --url <url> [--keyword "phrase"]... [--brief <brief.json>] [--format text|json]
+    python3 page_check.py --url <url> [--keyword "phrase"]... [--brief <brief.json>] [--pool <observations.jsonl>] [--format text|json]
     python3 page_check.py --sitemap <url|file> [--base <origin>] [--limit N] [--format text|json]
 
 Collects what checks 1-4 of site-check need: where the target phrases sit (title, description, H1,
@@ -41,6 +41,10 @@ SKIP_TEXT = {"script", "style", "template", "svg", "noscript"}
 HEADINGS = {"h1", "h2", "h3"}
 CHROME = {"nav", "header", "footer", "aside"}
 QUESTION = re.compile(r"^(.{6,200}?[?？])[^\w?？]*$")
+# Words that name the kind of tool, not its subject; ignored when matching pool questions to a page.
+GENERIC = {"random", "generator", "generate", "free", "online", "tool", "tools", "maker", "picker", "best"}
+QUESTION_START = re.compile(r"^(how|what|whats|what's|can|is|are|does|do|why|which|when|where|should|will|who)\b", re.I)
+TEMPLATE_MIN_PAGES = 3
 STOPWORDS = set("a an and are be can do does for how i in is it my of on or should the this to what when where "
                 "which who why will with you your".split())
 
@@ -183,6 +187,20 @@ def load_brief(path):
     return {"page": data.get("page"), "phrasings": phrasings, "questions": questions, "subneeds": subneeds}
 
 
+def pool_questions(path, keywords, limit=40):
+    """Question-form queries from a site-research pool that share a subject word with the keywords."""
+    subject = set().union(*(tokens(k) for k in keywords)) - GENERIC - STOPWORDS if keywords else set()
+    found = {}
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        try:
+            k = json.loads(line).get("keyword") or ""
+        except ValueError:
+            continue
+        if QUESTION_START.match(k) and subject & tokens(k):
+            found[k] = found.get(k, 0) + 1
+    return [k for k, _ in sorted(found.items(), key=lambda kv: (-kv[1], kv[0]))][:limit]
+
+
 def match_questions(wanted, on_page):
     """Lexical pre-sort only: overlap of words. The model decides what a question really covers."""
     out = []
@@ -236,7 +254,7 @@ def rendering_verdict(words, scripts):
     return "thin_server_html" if words < 200 else "server_html_has_content"
 
 
-def check(url, keywords, brief_path=None):
+def check(url, keywords, brief_path=None, pool_path=None):
     brief = load_brief(brief_path) if brief_path else None
     if brief and not keywords:
         keywords = brief["phrasings"]
@@ -271,6 +289,8 @@ def check(url, keywords, brief_path=None):
     if brief:
         report["brief"] = {"page": brief["page"], "subneeds": brief["subneeds"],
                            "questions": match_questions(brief["questions"], on_page)}
+    if pool_path:
+        report["pool_questions"] = match_questions(pool_questions(pool_path, keywords), on_page)
     report["rendering"] = {
         "server_text_words": len(words), "h1_in_server_html": bool(h1),
         "verdict": rendering_verdict(len(words), page.scripts),
@@ -316,6 +336,9 @@ def render(r):
     if "brief" in r:
         out.append(f"  brief questions ({r['brief']['page']}):")
         out += [f"  [{q['hint']}] {q['question']}  ~ {q['closest_on_page']}" for q in r["brief"]["questions"]]
+    if "pool_questions" in r:
+        out.append(f"  keyword-pool questions ({len(r['pool_questions'])}):")
+        out += [f"  [{q['hint']}] {q['question']}  ~ {q['closest_on_page']}" for q in r["pool_questions"]]
     rd = r["rendering"]
     out += ["", f"3 rendering: {rd['verdict']} ({rd['server_text_words']} words in server HTML, h1 {rd['h1_in_server_html']})"]
     rb = r["crawlers"]["robots_txt"]
@@ -413,8 +436,39 @@ def page_issues(url, raw, rp):
         issues.append("faq_schema_only")
     if gaps["schema_answer_not_visible"]:
         issues.append("faq_answer_not_in_html")
+    ld_questions, _ = faq_from_jsonld(page.jsonld)
+    subject = norm(h1[0]) if h1 else ""
+    faq = [{"q": q, "shape": question_shape(q, subject)} for q in page.questions()]
+    answers = {question_shape(q, subject): norm(a) for q, a in ld_questions if a}
     return issues, {"status": raw["status"], "words": words, "title": page.title, "canonical": page.canonical,
-                    **{k: v for k, v in gaps.items() if v}}
+                    "faq": faq, "faq_answers": answers, **{k: v for k, v in gaps.items() if v}}
+
+
+def question_shape(question, subject):
+    """The question with the page's own subject (its H1) replaced, so templated questions collide."""
+    q = f" {norm(question)} "
+    if subject:
+        q = q.replace(f" {subject} ", " {page} ")
+        for word in sorted(tokens(subject) - GENERIC - STOPWORDS, key=len, reverse=True):
+            q = q.replace(f" {word} ", " {page} ")
+    return " ".join(q.split())
+
+
+def faq_templates(pages):
+    """Question shapes asked on many pages, and whether their answers are identical too."""
+    shapes = {}
+    for p in pages:
+        for item in p.get("faq", []):
+            shapes.setdefault(item["shape"], []).append(p["url"])
+    out = []
+    for shape, urls in shapes.items():
+        urls = list(dict.fromkeys(urls))
+        if len(urls) < TEMPLATE_MIN_PAGES:
+            continue
+        answers = [p["faq_answers"].get(shape) for p in pages if p["url"] in urls and p.get("faq_answers", {}).get(shape)]
+        out.append({"question_shape": shape, "pages": len(urls), "urls": urls,
+                    "same_answer_pages": max((answers.count(a) for a in set(answers)), default=0)})
+    return sorted(out, key=lambda t: -t["pages"])
 
 
 def sweep(source, base=None, limit=500):
@@ -448,8 +502,11 @@ def sweep(source, base=None, limit=500):
     if rp is not None:
         robots_summary["agents"] = {n: "allowed" if rp.can_fetch(n, urls[0]) else "disallowed"
                                     for n in list(OPENAI_BOTS) + ["Googlebot", "Bingbot"]}
+    templates = faq_templates(pages)
+    with_faq = sum(1 for p in pages if p.get("faq"))
     return {**report, "site": {"robots_txt": robots_summary, "probes_on": urls[0], "probes": probes},
-            "issues": grouped, "clean": sum(1 for p in pages if not p["issues"]), "pages": pages}
+            "issues": grouped, "clean": sum(1 for p in pages if not p["issues"]),
+            "faq": {"pages_with_questions": with_faq, "templated_questions": templates}, "pages": pages}
 
 
 def render_sweep(r):
@@ -472,6 +529,13 @@ def render_sweep(r):
                 out.append(f"    … {len(p['urls']) - 8} more (see --format json)")
     if not r["issues"]:
         out += ["", "no mechanical issues found"]
+    fq = r.get("faq") or {}
+    if fq:
+        out += ["", f"FAQ: {fq['pages_with_questions']} of {r['urls']} pages show questions; "
+                    f"{len(fq['templated_questions'])} question shapes repeat on {TEMPLATE_MIN_PAGES}+ pages"]
+        for t in fq["templated_questions"][:15]:
+            same = f", identical schema answer on {t['same_answer_pages']}" if t["same_answer_pages"] > 1 else ""
+            out.append(f"  {t['pages']} pages{same}: {t['question_shape']}")
     return "\n".join(out)
 
 
@@ -484,13 +548,14 @@ def main(argv=None):
     ap.add_argument("--limit", type=int, default=500, help="sweep: maximum URLs")
     ap.add_argument("--keyword", action="append", default=[], help="target phrase; repeatable")
     ap.add_argument("--brief", help="site-plan brief JSON (seo/work/briefs/<slug>.json)")
+    ap.add_argument("--pool", help="site-research pool (seo/discovery/observations.jsonl): question queries for check 2")
     ap.add_argument("--format", choices=["text", "json"], default="text")
     a = ap.parse_args(argv)
     if a.sitemap:
         r = sweep(a.sitemap, a.base, a.limit)
         print(json.dumps(r, ensure_ascii=False, indent=2) if a.format == "json" else render_sweep(r))
         return 0
-    r = check(a.url, a.keyword, a.brief)
+    r = check(a.url, a.keyword, a.brief, a.pool)
     print(json.dumps(r, ensure_ascii=False, indent=2) if a.format == "json" else render(r))
     return 0 if r["fetch"].get("ok") else 1
 
