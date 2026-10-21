@@ -36,8 +36,9 @@ and follow it; its own rules and approvals apply.
 
 ## Page SEO check
 
-Every site: `site-check` on each new or changed page (keywords in the copy, FAQ coverage, server
-rendering, ChatGPT crawler access, ChatGPT recommendation probes). Then by site type:
+Every site: `site-check` — a sitemap sweep for mechanical issues on every URL, then page checks on
+picked pages (keywords in the copy, FAQ coverage, server rendering, ChatGPT crawler access) and
+ChatGPT recommendation probes per target query. Then by site type:
 
 | Site | Technical gates | Registry |
 | --- | --- | --- |

@@ -1,18 +1,27 @@
 ---
 name: site-check
-description: Use when a built or live page needs SEO acceptance before or after release — checking that the copy is written around its target keywords, that the FAQ answers the questions users ask, that the content is in the server-rendered HTML, that ChatGPT's crawlers can reach the page, and what ChatGPT says about recommending the site and how to earn more recommendations. Works on site-kit and other sites. Also for 页面 SEO 验收、上线前检查、关键词文案检查、FAQ 检查、是否服务端渲染、ChatGPT 能不能访问、GPT 会不会推荐. NOT for keyword discovery (site-research), deciding which pages to build (site-plan) or kit build gates (site-kit npm run check).
+description: Use when a site or a built or live page needs SEO acceptance before or after release — sweeping every sitemap URL for mechanical problems (status, noindex, canonical, JS-only content, FAQ answers missing from HTML, robots blocking OAI-SearchBot), then checking that the copy is written around its target keywords, that the FAQ answers the questions users ask, that the content is in the server-rendered HTML, that ChatGPT's crawlers can reach the page, and what ChatGPT says about recommending the site and how to earn more recommendations. Works on site-kit and other sites. Also for 全站 SEO 检查、页面 SEO 验收、上线前检查、关键词文案检查、FAQ 检查、是否服务端渲染、ChatGPT 能不能访问、GPT 会不会推荐. NOT for keyword discovery (site-research), deciding which pages to build (site-plan) or kit build gates (site-kit npm run check).
 ---
 
 # site-check: page SEO acceptance
 
-Five checks on one page at a time, each ending in pass, fix or unknown with evidence. Checks 1–4
-start from what a crawler receives: the raw HTML, not the page in a browser. Check 5 is opinion
-evidence from ChatGPT, kept apart from facts.
+Two layers. The **sweep** covers every sitemap URL with mechanical facts only; the script does it,
+not the model. The **page checks** (five, each ending in pass, fix or unknown with evidence) run on
+pages you pick. Checks 1–4 start from what a crawler receives: the raw HTML, not the page in a
+browser. Check 5 is opinion evidence from ChatGPT, kept apart from facts, and is asked per target
+query, not per page.
 
-Engine (Python stdlib, read-only):
-`python3 <skill-dir>/scripts/page_check.py --url <url> [--keyword "<phrase>"]... [--brief <brief.json>] [--format json]`.
-With `--brief seo/work/briefs/<slug>.json` from site-plan it takes the primary phrasings, questions
-and sub-needs from there.
+Engine (Python stdlib, read-only), `python3 <skill-dir>/scripts/page_check.py`:
+
+- `--sitemap <url|file> [--base <origin>] [--limit N]`: sweep. Follows sitemap indexes; `--base`
+  fetches the listed paths from another origin (a local build or preview). Groups issues by URL
+  shape (`/`, `/<page>`, `/<section>/*`); a shape where every page has the issue points at a shared
+  template or component. About one second per URL.
+- `--url <url> [--keyword "<phrase>"]... [--brief <brief.json>]`: one page in depth. With
+  `--brief seo/work/briefs/<slug>.json` from site-plan it takes the primary phrasings, questions
+  and sub-needs from there.
+
+Both take `--format json`.
 
 ## Iron rules
 
@@ -20,25 +29,37 @@ and sub-needs from there.
    ask the user for the page's target query; never infer it from the page's own copy.
 2. **Raw HTML is the evidence** for checks 1–4. Text that appears only after JavaScript does not
    count as on the page.
-3. **The script pre-sorts, the model judges.** Placement flags and question overlaps are hints.
+3. **Never loop the page check over the whole site.** Site-wide questions go to the sweep; the
+   model reads its grouped output, not one report per URL.
+4. **The script pre-sorts, the model judges.** Placement flags and question overlaps are hints.
    Whether the copy serves the intent, and whether an FAQ answer really answers, is your call,
    quoted from the page.
-4. **ChatGPT answers are samples, not measurements.** They vary per run, model and account. Record
+5. **ChatGPT answers are samples, not measurements.** They vary per run, model and account. Record
    the date, model, mode and full prompt; repeat in fresh chats; never report one answer as a fact
    about ranking.
-5. **Using the user's ChatGPT account needs their go-ahead** in chat. Otherwise hand them the
+6. **Using the user's ChatGPT account needs their go-ahead** in chat. Otherwise hand them the
    prompts and read back what they paste.
-6. **Read-only.** This skill reports. Copy changes follow the project's own workflow (site-kit rules
+7. **Read-only.** This skill reports. Copy changes follow the project's own workflow (site-kit rules
    on kit sites); new sub-needs or pages go back to site-plan. Never write under `seo/`.
-7. **No tricks.** Do not act on advice to stuff keywords, add hidden text, fake reviews, invent
+8. **No tricks.** Do not act on advice to stuff keywords, add hidden text, fake reviews, invent
    statistics or show crawlers different content from users.
 
 ## Workflow
 
-1. Get the URL (live, preview or local) and the target: `--brief`, or `--keyword` for each phrase.
-2. Run `page_check.py`. If the fetch fails, stop and report it: every other check depends on it.
-3. Open the same URL in the browser and read the rendered text (`get_page_text`) for check 3.
-4. Work through checks 1–5 below; for 4 and 5 use [references/chatgpt-probes.md](references/chatgpt-probes.md).
+1. **Sweep** the sitemap (live, or a local build with `--base`). Skip it only when the user asks
+   about one page. On kit sites `npm run check` already gates the build; the sweep then checks the
+   deployed result. Read the grouped issues: fix shared causes once (template, component, robots,
+   headers), not page by page. `thin_server_html` is a flag to look at, not a verdict: a tool page
+   can be short and still serve its query.
+2. **Pick pages** for the page checks: new or changed pages, the pages with the most GSC
+   impressions (site-plan's latest window), and one page per issue shape from the sweep. Say which
+   pages were picked and why; the rest of the site is covered only by the sweep.
+3. For each picked page: get the target (`--brief`, or `--keyword` per phrase), run
+   `page_check.py --url`, open the same URL in the browser and read the rendered text
+   (`get_page_text`) for check 3, then work through checks 1–4. If the fetch fails, stop that page
+   and report it.
+4. **Check 5 once per target query**, not per page: two or three of the site's main queries with
+   [references/chatgpt-probes.md](references/chatgpt-probes.md).
 5. Report.
 
 ## Checks
@@ -93,11 +114,12 @@ and sub-needs from there.
   appear instead.
 - Turn the improvement advice into a list of concrete page facts to change (a missing comparison,
   no pricing on the page, no author or contact, thin examples), each tied to a check above or to
-  site-plan. Drop advice that is generic or breaks rule 7.
+  site-plan. Drop advice that is generic or breaks rule 8.
 
 ## Report
 
-One table per page: check, result (pass / fix / unknown / MANUAL), evidence (quoted text, field
+First the sweep: URLs checked, issues by type and URL shape, what was fixed at the shared cause.
+Then one table per picked page: check, result (pass / fix / unknown / MANUAL), evidence (quoted text, field
 from the script output, or the ChatGPT answer with date and model) and the fix. Then the fixes in
 priority order, the MANUAL items, and what was not checked. Save it to a file only when the user
 asks, outside `seo/`.
@@ -112,5 +134,5 @@ asks, outside `seo/`.
 - Checked 2026-10-21 (news reports, not Cloudflare docs): from 2026-09-15 Cloudflare groups bots as
   Search, Agent and Training; new domains block Training and Agent crawlers by default on pages with
   ads, with Search allowed. Where OpenAI's bots fall was not confirmed, so check the zone's settings.
-- Not yet run on a real site in a fresh session; thresholds (`thin_server_html` below 200 words,
+- Sweep first run 2026-10-21 on randtools.com: 39 URLs in 34 s; it confirmed the home FAQ answers missing from HTML and flagged 13 tool pages at 150–180 words. Not yet run in a fresh session; thresholds (`thin_server_html` below 200 words,
   question overlap 0.5 / 0.34) are uncalibrated.

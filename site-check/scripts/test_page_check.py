@@ -26,7 +26,12 @@ SSR = f"""<!doctype html><html><head><title>Random Password Generator – Free a
 <p>Generate now</p></main><footer>Is this a footer question?</footer></body></html>"""
 SPA = """<!doctype html><html><head><title>App</title><script src="/a.js"></script><script src="/b.js"></script>
 <script src="/c.js"></script></head><body><div id="root"></div></body></html>"""
-ROBOTS = "User-agent: GPTBot\nDisallow: /\n\nUser-agent: *\nAllow: /\n"
+ROBOTS = "User-agent: GPTBot\nDisallow: /\n\nUser-agent: OAI-SearchBot\nDisallow: /private\n\nUser-agent: *\nAllow: /\n"
+NOINDEX = f"""<html><head><title>Tool</title><meta name="robots" content="noindex"></head>
+<body><main><h1>Tool</h1><p>{FILLER}</p></main></body></html>"""
+INDEX = """<?xml version="1.0"?><sitemapindex><sitemap><loc>{base}/sitemap-pages.xml</loc></sitemap></sitemapindex>"""
+PAGES = """<urlset>""" + "".join(f"<url><loc>https://example.com{p}</loc></url>" for p in
+                                  ["/random-password-generator", "/spa", "/tools/a", "/tools/b", "/private"]) + "</urlset>"
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -39,6 +44,12 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200, ROBOTS, "text/plain")
         if "OAI-SearchBot" in ua:
             return self.send(403, "<title>Just a moment...</title>", "text/html", {"cf-mitigated": "challenge"})
+        if self.path == "/sitemap.xml":
+            return self.send(200, INDEX.format(base=f"http://{self.headers['Host']}"), "application/xml")
+        if self.path == "/sitemap-pages.xml":
+            return self.send(200, PAGES, "application/xml")
+        if self.path.startswith("/tools/"):
+            return self.send(200, NOINDEX, "text/html")
         if self.path == "/spa":
             return self.send(200, SPA, "text/html")
         return self.send(200, SSR, "text/html; charset=utf-8")
@@ -107,6 +118,22 @@ class PageCheckTest(unittest.TestCase):
         hints = {q["question"]: q["hint"] for q in r["brief"]["questions"]}
         self.assertEqual(hints["is a password generator safe"], "likely_answered")
         self.assertEqual(hints["how to remember a random password"], "likely_missing")
+
+    def test_sweep_groups_issues_by_pattern(self):
+        r = pc.sweep(self.base + "/sitemap.xml", base=self.base)
+        self.assertEqual(r["urls"], 5)
+        self.assertTrue(all(u["url"].startswith(self.base) for u in r["pages"]))
+        issues = r["issues"]
+        self.assertEqual(issues["noindex"]["patterns"][0], {"pattern": "/tools/*", "hit": 2, "of": 2,
+                                                           "urls": [self.base + "/tools/a", self.base + "/tools/b"]})
+        self.assertEqual(issues["client_rendered_shell"]["count"], 1)
+        self.assertEqual(issues["oai_searchbot_disallowed"]["patterns"][0]["urls"], [self.base + "/private"])
+        self.assertEqual(issues["faq_schema_only"]["count"], 2)
+        self.assertEqual(issues["faq_answer_not_in_html"]["count"], 2)
+        self.assertEqual(r["site"]["robots_txt"]["agents"]["GPTBot"], "disallowed")
+        text = pc.render_sweep(r)
+        self.assertIn("likely a shared template", text)
+        self.assertEqual(pc.main(["--sitemap", self.base + "/sitemap-pages.xml", "--base", self.base, "--limit", "2"]), 0)
 
     def test_unreachable(self):
         self.assertEqual(pc.main(["--url", "http://127.0.0.1:9/none", "--format", "json"]), 1)
