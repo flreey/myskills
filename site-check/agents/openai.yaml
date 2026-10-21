@@ -1,0 +1,4 @@
+interface:
+  display_name: "Site Check"
+  short_description: "Page SEO acceptance: keyword copy, FAQ, server rendering, ChatGPT access and recommendation"
+  default_prompt: "Use $site-check on this page: run page_check.py with the site-plan brief or target keywords, compare raw and rendered HTML, check robots and OpenAI crawler access, run the ChatGPT probes with my go-ahead, and report pass, fix, unknown or MANUAL per check."

@@ -25,6 +25,7 @@
 | [site](./site) | site-* 系列的总入口：读项目里的 `seo/`、`.sitekit.json`、`umami.config.json` 判断建站阶段（找词 → 定页 → 建站 → 验收 → 统计 → GSC 回看），说明下一步该用哪个 skill、跑哪条命令；页面 SEO 验收按 kit 站和非 kit 站分别给出检查方式。只读不写。 |
 | [site-research](./site-research) | 从免费来源（自动补全、Keyword Planner、Trends、Search Console、SERP 相关搜索、竞品 sitemap）构建有证据的关键词观测池：先自动调研再一次性选择题确认边界，种子递归扩展经 triage 把关，按轮次 yield 判断何时停止；关键词只来自外部观测，不编造需求。 |
 | [site-plan](./site-plan) | 把关键词池变成需求簇和页面决策：模型分批做语义归簇（稳定 ID、定义版本、合并/拆分谱系），修饰词默认是属性，按证据门槛决定 keep / improve / filter / create / defer，变更集经批准才写入页面注册表；建页或改版前为每页生成需求单（细分需求对照库存和页面已写到的内容），并用 GSC 窗口复盘互抢排名、属性升级与下线。 |
+| [site-check](./site-check) | 单页 SEO 验收：抓原始 HTML，检查文案是否围绕目标关键词（标题、H1、开头、小标题）、FAQ 是否答了用户会问的问题（对照 site-plan 需求单与 GSC）、内容是否在服务端 HTML 里、robots 与 OpenAI 爬虫是否放行；再用固定提问模板去 ChatGPT 验证能否打开页面、是否愿意推荐以及要改什么。只读，结果分 pass / fix / unknown / MANUAL。 |
 | [site-measure](./site-measure) | 把已有网站从 Google Analytics 迁到自建 Umami：先只读盘点（加载代码、事件、排除规则、CSP、隐私文字、测试、GA4 报表脚本），再分两次发布：先和 GA 并行、事件两边都发并补等待队列，对完数再删 GA；另带一个只读的 Umami 报表脚本。依赖本机 `~/Projects/umami` 的 umami-connect 和自建 Umami 服务；迁移不用于 site-kit 建的站；报表脚本能读任何站点，包括 site-kit 站点。 |
 | [family-story-kit-design](./family-story-kit-design) | 设计和审查交付给家庭的可打印亲子场景游戏（寻宝、生日冒险、跨日节庆故事套装）：先写体验承诺，把剧情转成孩子真正要做的动作，闭合线索链与谜题唯一解，从玩法推导材料，再按家长布置与孩子游玩两条视角走查；纸面模拟、PDF 渲染与真实试玩分开记录。不负责生成器代码、网站或支付。 |
 
@@ -50,6 +51,7 @@
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/site
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/site-research
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/site-plan
+帮我装这个 skill：https://github.com/flreey/myskills/tree/main/site-check
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/site-measure
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/family-story-kit-design
 ```
@@ -82,7 +84,7 @@ https://github.com/flreey/myskills/tree/main/prompt-builder
 
 `site-research`（找词）和 `site-plan`（定页面）是一组，按顺序配合使用，共用项目根目录下的 `seo/`：site-research 写关键词池，site-plan 读它并写需求簇和页面注册表。平时只用两个斜杠命令或自然语言，引擎子命令由 agent 按流程调用。
 
-四个 site-* skill 的分工：每个事实只有一个主人。site-research 管外部需求证据（关键词池）；site-plan 管需求簇、页面归属、页面已覆盖的细分需求（`covered_attributes`）和 GSC 数据（唯一入口）；site-kit 的构建产物管页面实际状态（标题、可索引）；site-measure 管 Umami 报表。交接都落成文件：词池 → 注册表和需求单 → 建页 → `sync-check` 回读构建产物 → GSC 回看，未归类查询经 `seo/work/unmapped-queries.json` 回到词池。节奏、队列和授权留在各项目里。
+site-* skill 的分工：每个事实只有一个主人。site-research 管外部需求证据（关键词池）；site-plan 管需求簇、页面归属、页面已覆盖的细分需求（`covered_attributes`）和 GSC 数据（唯一入口）；site-kit 的构建产物管页面实际状态（标题、可索引）；site-measure 管 Umami 报表；site-check 只做页面验收，不持有数据。交接都落成文件：词池 → 注册表和需求单 → 建页 → `sync-check` 回读构建产物 → GSC 回看，未归类查询经 `seo/work/unmapped-queries.json` 回到词池。节奏、队列和授权留在各项目里。
 
 ```text
 /site-research   给 ~/Projects/xxx 做关键词挖掘
