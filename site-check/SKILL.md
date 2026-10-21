@@ -16,7 +16,8 @@ Engine (Python stdlib, read-only), `python3 <skill-dir>/scripts/page_check.py`:
 - `--sitemap <url|file> [--base <origin>] [--limit N]`: sweep. Follows sitemap indexes; `--base`
   fetches the listed paths from another origin (a local build or preview). Groups issues by URL
   shape (`/`, `/<page>`, `/<section>/*`); a shape where every page has the issue points at a shared
-  template or component. Also lists FAQ question shapes repeated on 3+ pages (`templated_questions`). About one second per URL.
+  template or component. Also lists FAQ question shapes repeated on 3+ pages (`templated_questions`)
+  and pages whose FAQ starts collapsed (`faq_hidden`). About one second per URL.
 - `--url <url> [--keyword "<phrase>"]... [--brief <brief.json>] [--pool <observations.jsonl>]`: one
   page in depth. With
   `--brief seo/work/briefs/<slug>.json` from site-plan it takes the primary phrasings, questions
@@ -56,8 +57,8 @@ Both take `--format json`.
    impressions (site-plan's latest window), and one page per issue shape from the sweep. Say which
    pages were picked and why; the rest of the site is covered only by the sweep.
 3. For each picked page: get the target (`--brief`, or `--keyword` per phrase), run
-   `page_check.py --url`, open the same URL in the browser and read the rendered text
-   (`get_page_text`) for check 3, then work through checks 1–4. If the fetch fails, stop that page
+   `page_check.py --url`, open the same URL in the browser, read the rendered text
+   (`get_page_text`) for check 3 and screenshot the FAQ area for 2c, then work through checks 1–4. If the fetch fails, stop that page
    and report it.
 4. **Check 5 once per target query**, not per page: two or three of the site's main queries with
    [references/chatgpt-probes.md](references/chatgpt-probes.md).
@@ -73,9 +74,9 @@ Both take `--format json`.
   before anything else? Sub-needs marked `covered` or `write_it` in the brief are stated in the copy.
 - Fail on stuffing as well: the same exact phrase repeated where a person would not say it.
 
-### 2. FAQ: nothing missing, everything right
+### 2. FAQ: nothing missing, everything right, easy to find
 
-Two separate verdicts. A page can answer every question and still be wrong, or be right and miss
+Three separate verdicts. A page can answer every question and still be wrong, or be right and miss
 what people ask.
 
 **2a. Missing.** Which questions do searchers have that the page does not answer?
@@ -105,7 +106,18 @@ what people ask.
   template, not an answer.
 - **Current.** Numbers, tool counts, versions and dates match today's product.
 
-Mechanics, for both:
+**2c. Seen.** Can a visitor find the FAQ without hunting for it?
+
+- The FAQ shows on load under its own heading, with questions styled apart from answers. A whole
+  FAQ inside a closed `<details>` or "About this tool" block (`collapsed_questions`, sweep issue
+  `faq_hidden`) is a fix; so is an FAQ that renders as undifferentiated text once opened.
+- One accordion item per question is fine when every question shows on load and only the answers
+  fold.
+- Take a screenshot of the FAQ area as it loads (and opened, if it folds): raw HTML cannot show
+  layout. Search engines index collapsed text, so report this as a visitor problem, not an
+  indexing error.
+
+Mechanics, for all three:
 
 - `visible_questions` is every question-like text outside nav, header, footer and aside; drop demo
   text and headings that are not FAQ items. `schema_answer_not_visible` means the question shows
@@ -164,6 +176,9 @@ asks, outside `seo/`.
 - Checked 2026-10-21 (news reports, not Cloudflare docs): from 2026-09-15 Cloudflare groups bots as
   Search, Agent and Training; new domains block Training and Agent crawlers by default on pages with
   ads, with Search allowed. Where OpenAI's bots fall was not confirmed, so check the zone's settings.
+- 2c was added after the randtools FAQ fix shipped: every check passed, yet the owner could not
+  find the FAQ, because it sat in a collapsed "About this tool" block and rendered as plain text.
+  Crawler evidence alone is not acceptance.
 - FAQ checks first run 2026-10-21 on randtools.com: the sweep found 3 templated questions on
   13–14 tool pages while each tool's specific FAQs sat unused in the code; a code reading suggested
   dates stop at day 28, but 400 dates generated on the live page covered 1–31, so behaviour wins

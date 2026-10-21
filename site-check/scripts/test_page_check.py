@@ -28,8 +28,9 @@ SPA = """<!doctype html><html><head><title>App</title><script src="/a.js"></scri
 <script src="/c.js"></script></head><body><div id="root"></div></body></html>"""
 ROBOTS = "User-agent: GPTBot\nDisallow: /\n\nUser-agent: OAI-SearchBot\nDisallow: /private\n\nUser-agent: *\nAllow: /\n"
 NOINDEX = """<html><head><title>{name}</title><meta name="robots" content="noindex"></head>
-<body><main><h1>{name}</h1><p>{filler}</p><h3>How do I use {lower}?</h3><p>Press go.</p>
-<h3>Will changing settings replace my result?</h3><p>No.</p></main></body></html>"""
+<body><main><h1>{name}</h1><p>{filler}</p><details><summary>About this tool</summary>
+<h3>How do I use {lower}?</h3><p>Press go.</p>
+<h3>Will changing settings replace my result?</h3><p>No.</p></details></main></body></html>"""
 INDEX = """<?xml version="1.0"?><sitemapindex><sitemap><loc>{base}/sitemap-pages.xml</loc></sitemap></sitemapindex>"""
 PAGES = """<urlset>""" + "".join(f"<url><loc>https://example.com{p}</loc></url>" for p in
                                   ["/random-password-generator", "/spa", "/tools/alpha", "/tools/beta", "/tools/gamma", "/private"]) + "</urlset>"
@@ -87,6 +88,7 @@ class PageCheckTest(unittest.TestCase):
         self.assertEqual(k["strong password"]["title"], "no")
         self.assertEqual(r["faq"]["visible_questions"], ["How long should a password be?", "Is this password generator safe?"])
         self.assertEqual(r["faq"]["schema_answer_not_visible"], ["Is this password generator safe?"])
+        self.assertEqual(r["faq"]["collapsed_questions"], [])  # one accordion item: its question shows
         self.assertTrue(r["page"]["opening_text"].startswith("Random Password Generator Use this"))
         self.assertEqual(r["faq"]["schema_only"], ["Do you store passwords?"])
         self.assertIn("FAQPage", r["faq"]["jsonld_types"])
@@ -128,6 +130,8 @@ class PageCheckTest(unittest.TestCase):
         issues = r["issues"]
         self.assertEqual(issues["noindex"]["patterns"][0], {"pattern": "/tools/*", "hit": 3, "of": 3, "urls": [
             self.base + "/tools/alpha", self.base + "/tools/beta", self.base + "/tools/gamma"]})
+        self.assertEqual(issues["faq_hidden"]["patterns"][0]["hit"], 3)
+        self.assertNotIn("faq_hidden", next(p for p in r["pages"] if p["url"].endswith("/random-password-generator"))["issues"])
         shapes = {t["question_shape"]: t["pages"] for t in r["faq"]["templated_questions"]}
         self.assertEqual(shapes, {"how do i use {page}": 3, "will changing settings replace my result": 3})
         self.assertEqual(issues["client_rendered_shell"]["count"], 1)

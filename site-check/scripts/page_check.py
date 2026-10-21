@@ -58,6 +58,8 @@ class Page(HTMLParser):
         self.headings = []        # (tag, text)
         self.jsonld = []
         self.text = []            # (text, zone): zone is main, chrome (nav/header/footer/aside) or body
+        self.collapsed = []       # per text node: inside a closed <details>, outside that details' <summary>
+        self._details = []        # open <details> elements: {"open": bool, "in_summary": bool}
         self.scripts = 0
         self._stack = []
         self._buf = None          # collects text for title / heading / json-ld
@@ -76,6 +78,10 @@ class Page(HTMLParser):
         if tag in {"br", "img", "input", "hr"}:
             return
         self._stack.append(tag)
+        if tag == "details":
+            self._details.append({"open": "open" in a, "in_summary": False})
+        elif tag == "summary" and self._details:
+            self._details[-1]["in_summary"] = True
         if tag == "script":
             self.scripts += 1
             if a.get("type", "").lower() == "application/ld+json":
@@ -84,6 +90,10 @@ class Page(HTMLParser):
             self._buf, self._kind = [], tag
 
     def handle_endtag(self, tag):
+        if tag == "summary" and self._details:
+            self._details[-1]["in_summary"] = False
+        elif tag == "details" and self._details:
+            self._details.pop()
         if tag in self._stack:
             while self._stack and self._stack.pop() != tag:
                 pass
@@ -103,15 +113,18 @@ class Page(HTMLParser):
         if not any(t in SKIP_TEXT for t in self._stack) and "title" not in self._stack and data.strip():
             zone = "main" if "main" in self._stack else "chrome" if CHROME & set(self._stack) else "body"
             self.text.append((" ".join(data.split()), zone))
+            self.collapsed.append(any(not d["open"] and not d["in_summary"] for d in self._details))
 
     def content(self):
         """Main content: <main> when the page has one, else everything outside nav/header/footer/aside."""
         main = [t for t, z in self.text if z == "main"]
         return " ".join(main or [t for t, z in self.text if z == "body"])
 
-    def questions(self):
-        """Visible text nodes that read as a question, trailing icons stripped."""
-        found = [m.group(1) for t, z in self.text if z != "chrome" for m in [QUESTION.match(t)] if m]
+    def questions(self, collapsed=None):
+        """Text nodes that read as a question, trailing icons stripped. collapsed=True keeps only the
+        ones a visitor sees only after opening a closed <details>; False only the ones shown on load."""
+        found = [m.group(1) for (t, z), c in zip(self.text, self.collapsed)
+                 if z != "chrome" and (collapsed is None or c == collapsed) for m in [QUESTION.match(t)] if m]
         return list(dict.fromkeys(found))
 
 
@@ -284,7 +297,8 @@ def check(url, keywords, brief_path=None, pool_path=None):
     } for k in keywords]
     gaps, ld_questions, ld_types = faq_gaps(page)
     on_page = page.questions()
-    report["faq"] = {"visible_questions": on_page, "faqpage_schema_questions": [q for q, _ in ld_questions],
+    report["faq"] = {"visible_questions": on_page, "collapsed_questions": page.questions(collapsed=True),
+                     "faqpage_schema_questions": [q for q, _ in ld_questions],
                      **gaps, "jsonld_types": ld_types}
     if brief:
         report["brief"] = {"page": brief["page"], "subneeds": brief["subneeds"],
@@ -329,6 +343,8 @@ def render(r):
     fq = r["faq"]
     out += ["", f"2 FAQ: {len(fq['visible_questions'])} visible questions, {len(fq['faqpage_schema_questions'])} in FAQPage schema"]
     out += [f"  - {q}" for q in fq["visible_questions"][:30]]
+    if fq["collapsed_questions"]:
+        out.append(f"  collapsed on load (inside a closed <details>): {len(fq['collapsed_questions'])} questions")
     if fq["schema_only"]:
         out.append(f"  schema-only (not visible): {fq['schema_only']}")
     if fq["schema_answer_not_visible"]:
@@ -361,7 +377,9 @@ ISSUES = {
     "no_h1": "no H1 in server HTML", "multiple_h1": "more than one H1",
     "faq_schema_only": "FAQPage question not visible on the page",
     "faq_answer_not_in_html": "FAQ question visible but its answer is not in server HTML",
+    "faq_hidden": "FAQ questions start collapsed inside a closed <details>; visitors must click to find them",
 }
+FAQ_HIDDEN_MIN = 2   # collapsed questions before a page counts as hiding its FAQ
 
 
 def sitemap_urls(source, limit, seen=None):
@@ -432,6 +450,9 @@ def page_issues(url, raw, rp):
     elif len(h1) > 1:
         issues.append("multiple_h1")
     gaps, _, _ = faq_gaps(page)
+    collapsed = page.questions(collapsed=True)
+    if len(collapsed) >= FAQ_HIDDEN_MIN:
+        issues.append("faq_hidden")
     if gaps["schema_only"]:
         issues.append("faq_schema_only")
     if gaps["schema_answer_not_visible"]:
@@ -481,7 +502,10 @@ def sweep(source, base=None, limit=500):
     robots_summary, rp = load_robots(urls[0])
     pages = []
     for url in urls:
-        issues, facts = page_issues(url, fetch(url, BROWSER_UA), rp)
+        raw = fetch(url, BROWSER_UA)
+        if not raw["ok"]:   # one retry: a single timeout should not read as a broken page
+            raw = fetch(url, BROWSER_UA)
+        issues, facts = page_issues(url, raw, rp)
         pages.append({"url": url, "pattern": pattern(url), "issues": issues, **facts})
     grouped = {}
     for code in ISSUES:
