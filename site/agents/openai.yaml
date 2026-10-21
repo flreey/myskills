@@ -1,0 +1,4 @@
+interface:
+  display_name: "Site"
+  short_description: "Find a website project's stage and route to the right site-* skill"
+  default_prompt: "Use $site to read this project's seo/ and site files, report its stage, name the next site-* skill and command, and say how to check page SEO for this kind of site."

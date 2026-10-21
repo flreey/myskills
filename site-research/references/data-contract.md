@@ -1,7 +1,7 @@
 # Data contract (discovery side)
 
 All paths are relative to `<project>/seo/`. Schema tags use `search-demand/<type>@<version>`.
-Discovery writes these files. `site-pages` only reads `config.json`, `boundary.json`,
+Discovery writes these files. `site-plan` only reads `config.json`, `boundary.json`,
 `discovery/observations.jsonl` and `discovery/seeds.jsonl` (`text`, `aliases`, `status`, to form
 review groups).
 

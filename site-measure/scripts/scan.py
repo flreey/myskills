@@ -424,7 +424,7 @@ TITLES = [
 
 def render(report):
     framework = report["framework"]
-    lines = ["site-analytics scan: " + report["project"],
+    lines = ["site-measure scan: " + report["project"],
              "framework: " + framework["kind"] + " (umami-connect: " + framework["connect"]
              + ((", entries: " + ", ".join(framework["entries"][:8])) if framework["entries"] else "") + ")"]
     if framework.get("note"):

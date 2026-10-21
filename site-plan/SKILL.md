@@ -1,9 +1,9 @@
 ---
-name: site-pages
-description: Use when deciding which search demand a site should serve and where — grouping keywords into demand clusters, deciding whether a keyword, modifier or cluster deserves its own page, a section, a filter or nothing, planning SEO information architecture from keyword data, briefing which sub-needs a page must cover before it is built or rewritten, reviewing Search Console data to enrich, split, merge or retire pages, or diagnosing keyword cannibalization. Also for 需求簇、关键词归类、要不要建页、拆页合页. Formerly search-demand-mapper.
+name: site-plan
+description: Use when deciding which search demand a site should serve and where — grouping keywords into demand clusters, deciding whether a keyword, modifier or cluster deserves its own page, a section, a filter or nothing, planning SEO information architecture from keyword data, briefing which sub-needs a page must cover before it is built or rewritten, reviewing Search Console data to enrich, split, merge or retire pages, or diagnosing keyword cannibalization. Also for 需求簇、关键词归类、要不要建页、拆页合页. Formerly site-pages (earlier search-demand-mapper).
 ---
 
-# Search Demand Mapper
+# site-plan: keyword → page mapping
 
 Search query → user need → demand cluster → page, section, filter or nothing → Search Console
 feedback.
@@ -12,7 +12,7 @@ Operating stance: cluster aggressively, publish conservatively, split only with 
 when overlap appears.
 
 Engine (Python stdlib): `python3 <skill-dir>/scripts/mapper.py --root <project> <command>`. It reads
-the observation pool from `site-keywords` (`<project>/seo/discovery/`). To start from an
+the observation pool from `site-research` (`<project>/seo/discovery/`). To start from an
 existing keyword export, import it with discovery first. Otherwise evidence ids have nothing to
 point at.
 

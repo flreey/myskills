@@ -1,9 +1,9 @@
 ---
-name: site-analytics
-description: Use when an existing website project (not a site-kit site) should start using the self-hosted Umami analytics, replace or remove Google Analytics (GA4, gtag.js, Google Tag Manager) in favor of Umami, or finish a GA-to-Umami cutover after a parallel period; and when pulling Umami traffic and event reports for any site, site-kit sites included. Also for 接入 Umami、用 Umami 替换 GA、去掉 GA、GA 迁移、统计迁移、Umami 报表. NOT for wiring analytics into site-kit sites (their analytics live in site.config.ts) or for only reading existing GA4 reports.
+name: site-measure
+description: Use when an existing website project (not a site-kit site) should start using the self-hosted Umami analytics, replace or remove Google Analytics (GA4, gtag.js, Google Tag Manager) in favor of Umami, or finish a GA-to-Umami cutover after a parallel period; and when pulling Umami traffic and event reports for any site, site-kit sites included. Also for 接入 Umami、用 Umami 替换 GA、去掉 GA、GA 迁移、统计迁移、Umami 报表. Formerly site-analytics. NOT for wiring analytics into site-kit sites (their analytics live in site.config.ts) or for only reading existing GA4 reports.
 ---
 
-# Site Analytics
+# site-measure: Umami analytics
 
 Move existing sites from Google Analytics to the user's self-hosted Umami without losing visits,
 events or truthful privacy text. It takes two releases: Umami next to GA first, GA out later.

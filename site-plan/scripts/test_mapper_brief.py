@@ -203,7 +203,7 @@ class GscStoreTest(Fixture):
         self.assertEqual([(o["keyword"], o["metrics"]["impressions"]) for o in data["observations"]],
                          [("world map quiz", 20)])
         dspec = importlib.util.spec_from_file_location(
-            "site_keywords_discovery", HERE.parent.parent / "site-keywords" / "scripts" / "discovery.py")
+            "site_keywords_discovery", HERE.parent.parent / "site-research" / "scripts" / "discovery.py")
         discovery = importlib.util.module_from_spec(dspec)
         dspec.loader.exec_module(discovery)
 

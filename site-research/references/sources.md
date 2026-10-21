@@ -45,10 +45,10 @@ close variants and repeats the group's volume on each variant; never add up vari
 2. Queries tab → Export → download the CSV zip.
 3. The table caps at 1,000 rows. When a site has more, slice the export: Query filter "contains
    <seed>", or one export per important page (Page filter).
-4. Before the site has a site-pages registry, import with
+4. Before the site has a site-plan registry, import with
    `import --format gsc --file <zip> --period YYYY-MM-DD..YYYY-MM-DD`. The UI range is relative
    ("Last 3 months"), so compute the absolute dates. Data lags about 3 days.
-5. Once site-pages has a registry, Search Console data is stored once, in site-pages:
+5. Once site-plan has a registry, Search Console data is stored once, in site-plan:
    `mapper.py gsc import` (UI zip or API rows with query and page). `mapper.py gsc review` then
    writes `seo/work/unmapped-queries.json`; import that file here with
    `import --format json --source google_search_console --file seo/work/unmapped-queries.json`.
@@ -79,7 +79,7 @@ bulk source.
 Search a representative query in the target market. Copy the "People also ask" questions and
 "Related searches" into a text file with one per line, then run
 `import --format lines --source google_serp --kind related_search --ref "<query>"`.
-Keep the result URLs and result types too: `site-pages` needs them as SERP evidence.
+Keep the result URLs and result types too: `site-plan` needs them as SERP evidence.
 Budget about 30 searches per session; stop on a CAPTCHA.
 
 ## Bing Webmaster Tools

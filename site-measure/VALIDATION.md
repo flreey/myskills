@@ -1,6 +1,6 @@
 # Validation (2026-10-01)
 
-How site-analytics was checked before release, and what changed because of it. Site IDs, traffic
+How site-measure was checked before release, and what changed because of it. Site IDs, traffic
 numbers and private commit hashes are left out on purpose.
 
 ## Pilot: Release 1 on a real site
