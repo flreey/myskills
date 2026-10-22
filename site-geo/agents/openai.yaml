@@ -1,0 +1,4 @@
+interface:
+  display_name: "Site GEO"
+  short_description: "AI search visibility: AI crawler access, llms.txt, ChatGPT open and recommend probes"
+  default_prompt: "Use $site-geo on this site: run geo_check.py for AI crawler access and llms.txt, then with my go-ahead run the ChatGPT probes, and report facts and samples separately with fixes and MANUAL items."

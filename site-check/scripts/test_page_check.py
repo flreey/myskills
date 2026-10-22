@@ -31,9 +31,28 @@ NOINDEX = """<html><head><title>{name}</title><meta name="robots" content="noind
 <body><main><h1>{name}</h1><p>{filler}</p><details><summary>About this tool</summary>
 <h3>How do I use {lower}?</h3><p>Press go.</p>
 <h3>Will changing settings replace my result?</h3><p>No.</p></details></main></body></html>"""
-INDEX = """<?xml version="1.0"?><sitemapindex><sitemap><loc>{base}/sitemap-pages.xml</loc></sitemap></sitemapindex>"""
+# The index names the production host, as a local build's sitemap does; the sweep reads it from --base.
+INDEX = """<?xml version="1.0"?><sitemapindex><sitemap><loc>https://example.com/sitemap-pages.xml</loc></sitemap></sitemapindex>"""
 PAGES = """<urlset>""" + "".join(f"<url><loc>https://example.com{p}</loc></url>" for p in
-                                  ["/random-password-generator", "/spa", "/tools/alpha", "/tools/beta", "/tools/gamma", "/private"]) + "</urlset>"
+                                  ["/random-password-generator", "/spa", "/tools/alpha", "/tools/beta", "/tools/gamma", "/private",
+                                   "/products/alpha", "/products/beta", "/products/gamma"]) + "</urlset>"
+# A shop template: breadcrumb levels differ from BreadcrumbList, images lack alt text, a label heading, dated copy,
+# a retired name, links to a noindex and a missing page. /products/beta's H1 drops the title's lead phrase.
+PRODUCT = """<!doctype html><html><head><title>{name} Chart Printable for Kids: Personalized</title>
+<meta name="description" content="A {name} chart."><meta property="og:image" content="/og.png">
+<script type="application/ld+json">{{"@context":"https://schema.org","@graph":[
+ {{"@type":"Organization","@id":"/#org","name":"Shop","sameAs":["https://www.etsy.com/shop/example"]}},
+ {{"@type":"WebPage","@id":"/p#webpage","mainEntity":{{"@id":"/p#primary"}},"dateModified":"2026-01-01"}},
+ {{"@type":"Product","@id":"/p#primary","name":"{h1}"}},
+ {{"@type":"BreadcrumbList","itemListElement":[{{"@type":"ListItem","position":1,"name":"Home"}},
+  {{"@type":"ListItem","position":2,"name":"{h1}"}}]}}]}}</script></head>
+<body><main><nav aria-label="Breadcrumb"><a href="/">Home</a><span aria-hidden="true">/</span><a href="/everyday">Everyday</a>
+<span aria-hidden="true">/</span><span>{h1}</span></nav><h1>{h1}</h1><p>{filler}</p>
+<h2>What’s inside</h2><img src="/a.png" alt=""><img src="/b.png"><img src="/c.png" alt="A weekly chart">
+<div aria-hidden="true"><img src="/deco.png" alt=""></div><h3>{name} card</h3>
+<h2>Questions</h2><p>The sale ends in 12 days. Also in the Old Bundle.</p>
+<a href="/hidden">Make yours</a> <a href="/gone">Old link</a> <a href="/products/beta">Beta</a></main></body></html>"""
+HIDDEN = """<html><head><title>Editor</title><meta name="robots" content="noindex"></head><body><h1>Editor</h1></body></html>"""
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -41,18 +60,23 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
-        ua = self.headers.get("User-Agent", "")
         if self.path == "/robots.txt":
             return self.send(200, ROBOTS, "text/plain")
-        if "OAI-SearchBot" in ua:
-            return self.send(403, "<title>Just a moment...</title>", "text/html", {"cf-mitigated": "challenge"})
         if self.path == "/sitemap.xml":
-            return self.send(200, INDEX.format(base=f"http://{self.headers['Host']}"), "application/xml")
+            return self.send(200, INDEX, "application/xml")
         if self.path == "/sitemap-pages.xml":
             return self.send(200, PAGES, "application/xml")
         if self.path.startswith("/tools/"):
             name = self.path.rsplit("/", 1)[1].title() + " Widget"
             return self.send(200, NOINDEX.format(name=name, lower=name.lower(), filler=FILLER), "text/html")
+        if self.path.startswith("/products/"):
+            name = self.path.rsplit("/", 1)[1].title()
+            h1 = "Something Else Entirely" if name == "Beta" else f"{name} Chart Printable"
+            return self.send(200, PRODUCT.format(name=name, h1=h1, filler=FILLER), "text/html")
+        if self.path == "/hidden":
+            return self.send(200, HIDDEN, "text/html")
+        if self.path == "/gone":
+            return self.send(404, "<title>Not found</title>", "text/html")
         if self.path == "/spa":
             return self.send(200, SPA, "text/html")
         return self.send(200, SSR, "text/html; charset=utf-8")
@@ -100,14 +124,32 @@ class PageCheckTest(unittest.TestCase):
         self.assertEqual(r["rendering"]["verdict"], "client_rendered_shell")
         self.assertFalse(r["rendering"]["h1_in_server_html"])
 
-    def test_robots_and_probes(self):
+    def test_robots_for_search_crawlers(self):
         r = pc.check(self.base + "/x", [])
         agents = r["crawlers"]["robots_txt"]["agents"]
-        self.assertEqual(agents["GPTBot"], "disallowed")
-        self.assertEqual(agents["OAI-SearchBot"], "allowed")
-        probe = r["crawlers"]["probes"]["OAI-SearchBot"]
-        self.assertEqual((probe["status"], probe["cf_mitigated"], probe["challenge_page"]), (403, "challenge", True))
-        self.assertTrue(r["crawlers"]["probes"]["ChatGPT-User"]["same_size_as_browser"])
+        self.assertEqual(agents, {"Googlebot": "allowed", "Bingbot": "allowed", "OAI-SearchBot": "allowed"})
+        self.assertNotIn("probes", r["crawlers"])   # user-agent probes and ChatGPT belong to site-geo
+        blocked = pc.check(self.base + "/private", [])["crawlers"]["robots_txt"]["agents"]
+        self.assertEqual(blocked["OAI-SearchBot"], "disallowed")
+
+    def test_page_facts(self):
+        r = pc.check(self.base + "/products/beta", [], retired=["old bundle", "never used"])
+        f = r["facts"]
+        self.assertEqual(f["title_lead"], ["beta", "chart", "printable", "kid"])
+        self.assertEqual(f["title_h1"], 0.0)
+        self.assertEqual(f["label_headings"], ["Questions"])
+        self.assertEqual((f["images"]["content"], f["images"]["missing_alt"]), (3, 2))   # the aria-hidden image is decoration
+        self.assertEqual(f["breadcrumb"], {"visible": ["Home", "Everyday", "Something Else Entirely"], "structured_items": 2})
+        self.assertEqual(f["structured"]["primary_types"], ["Product"])
+        self.assertEqual(f["structured"]["organization"]["same_as"], ["https://www.etsy.com/shop/example"])
+        self.assertEqual(f["relative_dates"]["found"], ["in 12 days"])
+        self.assertEqual(f["retired"], ["old bundle"])
+        self.assertEqual(f["issues"], ["title_h1_drift", "label_heading", "images_without_alt", "breadcrumb_mismatch",
+                                       "stale_relative_dates", "retired_term"])
+        alpha = pc.check(self.base + "/products/alpha", [])["facts"]
+        self.assertEqual(alpha["title_h1"], 0.75)
+        self.assertNotIn("title_h1_drift", alpha["issues"])
+        self.assertIn("5 page facts", pc.render(r))
 
     def test_brief_questions(self):
         brief = {"page": "/random-password-generator", "clusters": [{
@@ -125,7 +167,7 @@ class PageCheckTest(unittest.TestCase):
 
     def test_sweep_groups_issues_by_pattern(self):
         r = pc.sweep(self.base + "/sitemap.xml", base=self.base)
-        self.assertEqual(r["urls"], 6)
+        self.assertEqual(r["urls"], 9)
         self.assertTrue(all(u["url"].startswith(self.base) for u in r["pages"]))
         issues = r["issues"]
         self.assertEqual(issues["noindex"]["patterns"][0], {"pattern": "/tools/*", "hit": 3, "of": 3, "urls": [
@@ -135,10 +177,27 @@ class PageCheckTest(unittest.TestCase):
         shapes = {t["question_shape"]: t["pages"] for t in r["faq"]["templated_questions"]}
         self.assertEqual(shapes, {"how do i use {page}": 3, "will changing settings replace my result": 3})
         self.assertEqual(issues["client_rendered_shell"]["count"], 1)
-        self.assertEqual(issues["oai_searchbot_disallowed"]["patterns"][0]["urls"], [self.base + "/private"])
+        self.assertEqual(issues["search_bot_disallowed"]["patterns"][0]["urls"], [self.base + "/private"])
         self.assertEqual(issues["faq_schema_only"]["count"], 2)
         self.assertEqual(issues["faq_answer_not_in_html"]["count"], 2)
-        self.assertEqual(r["site"]["robots_txt"]["agents"]["GPTBot"], "disallowed")
+        self.assertEqual(r["site"]["robots_txt"]["agents"]["Googlebot"], "allowed")
+        self.assertNotIn("probes", r["site"])
+        self.assertEqual(issues["title_h1_drift"]["patterns"][0]["urls"], [self.base + "/products/beta"])
+        self.assertEqual(issues["breadcrumb_mismatch"]["patterns"][0], {"pattern": "/products/*", "hit": 3, "of": 3, "urls": [
+            self.base + "/products/alpha", self.base + "/products/beta", self.base + "/products/gamma"]})
+        self.assertEqual(issues["links_to_noindex"]["count"], 3)
+        self.assertEqual(issues["links_to_error"]["count"], 3)
+        outside = {x["path"]: x["status"] for x in r["links"]["outside_sitemap"]}
+        self.assertEqual(outside, {"/hidden": "noindex", "/gone": "error"})
+        inlinks = {x["url"]: x["content_inlinks"] for x in r["links"]["lowest_inlinks"]}
+        self.assertEqual(inlinks[self.base + "/products/beta"], 2)
+        self.assertEqual(r["site"]["organization"]["same_as"], ["https://www.etsy.com/shop/example"])
+        self.assertEqual(r["site"]["primary_types"]["Product"]["pages"], 3)
+        headings = {t["heading"]: t["pages"] for t in r["templated_headings"]}
+        self.assertEqual((headings["What’s inside"], headings["Questions"]), (3, 3))
+        self.assertNotIn("Alpha card", headings)   # H3 card names are not section titles
+        dup = [d["pages"] for d in r["near_duplicates"]]
+        self.assertIn([self.base + "/products/alpha", self.base + "/products/beta"], dup)
         text = pc.render_sweep(r)
         self.assertIn("likely a shared template", text)
         self.assertEqual(pc.main(["--sitemap", self.base + "/sitemap-pages.xml", "--base", self.base, "--limit", "2"]), 0)

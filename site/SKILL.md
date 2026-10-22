@@ -1,6 +1,6 @@
 ---
 name: site
-description: Use as the entry point for the site-* skills when the user asks where a website project stands or what comes next across keyword research, page planning, building, SEO checks, launch and analytics — or does not remember which site-* skill to use. Also for 建站流程、下一步做什么、用哪个 site skill、页面 SEO 验收、上线前 SEO 检查. It only reads project files and routes; the work happens in site-research, site-plan, site-kit, site-check and site-measure.
+description: Use as the entry point for the site-* skills when the user asks where a website project stands or what comes next across keyword research, page planning, building, SEO checks, launch and analytics — or does not remember which site-* skill to use. Also for 建站流程、下一步做什么、用哪个 site skill、页面 SEO 验收、上线前 SEO 检查. It only reads project files and routes; the work happens in site-research, site-plan, site-kit, site-check, site-geo and site-measure.
 ---
 
 # site: stage router
@@ -13,7 +13,8 @@ next, then load that skill. This skill never writes project files.
 | 1 research | `site-research` | keyword pool from external evidence (`seo/discovery/`) | 找关键词、扩词 |
 | 2 plan | `site-plan` | demand clusters, page registry, page briefs (`seo/mapper/`) | 要不要建页、归簇、页面需求单 |
 | 3 build | `site-kit` (kit sites) or the project's own stack | pages, SEO plumbing, checks, deploy | 建站、改页面、发布 |
-| 4 verify | `site-check`, then see [Page SEO check](#page-seo-check) | keyword copy, FAQ, server HTML, ChatGPT access and recommendation; registry matches the built site | 页面 SEO 验收、GPT 能不能访问 |
+| 4 verify | `site-check`, then see [Page SEO check](#page-seo-check) | keyword copy, FAQ, server HTML, structure, internal links and templates; registry matches the built site | 页面 SEO 验收、内链和模板检查 |
+| 4 verify (AI) | `site-geo` | AI crawler access, llms.txt, ChatGPT open and recommendation probes | GPT 能不能访问、会不会推荐 |
 | 5 measure | `site-measure` | Umami wiring and traffic reports | 接入 Umami、看流量 |
 | 6 review | `site-plan` review mode | GSC windows → enrich, split, merge, retire; unmapped queries back to stage 1 | 拆页合页、GSC 回看 |
 
@@ -36,9 +37,10 @@ and follow it; its own rules and approvals apply.
 
 ## Page SEO check
 
-Every site: `site-check` — a sitemap sweep for mechanical issues on every URL, then page checks on
-picked pages (keywords in the copy, FAQ coverage, server rendering, ChatGPT crawler access) and
-ChatGPT recommendation probes per target query. Then by site type:
+Every site: `site-check` — a sitemap sweep for mechanical and site-wide issues (templates, near
+duplicates, internal links, structured data) on every URL, then page checks on picked pages
+(keywords in the copy, FAQ coverage, server rendering, indexability, structure). AI search
+visibility (AI crawlers, llms.txt, ChatGPT probes) runs separately in `site-geo`. Then by site type:
 
 | Site | Technical gates | Registry |
 | --- | --- | --- |
@@ -52,4 +54,4 @@ indexability drift.
 
 Each fact has one owner: keyword evidence → site-research; clusters, page ownership, briefs and GSC
 data → site-plan; what the built pages actually say → the site build (site-kit reports for kit
-sites); traffic → site-measure. site-check owns no data: it reports.
+sites); traffic → site-measure. site-check and site-geo own no data: they report.
