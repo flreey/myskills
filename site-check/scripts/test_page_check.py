@@ -51,7 +51,8 @@ PRODUCT = """<!doctype html><html><head><title>{name} Chart Printable for Kids: 
 <h2>What’s inside</h2><img src="/a.png" alt=""><img src="/b.png"><img src="/c.png" alt="A weekly chart">
 <div aria-hidden="true"><img src="/deco.png" alt=""></div><h3>{name} card</h3>
 <h2>Questions</h2><p>The sale ends in 12 days. Also in the Old Bundle.</p>
-<a href="/hidden">Make yours</a> <a href="/gone">Old link</a> <a href="/products/beta">Beta</a></main></body></html>"""
+<a href="/hidden">Make yours</a> <a href="/gone">Old link</a> <a href="/products/beta">Beta</a>
+<aside aria-label="Related"><h2>Related tools</h2><a href="/aside-only">Aside link</a></aside></main></body></html>"""
 HIDDEN = """<html><head><title>Editor</title><meta name="robots" content="noindex"></head><body><h1>Editor</h1></body></html>"""
 
 
@@ -196,6 +197,7 @@ class PageCheckTest(unittest.TestCase):
         headings = {t["heading"]: t["pages"] for t in r["templated_headings"]}
         self.assertEqual((headings["What’s inside"], headings["Questions"]), (3, 3))
         self.assertNotIn("Alpha card", headings)   # H3 card names are not section titles
+        self.assertNotIn("Related tools", headings)   # a sidebar inside <main> is still chrome
         dup = [d["pages"] for d in r["near_duplicates"]]
         self.assertIn([self.base + "/products/alpha", self.base + "/products/beta"], dup)
         text = pc.render_sweep(r)

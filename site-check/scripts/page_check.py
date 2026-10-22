@@ -90,7 +90,8 @@ class Page(HTMLParser):
         self._crumb_depth = None
 
     def zone(self):
-        return "main" if "main" in self._stack else "chrome" if CHROME & set(self._stack) else "body"
+        """chrome inside nav/header/footer/aside even within <main> (sidebars, tables of contents, breadcrumbs)."""
+        return "chrome" if CHROME & set(self._stack) else "main" if "main" in self._stack else "body"
 
     def handle_starttag(self, tag, attrs):
         a = {k.lower(): (v or "") for k, v in attrs}
@@ -118,8 +119,7 @@ class Page(HTMLParser):
         elif tag == "summary" and self._details:
             self._details[-1]["in_summary"] = True
         if tag == "a" and a.get("href"):
-            # A link in nav/header/footer/aside is site chrome even inside <main> (breadcrumbs, tables of contents).
-            self._link = {"href": a["href"], "text": [], "zone": "chrome" if CHROME & set(self._stack) else self.zone()}
+            self._link = {"href": a["href"], "text": [], "zone": self.zone()}
         if tag == "script":
             self.scripts += 1
             if a.get("type", "").lower() == "application/ld+json":
