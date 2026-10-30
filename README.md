@@ -23,6 +23,7 @@
 | [chatgpt-pro-engineering-loop](./chatgpt-pro-engineering-loop) | Codex Desktop 通过已登录的 ChatGPT Pro 委派复杂仓库任务：优先用独立 GitHub 任务分支 + Draft PR 交换代码，以持久 conversation ID 恢复中断任务，并在本地隔离验收；GitHub 不可用或源码不能发布时回退到安全源码包。 |
 | [project-truth](./project-truth) | 让 AI 从经过校验的 Capability、Receipt 和 Git 状态驱动实现：只读获取紧凑真相上下文，通过固定版本 CLI 记录真实证据，重建离线 Dashboard，并停在人工验收和外部动作边界。 |
 | [site](./site) | site-* 系列的总入口：读项目里的 `seo/`、`.sitekit.json`、`umami.config.json` 判断建站阶段（找词 → 定页 → 建站 → 验收 → 统计 → GSC 回看），说明下一步该用哪个 skill、跑哪条命令；页面 SEO 验收按 kit 站和非 kit 站分别给出检查方式。只读不写。 |
+| [keyword-radar](./keyword-radar) | 新站选词：从新词抢先、新站反推、弱 SERP 长尾三个入口收集，用意图、需求、可排名三关快筛并打分，输出一个新域名 1–2 个月内能排上去的页面短名单，附上线卡和 GSC 第 7/14/28 天回收规则；阈值靠回收日志校准。 |
 | [site-research](./site-research) | 从免费来源（自动补全、Keyword Planner、Trends、Search Console、SERP 相关搜索、竞品 sitemap）构建有证据的关键词观测池：先自动调研再一次性选择题确认边界，种子递归扩展经 triage 把关，按轮次 yield 判断何时停止；关键词只来自外部观测，不编造需求。 |
 | [site-plan](./site-plan) | 把关键词池变成需求簇和页面决策：模型分批做语义归簇（稳定 ID、定义版本、合并/拆分谱系），修饰词默认是属性，按证据门槛决定 keep / improve / filter / create / defer，变更集经批准才写入页面注册表；建页或改版前为每页生成需求单（细分需求对照库存和页面已写到的内容），并用 GSC 窗口复盘互抢排名、属性升级与下线。 |
 | [site-check](./site-check) | SEO 验收，分两层：先按 sitemap 全站扫描机械问题（状态码、noindex、canonical、JS 才出现的内容、FAQ 答案不在 HTML、title 与 H1 偏离、标签式 H2、图片缺 alt、面包屑层级不一致、过期日期和停用说法、链向 noindex 页），并汇总全站视图（模板化标题和 FAQ、近似重复页、内链最弱的页面与死胡同、结构化数据类型、Organization 的 sameAs）；再挑页面深查：文案是否围绕目标关键词、FAQ 是否答了用户会问的问题、内容是否在服务端 HTML 里、能否被索引、结构化数据/图片/面包屑是否说清页面是什么。首页和聚合页每次必查。只读，结果分 pass / fix / unknown / MANUAL。AI 搜索相关交给 site-geo。 |

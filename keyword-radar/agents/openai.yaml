@@ -1,0 +1,4 @@
+interface:
+  display_name: "找词雷达"
+  short_description: "新站选词：找新域名 1–2 个月内能排上去的词，输出排序短名单和上线回收规则"
+  default_prompt: "使用 $keyword-radar 给一个全新域名找这周能做的页面：至少两个入口收集，三关快筛，输出排序短名单和上线卡。"
