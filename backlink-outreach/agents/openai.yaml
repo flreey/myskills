@@ -1,0 +1,4 @@
+interface:
+  display_name: "新站外链"
+  short_description: "按目标分层找外链入口，用素材包投稿，独立核验公开链接，28 天回收效果"
+  default_prompt: "使用 $backlink-outreach 给我的新站做外链：先确认目标和授权范围，从目录、发布平台和竞品外链缺口开始，核验后更新台账。"
