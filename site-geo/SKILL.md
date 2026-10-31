@@ -1,6 +1,6 @@
 ---
 name: site-geo
-description: Use when a site needs to be checked for AI search — whether ChatGPT, Claude, Perplexity and other AI crawlers can reach its pages, whether llms.txt matches the live site, whether ChatGPT can open a page and quote it, and whether ChatGPT recommends the site for its target queries and what would earn more recommendations. Works on site-kit and other sites. Also for GEO 检查、AI 搜索可见度、ChatGPT 能不能访问、GPT 会不会推荐、llms.txt 检查、AI 爬虫放行. NOT for page SEO acceptance — keywords, FAQ, server rendering, structure, internal links (site-check) — nor for keyword discovery (site-research) or deciding pages (site-plan).
+description: Use when a site needs to be checked for AI search — whether ChatGPT, Claude, Perplexity and other AI crawlers can reach its pages, whether llms.txt matches the live site, whether ChatGPT can open a page and quote it, and whether ChatGPT recommends the site for its target queries and what would earn more recommendations, and — for sites whose traffic comes mostly from AI assistants — which pages the assistants fetch and cite and which existing pages have low citation share (AI user-agent logs, Bing Webmaster AI Performance, site search misses). Works on site-kit and other sites. Also for GEO 检查、AI 搜索可见度、ChatGPT 能不能访问、GPT 会不会推荐、llms.txt 检查、AI 爬虫放行. NOT for page SEO acceptance — keywords, FAQ, server rendering, structure, internal links (site-check) — nor for keyword discovery (site-research) or deciding pages (site-plan).
 ---
 
 # site-geo: AI search visibility
@@ -39,10 +39,12 @@ Engine (Python stdlib, read-only), `python3 <skill-dir>/scripts/geo_check.py`:
 1. Run site-check (or reuse its latest report) for the pages in question.
 2. Run `geo_check.py` on the live site, or on a build with `--base`, with the pages to probe, the
    sitemap and the retired names.
-3. With the user's go-ahead, run probe A on the same pages, then probes B and C once per target
+3. If most visitors come from AI assistants, read the demand sources for G5 and pick target
+   queries from them: low citation share first.
+4. With the user's go-ahead, run probe A on the same pages, then probes B and C once per target
    query (two or three of the site's main queries), from
    [references/chatgpt-probes.md](references/chatgpt-probes.md).
-4. Report.
+5. Report.
 
 ## Checks
 
@@ -80,9 +82,15 @@ Engine (Python stdlib, read-only), `python3 <skill-dir>/scripts/geo_check.py`:
   author or contact, thin examples), each tied to a site-check check or to site-plan. Drop advice
   that is generic or breaks rule 6.
 
+### G5. Where AI demand is and which pages lose citations
+
+- Run this on existing sites whose visitors come mostly from AI assistants.
+- Read three sources: AI user-agent fetch logs, Bing Webmaster AI Performance, and site search misses.
+- Sort the findings into pages to improve, new pages and missing content. Sources, tests, hand-offs and follow-up are in [references/ai-demand.md](references/ai-demand.md).
+
 ## Report
 
-The facts first (G1 per crawler role, G2 findings), then the samples (G3 and G4 with date, model,
+The facts first (G1 per crawler role, G2 findings, G5 sources with their windows), then the samples (G3 and G4 with date, model,
 mode and prompt per run), then the fixes in priority order, the MANUAL items, and what was not
 checked. Save it to a file only when the user asks, outside `seo/`.
 
