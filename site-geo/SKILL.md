@@ -41,9 +41,9 @@ Engine (Python stdlib, read-only), `python3 <skill-dir>/scripts/geo_check.py`:
    sitemap and the retired names.
 3. If most visitors come from AI assistants, read the demand sources for G5 and pick target
    queries from them: low citation share first.
-4. With the user's go-ahead, run probe A on the same pages, then probes B and C once per target
-   query (two or three of the site's main queries), from
-   [references/chatgpt-probes.md](references/chatgpt-probes.md).
+4. With the user's go-ahead, run probe A on the same pages, probes B and C for each target query
+   (two or three of the site's main queries) and probe E once for the site, each three times in
+   fresh chats, from [references/chatgpt-probes.md](references/chatgpt-probes.md).
 5. Report.
 
 ## Checks
@@ -77,7 +77,11 @@ Engine (Python stdlib, read-only), `python3 <skill-dir>/scripts/geo_check.py`:
 ### G4. Would ChatGPT recommend the site (probes B and C)
 
 - Unbranded probes first (the user's real task in the market's language, no site name), then the
-  branded one. Note whether the site appears, at what position, and which sites appear instead.
+  branded one. Count named, linked and first recommendation separately over the runs, and note which
+  sites appear instead.
+- Probe E checks what it says about the site (use, price, limits, license) against the live pages.
+- Where the page allows it, capture the search queries behind probe B (probe D). They separate
+  "searched and not chosen" from "never searched for it".
 - Turn the advice into concrete page facts to change (a missing comparison, no price on the page, no
   author or contact, thin examples), each tied to a site-check check or to site-plan. Drop advice
   that is generic or breaks rule 6.
@@ -85,8 +89,9 @@ Engine (Python stdlib, read-only), `python3 <skill-dir>/scripts/geo_check.py`:
 ### G5. Where AI demand is and which pages lose citations
 
 - Run this on existing sites whose visitors come mostly from AI assistants.
-- Read three sources: AI user-agent fetch logs, Bing Webmaster AI Performance, and site search misses.
-- Sort the findings into pages to improve, new pages and missing content. Sources, tests, hand-offs and follow-up are in [references/ai-demand.md](references/ai-demand.md).
+- Read the sources: search crawler and user crawler fetch logs, Bing Webmaster AI Performance, and site search misses.
+- Classify each gap (not mentioned, mentioned without a link, linked without visits, visits without action), then sort the findings into pages to improve, new pages and missing content.
+- Before a page changes, write down the baseline, the pages left unchanged, the review dates and the result that would show the idea was wrong. Sources, tests, hand-offs and follow-up are in [references/ai-demand.md](references/ai-demand.md).
 
 ## Report
 

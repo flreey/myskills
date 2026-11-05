@@ -164,6 +164,21 @@ query-only URL changes counted as pageviews.
 8. Commit and deploy with approval. In production, confirm there are no requests to
    google-analytics.com or googletagmanager.com, and that Umami still records pageviews and events.
 
+## Counting AI assistant visits
+
+When a report needs AI traffic on its own:
+
+- Match the referrer or `utm_source` against
+  `chatgpt\.com|openai\.com|perplexity|claude\.ai|gemini\.google\.com|copilot\.microsoft\.com|copilot\.com|deepseek|grok\.com`.
+  This list came from a third-party guide and is not vendor-documented, so check it against the site's
+  own referrers first.
+- This is a lower bound. ChatGPT's web app can open links with `noreferrer` and no `utm_source`, so
+  those visits count as direct. Report direct visits to deep pages as a separate, unproven number.
+- To tie later signups or purchases to the first source, keep the first visit's `utm_source` and
+  referrer domain in first-party storage. Keep them only with the user's approval and disclose them
+  (rule 5).
+- Take each total from one source. The same visits seen in GA4, Umami and Cloudflare must not be added.
+
 ## Delivery report
 
 - Phase and release completed; files changed per category: loader, guards, events, CSP, privacy, tests,
