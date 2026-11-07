@@ -12,6 +12,7 @@
 | Industry taxonomy | research | seed `taxonomy` | Systematic coverage | — |
 | Site search and request logs | project data | `onsite_request` | Product demand (not search volume) | — |
 | Paid exports (Ahrefs, Semrush) | user files | `external_reference` / `historical_volume` | Volume, parent topics | High |
+| Competitor ranking keywords from keyword-radar | files in `seo/radar/site-keywords/` | `external_reference` | Words a recently grown competitor already ranks for | Medium |
 
 ## Autocomplete (script)
 
@@ -95,6 +96,19 @@ child sitemaps and keeps slug phrases up to URL depth 3. Phrases become `hypothe
 Triage a phrase as `seed` only when it fits the boundary; it gains keywords only once a search
 source observes them. When there is no sitemap, read the competitor's category navigation in the
 browser and add the categories as `topdown` seeds.
+
+## Competitor ranking keywords (from keyword-radar)
+
+Finding competitor sites is keyword-radar's job. It keeps the list in `seo/radar/sites.md` and
+saves every paid `site_keywords` result as JSON in `seo/radar/site-keywords/`. Reuse both here;
+do not pay for the same lookup again.
+
+- Use `sites.md` as the competitor list for Keyword Planner "Start with a website" and `sitemap`.
+- Import saved results with
+  `import --format json --source gefei_site_keywords --file seo/radar/site-keywords/<domain>-<date>.json`.
+  A data tool observed the site ranking for these words, so they are observations, unlike sitemap
+  slugs. They still go through `concepts` and triage like any other source.
+- Their volume is a snapshot without a period and stays `volume_unperiodized`.
 
 ## Structured JSON (anything else)
 

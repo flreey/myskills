@@ -12,7 +12,7 @@ Only the questions that research cannot answer reach the user, as one batch of c
 | Which landing pages exist? | Router config, `sitemap.xml`, static build output |
 | Which market does it serve? | Site language, GSC country split, pricing currency |
 | What real demand is already visible? | GSC (with access), site search or request logs, support tickets |
-| Who ranks for the core seeds? | Search 3–5 core seeds in the target market; note recurring domains and the page types that rank |
+| Who ranks for the core seeds? | Read `seo/radar/sites.md` first when it exists (keyword-radar's list of similar sites); otherwise search 3–5 core seeds in the target market. Note recurring domains and the page types that rank |
 | Is there an industry taxonomy? | Sound effects: UCS categories. Commerce: the catalog taxonomy. Trade: HS chapters. Apps: store categories |
 
 Record open questions instead of guessing. A site's age, launch date or traffic state is never

@@ -23,7 +23,7 @@
 | [chatgpt-pro-engineering-loop](./chatgpt-pro-engineering-loop) | Codex Desktop 通过已登录的 ChatGPT Pro 委派复杂仓库任务：优先用独立 GitHub 任务分支 + Draft PR 交换代码，以持久 conversation ID 恢复中断任务，并在本地隔离验收；GitHub 不可用或源码不能发布时回退到安全源码包。 |
 | [project-truth](./project-truth) | 让 AI 从经过校验的 Capability、Receipt 和 Git 状态驱动实现：只读获取紧凑真相上下文，通过固定版本 CLI 记录真实证据，重建离线 Dashboard，并停在人工验收和外部动作边界。 |
 | [site](./site) | site-* 系列的总入口：读项目里的 `seo/`、`.sitekit.json`、`umami.config.json` 判断建站阶段（找词 → 定页 → 建站 → 验收 → 统计 → GSC 回看），说明下一步该用哪个 skill、跑哪条命令；页面 SEO 验收按 kit 站和非 kit 站分别给出检查方式。只读不写。 |
-| [keyword-radar](./keyword-radar) | 新站选词：从新词抢先、新站反推、弱 SERP 长尾三个入口收集，用意图、需求、可排名三关快筛并打分，输出一个新域名 1–2 个月内能排上去的页面短名单，附上线卡和 GSC 第 7/14/28 天回收规则；阈值靠回收日志校准。 |
+| [keyword-radar](./keyword-radar) | 新站选词：从新词抢先、新站反推、弱 SERP 长尾三个入口收集，用意图、需求、可排名三关快筛并打分（新站反推按词找站、站找词滚动，同类站记进 `seo/radar/sites.md`），输出一个新域名 1–2 个月内能排上去的页面短名单，附上线卡和 GSC 第 7/14/28 天回收规则；阈值靠回收日志校准。 |
 | [backlink-outreach](./backlink-outreach) | 新站外链：先定目标（加权重 / 加快收录 / 带引荐流量）再按 T1–T4 分层选渠道，从竞品外链缺口、目录与发布平台、专题资源页找入口，用一份素材包投稿，只在授权范围内提交，独立核验公开链接并维护台账，第 28 天按渠道层回收效果；默认不做付费买链和博客评论。 |
 | [site-research](./site-research) | 从免费来源（自动补全、Keyword Planner、Trends、Search Console、SERP 相关搜索、竞品 sitemap）构建有证据的关键词观测池：先自动调研再一次性选择题确认边界，种子递归扩展经 triage 把关，按轮次 yield 判断何时停止；关键词只来自外部观测，不编造需求。 |
 | [site-plan](./site-plan) | 把关键词池变成需求簇和页面决策：模型分批做语义归簇（稳定 ID、定义版本、合并/拆分谱系），修饰词默认是属性，按证据门槛决定 keep / improve / filter / create / defer，变更集经批准才写入页面注册表；建页或改版前为每页生成需求单（细分需求对照库存和页面已写到的内容），并用 GSC 窗口复盘互抢排名、属性升级与下线。 |
@@ -88,7 +88,7 @@ https://github.com/flreey/myskills/tree/main/prompt-builder
 
 `site-research`（找词）和 `site-plan`（定页面）是一组，按顺序配合使用，共用项目根目录下的 `seo/`：site-research 写关键词池，site-plan 读它并写需求簇和页面注册表。平时只用两个斜杠命令或自然语言，引擎子命令由 agent 按流程调用。
 
-site-* skill 的分工：每个事实只有一个主人。site-research 管外部需求证据（关键词池）；site-plan 管需求簇、页面归属、页面已覆盖的细分需求（`covered_attributes`）和 GSC 数据（唯一入口）；site-kit 的构建产物管页面实际状态（标题、可索引）；site-measure 管 Umami 报表；site-check 只做页面验收，不持有数据。交接都落成文件：词池 → 注册表和需求单 → 建页 → `sync-check` 回读构建产物 → GSC 回看，未归类查询经 `seo/work/unmapped-queries.json` 回到词池。节奏、队列和授权留在各项目里。
+site-* skill 的分工：每个事实只有一个主人。site-research 管外部需求证据（关键词池）；site-plan 管需求簇、页面归属、页面已覆盖的细分需求（`covered_attributes`）和 GSC 数据（唯一入口）；site-kit 的构建产物管页面实际状态（标题、可索引）；site-measure 管 Umami 报表；site-check 只做页面验收，不持有数据。同类站名单 `seo/radar/sites.md` 和 `site_keywords` 原始结果归 keyword-radar；site-research 导入这些结果、backlink-outreach 从名单挑对照站，两者只读。交接都落成文件：词池 → 注册表和需求单 → 建页 → `sync-check` 回读构建产物 → GSC 回看，未归类查询经 `seo/work/unmapped-queries.json` 回到词池。节奏、队列和授权留在各项目里。
 
 ```text
 /site-research   给 ~/Projects/xxx 做关键词挖掘

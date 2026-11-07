@@ -50,7 +50,8 @@ bootstrap reference. Never expand raw item titles directly.
 | --- | --- | --- |
 | Expand | `suggest --level quick` then `--level standard` | `--dry-run` shows the query count. Use `deep` (alphabet) only after standard, and only for the most productive seeds |
 | Add browser sources | `import --format gkp\|gsc\|trends\|csv\|json\|lines` | Planner, GSC, Trends, SERP related searches, Bing WMT. See [references/sources.md](references/sources.md) |
-| Add top-down hypotheses | `sitemap --url <competitor>` | Slugs become `hypothesis` concepts, never keywords |
+| Add competitor keywords | `import --format json --source gefei_site_keywords` | keyword-radar's saved `seo/radar/site-keywords/*.json`; this skill does not search for competitor sites itself |
+| Add top-down hypotheses | `sitemap --url <competitor>` | Competitors from `seo/radar/sites.md` when it exists. Slugs become `hypothesis` concepts, never keywords |
 | Alias hygiene | `seed aliases`, then `seed aliases --file` | Drop aliases other seeds' searches also produce; confirm synonyms |
 | Extract | `concepts` | Writes `seo/work/triage-input.json` |
 | Triage | write decisions JSON, then `triage --file` | Rules below; deciding a concept again revises it, `boundary` ops record narrower phrases. Read its `breadth_warnings` |
