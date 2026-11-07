@@ -29,6 +29,7 @@
 | [site-plan](./site-plan) | 把关键词池变成需求簇和页面决策：模型分批做语义归簇（稳定 ID、定义版本、合并/拆分谱系），修饰词默认是属性，按证据门槛决定 keep / improve / filter / create / defer，变更集经批准才写入页面注册表；建页或改版前为每页生成需求单（细分需求对照库存和页面已写到的内容），并用 GSC 窗口复盘互抢排名、属性升级与下线。 |
 | [site-check](./site-check) | SEO 验收，分两层：先按 sitemap 全站扫描机械问题（状态码、noindex、canonical、JS 才出现的内容、FAQ 答案不在 HTML、title 与 H1 偏离、标签式 H2、图片缺 alt、面包屑层级不一致、过期日期和停用说法、链向 noindex 页），并汇总全站视图（模板化标题和 FAQ、近似重复页、内链最弱的页面与死胡同、结构化数据类型、Organization 的 sameAs）；再挑页面深查：文案是否围绕目标关键词、FAQ 是否答了用户会问的问题、内容是否在服务端 HTML 里、能否被索引、结构化数据/图片/面包屑是否说清页面是什么。首页和聚合页每次必查。只读，结果分 pass / fix / unknown / MANUAL。AI 搜索相关交给 site-geo。 |
 | [site-geo](./site-geo) | AI 搜索可见度检查：robots.txt 对各 AI 爬虫（搜索、用户触发、训练三类）的规则，用 AI user-agent 实测访问，llms.txt 是否与站点一致（死链、noindex、漏页、停用说法）；再经用户同意用固定提问模板去 ChatGPT 验证能否打开页面、是否愿意推荐以及要改什么。事实与抽样分开报告。只读。 |
+| [adsense-check](./adsense-check) | AdSense 过审预检：只读脚本核对广告代码、ads.txt、完整 sitemap、信任页、隐私政策、CMP、抽样页字数和带参数 URL，再拿哥飞 `adsense_audit` 或用户贴来的报告逐条查证（属实 / 部分属实 / 误报 / 现在不适用 / 无法查证），并核对页面承诺与实际行为；默认只评估不改文件。 |
 | [site-measure](./site-measure) | 把已有网站从 Google Analytics 迁到自建 Umami：先只读盘点（加载代码、事件、排除规则、CSP、隐私文字、测试、GA4 报表脚本），再分两次发布：先和 GA 并行、事件两边都发并补等待队列，对完数再删 GA；另带一个只读的 Umami 报表脚本。依赖本机 `~/Projects/umami` 的 umami-connect 和自建 Umami 服务；迁移不用于 site-kit 建的站；报表脚本能读任何站点，包括 site-kit 站点。 |
 | [family-story-kit-design](./family-story-kit-design) | 设计和审查交付给家庭的可打印亲子场景游戏（寻宝、生日冒险、跨日节庆故事套装）：先写体验承诺，把剧情转成孩子真正要做的动作，闭合线索链与谜题唯一解，从玩法推导材料，再按家长布置与孩子游玩两条视角走查；纸面模拟、PDF 渲染与真实试玩分开记录。不负责生成器代码、网站或支付。 |
 
