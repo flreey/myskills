@@ -108,7 +108,12 @@ do not pay for the same lookup again.
   `import --format json --source gefei_site_keywords --file seo/radar/site-keywords/<domain>-<date>.json`.
   A data tool observed the site ranking for these words, so they are observations, unlike sitemap
   slugs. They still go through `concepts` and triage like any other source.
+- A concept needs at least `concept_min_count` keywords (default 2), so a small result with words
+  seen only once yields no candidates. Expand a related seed first, or run `concepts --min-count 1`
+  for that round.
 - Their volume is a snapshot without a period and stays `volume_unperiodized`.
+- A file containing `[]` means the lookup returned no rows. It imports zero rows; it is not "no
+  demand" for that competitor.
 
 ## Structured JSON (anything else)
 
