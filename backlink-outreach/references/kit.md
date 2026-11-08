@@ -16,6 +16,9 @@
 - 分类和标签（按常见目录的分类选 3–5 个）：
 - 价格模式：免费 / 免费增值 / 付费；免费额度和限制：
 - 平台：Web / Chrome 扩展 / iOS / API …
+- 许可证（逐字写法，例如 CC0 1.0；附许可证页链接）：
+- 是否 AI 生成（内容和许可证类目录、图书馆指南常问；如实写，例如“All sounds are AI-generated”）：
+- 免费额度的具体写法（例如“每天 N 条 MP3，无需账号”，以线上页面为准）：
 - 上线日期：
 
 ## 文案（多种长度，按字段裁剪，别现场重写）
@@ -54,6 +57,8 @@
 | Features / Highlights | 核心功能 |
 | Category / Tags | 分类和标签，只选最接近的一个，记进台账 |
 | Pricing | 价格模式和免费额度 |
+| License | 许可证 |
+| AI-generated / Made with AI | 是否 AI 生成 |
 | Logo / Icon / Screenshots | assets/ 里对应尺寸的图 |
 | Maker / Contact | 身份段，只填用户授权过的 |
 | Alternatives to / Compared with | 和替代品的区别 |

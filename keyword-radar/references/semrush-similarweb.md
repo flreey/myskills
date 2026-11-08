@@ -16,22 +16,27 @@
 - **每轮上限：** Semrush 报告页最多打开 15 次，Similarweb 最多 10 次。要多查，先问用户。
 - **一页读完再开下一页。** 每页至少等 5–8 秒，让它加载完。
 - **遇到以下情况立即停：** 验证码、限流、额度提示、被登出、节点不可用。把已读到的结果整理好交给用户。不自己换节点重试，换不换由用户决定。
+- **设备数量限制也要立即停：** 页面提示“超出同一时间设备数量限制”，或从 Semrush 跳回 dash，也属于要立即停的情况。
+  - 同一时间只让一个会话用 Semrush。用完把标签页切回 dash.3ue.co 或关掉，别停在 Semrush 页面上。
+  - 2026-11-08 两个会话同时停在 Semrush 上时，触发过一次这个限制。
 - **不动共享账号的东西：** 不建项目（Position Tracking、Backlink Audit、Site Audit 都会占共享账号的额度），不改账号设置和语言。
 
 ## 入口（2026-11-08 实测可用）
 
-**第一次进入：** 每次会话先打开 dash.3ue.co，在首页点对应工具的“打开”。之后可以直接访问下面的网址，平台会自动带上会话参数。
+**第一次进入：** 每个会话先打开 dash.3ue.co，在首页点对应工具的“打开”。内置浏览器会拦下新标签页，没关系，当前标签页照样会进入工具。之后可以直接访问下面的网址，平台会自动带上会话参数。
 
 | 用途 | 网址 | 读到什么 |
 |---|---|---|
 | 站找词（自然排名） | `https://sem.3ue.co/analytics/organic/positions/?db=us&q=<域名>&searchType=domain` | 排名词总数、各国词数、数据日期；每页 100 行：关键词、意图、排名、流量、流量%、搜索量、KD%、URL |
 | 拓词 | `https://sem.3ue.co/analytics/keywordmagic/?q=<词>&db=us` | 全部匹配词数、主题分组；每页 100 行：关键词、意图、搜索量、KD、CPC、竞争度 |
 | 外链概览 | `https://sem.3ue.co/analytics/backlinks/overview/?q=<域名>&searchType=domain` | Authority Score、引荐域名数、外链数及趋势 |
-| 外链明细 | `https://sem.3ue.co/analytics/backlinks/backlinks/?q=<域名>&searchType=domain` | 每页 100 行：页面 AS、来源页标题和 URL、锚文本、目标 URL、首次和最近发现日期 |
+| 外链明细 | `https://sem.3ue.co/analytics/backlinks/backlinks/?q=<域名>&searchType=domain&filter=-%7Crefdomain%7CEq%7Cyahoo.com` | 每页 100 行：页面 AS、来源页标题和 URL、锚文本、目标 URL、首次和最近发现日期。默认排除 yahoo.com：不排除时，第 1 页可能几乎全是 Yahoo 搜索页。要排除多个域名时，用 `ba_adv=[["-","refdomain","Eq","<域名>"],…]`（URL 编码）；只看一个引荐域名时，用 `filter=%2B%7Crefdomain%7CEq%7C<引荐域名>` |
 | 外链差距 | `https://sem.3ue.co/analytics/gap/backlinks/report/?q=<自己域名>&searchType=domain&compareWith=<站1>%3Adomain%7C<站2>%3Adomain` | “对照站有、自己没有”的引荐域名：分类、AS、月访问量、匹配数、各站外链数；每页 100 行。多个站用 `|` 分隔，用逗号只会读到第一个；表格是 `tr`/`td` |
 | 网站表现 | `https://sim.3ue.co/#/digitalsuite/websiteanalysis/overview/website-performance/*/999/3m?webSource=Total&key=<域名>` | 近 3 个月访问量和环比、月访问量、独立访客、渠道变化、国家分布、设备、排名、访问时长、相似站 |
 
 - `db` 是 Semrush 的国家数据库，默认用 `us`，换市场时改 `db` 并记录下来。
+- 翻页加 `&page=2`；排序加 `sort_field=<字段>`，比如外链差距按 AS 排序是 `domain_ascore`。点表头排序时网址会变，但表格不刷新，要重新打开网址，每打开一次算一页。
+- 外链差距表里的外链数可以在行内展开，看最多 5 条明细。展开不算换页，但每轮最多展开 20 次。
 - `/analytics/backlinks/refdomains/` 会跳回概览页；看引荐域名时，在概览页里切换标签。
 - 外链差距的空白表单（`/analytics/gap/backlinks/`）在页面上填域名容易出错：带 `q` 参数时会预先填入，手动再输入的字会拼进同一个框里。直接打开上表里的报告网址更稳。
 - 菜单里还有关键词差距、Similarweb 的“流量来源渠道”和“外链”，这些还没实测。第一次用时，把实际网址和读法补进上表。
