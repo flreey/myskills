@@ -45,7 +45,7 @@ visibility (AI crawlers, llms.txt, ChatGPT probes) runs separately in `site-geo`
 | Site | Technical gates | Registry |
 | --- | --- | --- |
 | kit site | `npm run check` (rules in site-kit `references/seo-gates.md`) and `npm run kit:shots` | `mapper.py --root <site> sync-check --sitemap .sitekit/reports/sitemap-urls.txt --pages .sitekit/reports/pages.json` |
-| other site | optionally the `seo-page` skill for meta, canonical, schema and images | `mapper.py --root <project> sync-check --sitemap <sitemap URL>`; add `--pages` when the project can export `[{url, title, …}]` |
+| other site | the `site-check` skill (it also covers non-kit sites) | `mapper.py --root <project> sync-check --sitemap <sitemap URL>`; add `--pages` when the project can export `[{url, title, …}]` |
 
 `sync-check` reports live URLs missing from the registry and, with `--pages`, title, page-type and
 indexability drift.
