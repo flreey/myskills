@@ -29,6 +29,7 @@
 | Ahrefs 免费外链查询 | ahrefs.com/backlink-checker，输入对照站域名 | 只显示部分外链；有验证码时交给用户 |
 | Bing Webmaster Tools | 外链功能里可以查看其他站点的外链 | 需要用户已登录的 BWT 账号 |
 | 搜索提及 | `"对照站域名" -site:对照站域名` | 提及不一定带链接，要打开确认 |
+| Common Crawl 域名级链接图 | 一次拿几十个对照站的全部引荐域名，见 [海量挖掘](cc-webgraph.md) | 约 11 GB 下载要用户同意；只到域名，不给页面和 `rel` |
 
 ### 引荐域名批量挖掘（Semrush 订阅有效时首选）
 
