@@ -38,6 +38,14 @@
    - 池子小时降到 2；要控制数量时，第二个参数给上限。
 6. **出清单**：`python3 -I cc_build_list.py ../backlink-list.csv`。分四类：自助投稿 → 要发信 → 要发信（类型待看）→ 无入口（只记录）。
 
+## 只要自助投稿入口
+
+用户只要“可以自助发外链的地方”时，用 `cc_selfserve.py`：首页找投稿链接，找不到就试常见投稿路径（/submit、/submit-tool…），再打开投稿页判断有没有表单、要不要登录、有没有价格、是否要回链徽章，分成“免费表单 / 表单+有价格 / 要登录 / 要回链 / 付费 / 待确认 / 打不开”。
+
+- **输入两路**：竞品外链清单（`backlink-list.csv` 按 priority 取前几百个）+ GitHub 上的免费投稿目录列表（搜 `awesome ai directories`、`saas directories`，抽出 README 里的域名写进 `lists/domains.txt`）。2026-11-08 ToHD 实测：前 800 个竞品外链域名只出 36 个“免费表单”，大半是文章网址里带 submit 的误判；642 个目录列表域名出 408 个投稿页，人工核对后免费可投的主要来自这一路。
+- **参数**：`SELFSERVE_TIMEOUT=4 SELFSERVE_MAXPATHS=4 python3 -I cc_selfserve.py 999 lists/top800.txt selfserve.csv`。默认值（8 秒、11 个路径）扫 7,000 个域名超过 75 分钟，别这样跑。
+- **必须人工核对**：脚本的“免费表单”只是页面上有表单、没看到价格；多数站提交后才要求注册，很多写明免费档 nofollow、排队 30–90 天。逐个打开投稿页确认免费条件、注册、字段和 rel 说明，再写进准备清单。
+
 ## 分档和排序
 
 - `tier` 按 harmonic centrality 排名：强 = 前 10 万，中 = 10–100 万，弱 = 100–500 万，很弱 = 500 万以后。它只是排序依据，不是 DR，也不能写成 DR。
