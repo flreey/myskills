@@ -13,7 +13,7 @@
   - 打开报告页，等页面渲染完再读表格。
   - 不调用平台接口，不写脚本连续翻页抓取，不同时开多个标签页查询。
   - 不点“导出”：导出会下载文件，需要另外征得用户同意。
-- **每轮上限：** Semrush 报告页最多打开 15 次，Similarweb 最多 10 次。要多查，先问用户。
+- **每轮上限：** Semrush 报告页最多打开 15 次，Similarweb 最多 10 次。要多查，先问用户。“每轮”指用户的一次请求，不是一天；用户让继续时可以新开一轮。
 - **一页读完再开下一页。** 每页至少等 5–8 秒，让它加载完。
 - **遇到以下情况立即停：** 验证码、限流、额度提示、被登出、节点不可用。把已读到的结果整理好交给用户。不自己换节点重试，换不换由用户决定。
 - **设备数量限制也要立即停：** 页面提示“超出同一时间设备数量限制”，或从 Semrush 跳回 dash，也属于要立即停的情况。
@@ -31,15 +31,19 @@
 | 拓词 | `https://sem.3ue.co/analytics/keywordmagic/?q=<词>&db=us` | 全部匹配词数、主题分组；每页 100 行：关键词、意图、搜索量、KD、CPC、竞争度 |
 | 外链概览 | `https://sem.3ue.co/analytics/backlinks/overview/?q=<域名>&searchType=domain` | Authority Score、引荐域名数、外链数及趋势 |
 | 外链明细 | `https://sem.3ue.co/analytics/backlinks/backlinks/?q=<域名>&searchType=domain&filter=-%7Crefdomain%7CEq%7Cyahoo.com` | 每页 100 行：页面 AS、来源页标题和 URL、锚文本、目标 URL、首次和最近发现日期。默认排除 yahoo.com：不排除时，第 1 页可能几乎全是 Yahoo 搜索页。要排除多个域名时，用 `ba_adv=[["-","refdomain","Eq","<域名>"],…]`（URL 编码）；只看一个引荐域名时，用 `filter=%2B%7Crefdomain%7CEq%7C<引荐域名>` |
-| 外链差距 | `https://sem.3ue.co/analytics/gap/backlinks/report/?q=<自己域名>&searchType=domain&compareWith=<站1>%3Adomain%7C<站2>%3Adomain` | “对照站有、自己没有”的引荐域名：分类、AS、月访问量、匹配数、各站外链数；每页 100 行。多个站用 `|` 分隔，用逗号只会读到第一个；表格是 `tr`/`td` |
+| 引荐域名 | `https://sem.3ue.co/analytics/refdomains/report/?q=<域名>&searchType=domain&ba_rel=follow&sort_field=domain_ascore` | 每页 100 个域名：AS、根域名和行业分类、指向该站的外链数、国家/IP、首次和最近发现日期；新增和丢失的标记在域名格里。`ba_rel=follow` 只看 Follow；`ba_category=<分类>` 按行业筛，常用 `education`、`computer_and_video_games`、`computer_software_and_development`、`information_technology`（`online_services` 加 Follow 时实测返回过 0 行）。每行有“Show details”按钮，点开列出这个域名的几条具体外链（来源页、锚文本、rel、位置），不换页、不计页数，每次约 4 秒 |
+| 外链差距 | `https://sem.3ue.co/analytics/gap/backlinks/report/?q=<自己域名>&searchType=domain&compareWith=<站1>%3Adomain%7C<站2>%3Adomain` | “对照站有、自己没有”的引荐域名：分类、AS、月访问量、匹配数、各站外链数；每页 100 行。多个站用 `|` 分隔，用逗号只会读到第一个；表格是 `tr`/`td`。高级筛选只有“国家（按 IP）”和“顶级域名”，不能按关键词或页面类型筛 |
 | 网站表现 | `https://sim.3ue.co/#/digitalsuite/websiteanalysis/overview/website-performance/*/999/3m?webSource=Total&key=<域名>` | 近 3 个月访问量和环比、月访问量、独立访客、渠道变化、国家分布、设备、排名、访问时长、相似站 |
+| 引荐网站（Similarweb “外链 › 导入流量”） | `https://sim.3ue.co/#/digitalsuite/websiteanalysis/referrals/*/999/3m?webSource=Total&selectedTab=incomingTraffic&key=<域名>`（`selectedTab=outgoingTraffic` 是出站） | 真正给该站送访客的网站和流量份额，只给域名。小站通常只有 7–8 个，七八成记为“未知”；看同类里流量大的站更有用 |
 
 - `db` 是 Semrush 的国家数据库，默认用 `us`，换市场时改 `db` 并记录下来。
 - 翻页加 `&page=2`；排序加 `sort_field=<字段>`，比如外链差距按 AS 排序是 `domain_ascore`。点表头排序时网址会变，但表格不刷新，要重新打开网址，每打开一次算一页。
 - 外链差距表里的外链数可以在行内展开，看最多 5 条明细。展开不算换页，但每轮最多展开 20 次。
-- `/analytics/backlinks/refdomains/` 会跳回概览页；看引荐域名时，在概览页里切换标签。
+- 引荐域名的报告网址是 `/analytics/refdomains/report/`。`/analytics/backlinks/refdomains/` 会跳回概览页，不要用它。
+- 外链明细可以按来源页标题或网址里的词筛：加 `&ba_tau=<词>`，可以和 `ba_adv` 的排除条件一起用。
 - 外链差距的空白表单（`/analytics/gap/backlinks/`）在页面上填域名容易出错：带 `q` 参数时会预先填入，手动再输入的字会拼进同一个框里。直接打开上表里的报告网址更稳。
-- 菜单里还有关键词差距、Similarweb 的“流量来源渠道”和“外链”，这些还没实测。第一次用时，把实际网址和读法补进上表。
+- 菜单里还有关键词差距、Similarweb 的“流量来源渠道”和“反向链接分析”，这些还没实测。第一次用时，把实际网址和读法补进上表。
+- Similarweb 的引荐网站页不是 `[role="row"]` 表格：读 `document.body.innerText`，截取“变动”到“用户指南”之间，依次是序号、域名、行业、全球排名、流量份额、变化。
 
 ## 怎么读表
 
@@ -64,6 +68,7 @@
   - 进短名单前，照常用哥飞 `keyword_difficulty` 精评。
 - **搜索量**：Semrush 的数值没有明确的统计周期，只记成 `volume_unperiodized`。
 - **Authority Score** 和哥飞 DR 不是同一个分数。sites.md 的 DR 列照旧填哥飞 DR；如果用到 AS，另外注明“Semrush AS”。
+  - 可以拿 AS 预筛：2026-11-08 用 37 个同时有两种分数的域名对过，AS ≥ 31 的 DR 全部 ≥ 50，AS 19–26 的 DR 在 27–50 之间。所以门槛是 DR ≥ 30 时，AS ≥ 30 可以直接算满足，AS 20–29 要另查 DR。
 - **Similarweb 对小站不准**：月访问几万以下的站，只看方向（在涨还是在跌、主要渠道是什么），不引用绝对数。数据面板显示的是估算值，引用时注明“Similarweb 估算”和时间窗。
 - **品牌词**：对方的站名、域名这类词，不算“起量词”，也不当成种子。
 

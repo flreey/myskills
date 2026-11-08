@@ -31,6 +31,7 @@
 | Semrush KD% 是 18，哥飞版 KD 是 45 | G3 以哥飞版 KD 和 SERP 为准，记下两个口径的冲突 | 因为 Semrush KD% 低直接进短名单 |
 | dash.3ue.co 显示订阅已过期 | 照原来的哥飞流程跑，轮次报告里写明 Semrush 不可用 | 停下这一轮，等续费 |
 | 另一个会话正在用 Semrush | 等它用完，或改用哥飞路径；用完把自己的标签页切回 dash | 两个会话同时打开 Semrush，触发设备数量限制 |
+| 要看某个站的引荐域名 | 打开 `/analytics/refdomains/report/`，按需加 `ba_rel=follow`、`sort_field=domain_ascore`、`ba_category` | 打开 `/analytics/backlinks/refdomains/`，被跳回概览后去点标签 |
 
 ## 来历
 
@@ -41,4 +42,5 @@
 - **v2.3（2026-11-07）**：第一次实跑（9 个同类站、1 个新站、11 积分）后补规则：平台子域名站的 DR 写不适用、域龄看批次或子域名快照；网页对话查询转存同格式 JSON，0 行也存 `[]`，按网页额度差值记花费；明确哪些算大平台；SERP 首页全是老站时看第 2 页或换长尾。
 - **v2.4（2026-11-08）**：接入站长的 3ue.co 拼车账号（Semrush GURU、Similarweb PRO），新增 references/semrush-similarweb.md。订阅有效时，站找词、拓词和判断起量优先用它们，G3 仍以哥飞版 KD 和 SERP 为准。平台禁止自动化，站长决定接受风险，因此每轮 Semrush 最多 15 页、Similarweb 最多 10 页，遇到限额就停；不点导出、不建项目。实测打开了 6 页：自然排名、Keyword Magic、外链概览、外链明细、Similarweb 网站表现，美国库可用，`/analytics/backlinks/refdomains/` 会跳回概览。
 - **v2.5（2026-11-08）**：semrush-similarweb.md 补上设备数量限制（同一时间只让一个会话用 Semrush）、翻页和排序的网址写法、外链明细默认排除 yahoo、外链差距行内展开的次数上限。
+- **v2.6（2026-11-08）**：semrush-similarweb.md 补上引荐域名报告（`/analytics/refdomains/report/`，Follow、按 AS 排序、按行业分类、行内“Show details”），更正“引荐域名要在概览页切换标签”的旧说法；补上外链差距高级筛选只有国家和顶级域名、外链明细的 `ba_tau` 关键词筛选、Similarweb 引荐网站的网址和读法、AS 与 DR 的对应关系（37 个样本），以及“每轮”指一次请求。
 - 真实使用中出现错误时，修改对应的规则，并在上表补一行。
