@@ -28,15 +28,17 @@
 | 拓词 | `https://sem.3ue.co/analytics/keywordmagic/?q=<词>&db=us` | 全部匹配词数、主题分组；每页 100 行：关键词、意图、搜索量、KD、CPC、竞争度 |
 | 外链概览 | `https://sem.3ue.co/analytics/backlinks/overview/?q=<域名>&searchType=domain` | Authority Score、引荐域名数、外链数及趋势 |
 | 外链明细 | `https://sem.3ue.co/analytics/backlinks/backlinks/?q=<域名>&searchType=domain` | 每页 100 行：页面 AS、来源页标题和 URL、锚文本、目标 URL、首次和最近发现日期 |
+| 外链差距 | `https://sem.3ue.co/analytics/gap/backlinks/report/?q=<自己域名>&searchType=domain&compareWith=<站1>%3Adomain%7C<站2>%3Adomain` | “对照站有、自己没有”的引荐域名：分类、AS、月访问量、匹配数、各站外链数；每页 100 行。多个站用 `|` 分隔，用逗号只会读到第一个；表格是 `tr`/`td` |
 | 网站表现 | `https://sim.3ue.co/#/digitalsuite/websiteanalysis/overview/website-performance/*/999/3m?webSource=Total&key=<域名>` | 近 3 个月访问量和环比、月访问量、独立访客、渠道变化、国家分布、设备、排名、访问时长、相似站 |
 
 - `db` 是 Semrush 的国家数据库，默认用 `us`，换市场时改 `db` 并记录下来。
 - `/analytics/backlinks/refdomains/` 会跳回概览页；看引荐域名时，在概览页里切换标签。
-- 菜单里还有关键词差距、外链差距、Similarweb 的“流量来源渠道”和“外链”，这些还没实测。第一次用时，把实际网址和读法补进上表。
+- 外链差距的空白表单（`/analytics/gap/backlinks/`）在页面上填域名容易出错：带 `q` 参数时会预先填入，手动再输入的字会拼进同一个框里。直接打开上表里的报告网址更稳。
+- 菜单里还有关键词差距、Similarweb 的“流量来源渠道”和“外链”，这些还没实测。第一次用时，把实际网址和读法补进上表。
 
 ## 怎么读表
 
-报告表格的每一行是 `[role="row"]`，单元格是 `[role="cell"]` 或 `[role="gridcell"]`，第一行是表头。读完先核对行数和页面显示的条数一致。
+报告表格的每一行是 `[role="row"]`，单元格是 `[role="cell"]` 或 `[role="gridcell"]`，第一行是表头。外链差距是例外，要读 `tr` 和 `td`。读完先核对行数和页面显示的条数一致。
 
 ```js
 [...document.querySelectorAll('[role="row"]')].map(r =>

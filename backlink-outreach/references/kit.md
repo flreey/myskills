@@ -41,6 +41,25 @@
 - 未经核实的数字（用户量、准确率）、不存在的功能、竞品的负面说法
 ```
 
+## 常见表单字段对照
+
+批量投稿前先把这张表补全，同一类表单就不用每次重新判断该填哪段素材：
+
+| 表单字段 | 取素材包的哪一项 |
+|---|---|
+| Name / Title | 名称（统一写法） |
+| Tagline / Slogan / Short description（≤ 60–100 字符） | 标语，不够就用一句话裁剪 |
+| Description（≤ 300 字符） | 短介绍 |
+| Long description / About（不限长度或 ≥ 500 字符） | 长介绍 |
+| Features / Highlights | 核心功能 |
+| Category / Tags | 分类和标签，只选最接近的一个，记进台账 |
+| Pricing | 价格模式和免费额度 |
+| Logo / Icon / Screenshots | assets/ 里对应尺寸的图 |
+| Maker / Contact | 身份段，只填用户授权过的 |
+| Alternatives to / Compared with | 和替代品的区别 |
+
+遇到这张表里没有的字段（例如“谁在用”“融资情况”），先空着，在台账里记下来，下次补进素材包，不现场编。
+
 ## 使用规则
 
 - 字段长度不够时，从更长的版本裁剪，不现场编新说法。
