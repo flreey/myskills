@@ -7,6 +7,10 @@
   - 精评已经过了 G1/G2 的候选；
   - 免费入口产量明显不足时补充收集。
 - 价格以工具当次描述为准，下表的数值只用于估预算。哥飞 MCP 的服务端规则优先：近 20 分钟花到 30 积分就停下来问。
+- **Semrush / Similarweb（3ue.co 拼车账号）在订阅有效时优先用于站找词、拓词和判断起量。**
+  - 不扣积分，但每轮有打开页面的次数上限，并有封号风险。
+  - 入口、操作规则和口径见 [Semrush 与 Similarweb](semrush-similarweb.md)。
+  - 不可用时回到下表的哥飞路径。
 
 ## 入口一：新词抢先
 
@@ -30,7 +34,9 @@
 | 哥飞新站批次 | `launch_batches`，再用 `launch_batch(id)` 取整批项目和已有分析 | 不扣积分 |
 | 哥飞网站发现 | `hosted_batches`，再用 `hosted_batch(id)` | 不扣积分 |
 | 手动 | SERP 里遇到陌生小站时，查域龄（whois 或 Wayback 首次快照） | 免费 |
-| `site_keywords` | 看某个新站或某个页面靠哪些词排名 | 每 50 词 7.5 积分，最低 8；**每轮最多 2 次** |
+| Semrush 自然排名 | 订阅有效时代替 `site_keywords`：每个站读第 1 页的 100 行，按流量排序 | 不扣积分；计入每轮 Semrush 15 页上限 |
+| Similarweb 网站表现 | 看访问趋势、渠道、国家和相似站，判断是不是最近起量；小站只看方向 | 不扣积分；计入每轮 Similarweb 10 页上限 |
+| `site_keywords` | 看某个新站或某个页面靠哪些词排名；Semrush 不可用时用 | 每 50 词 7.5 积分，最低 8；**每轮最多 2 次** |
 | `domain_dr` | 批量给域名打 DR | 每 20 个域名 1.5 积分，缓存命中免费 |
 
 - 按 [词站互找](word-site-loop.md) 滚动：从种子词找站、从新站找词；先读 `sites.md`，30 天内查过的站不重查。
@@ -44,6 +50,7 @@
 | autocomplete | 浏览器里输入，或请求 `https://suggestqueries.google.com/complete/search?client=firefox&hl=en&gl=us&q=<词>`。用词根加修饰词：for、to、vs、online、free、without、how to、generator、checker、converter、calculator、template | 免费 |
 | SERP 附带内容 | People Also Ask、相关搜索、Reddit/Quora 的问题标题 | 免费 |
 | site-research 引擎 | 已关联项目且装了 site-research 时，可以复用它的 `suggest` 来批量补全 | 免费 |
+| Semrush Keyword Magic | 订阅有效时代替 `keyword_ideas`：读第 1 页的 100 行；KD% 只用来排序 | 不扣积分；计入每轮 Semrush 15 页上限 |
 | `keyword_ideas` | 用 `mode=suggestions` 取长尾，可带 `maxKd` 预筛 | 每 50 词 7.5 积分，最低 8 |
 
 ## SERP 和难度
@@ -68,6 +75,7 @@
 - `keyword_ideas`、`site_keywords`、实时 `trends_rising` 都比较贵，一轮合计不超过 3 次，并计入这 30 积分。
 - 走 seo.web.cafe/chat 网页对话查询时，扣费不按上表：工具返回 0 行，对话照样会扣分（2026-11-07 实测一次出词扣 7 分）。花费按查询前后网页“今日赠送已用”的差值记，同样计入 30 积分。
 - 调用被拒、余额不足或达到上限时，停止付费调用，用已有结果出短名单，并说明哪些项因此没有精评。
+- Semrush 和 Similarweb 不计入这 30 积分。轮次报告里另外写明各打开了几页、有没有遇到限额。
 
 ## 受阻处理
 

@@ -12,6 +12,7 @@
 | Industry taxonomy | research | seed `taxonomy` | Systematic coverage | — |
 | Site search and request logs | project data | `onsite_request` | Product demand (not search volume) | — |
 | Paid exports (Ahrefs, Semrush) | user files | `external_reference` / `historical_volume` | Volume, parent topics | High |
+| Semrush in the browser (owner's 3ue.co shared account) | browser, read the page | `external_reference` | Keyword Magic expansion, competitor ranking keywords | Medium |
 | Competitor ranking keywords from keyword-radar | files in `seo/radar/site-keywords/` | `external_reference` | Words a recently grown competitor already ranks for | Medium |
 
 ## Autocomplete (script)
@@ -114,6 +115,37 @@ do not pay for the same lookup again.
 - Their volume is a snapshot without a period and stays `volume_unperiodized`.
 - A file containing `[]` means the lookup returned no rows. It imports zero rows; it is not "no
   demand" for that competitor.
+
+## Semrush in the browser (3ue.co shared account)
+
+The owner has a shared Semrush GURU account at sem.3ue.co (and Similarweb at sim.3ue.co),
+first tested on 2026-11-08 with a subscription that ends 2026-12-07. Check that it is still
+valid on the dash.3ue.co home page. The platform forbids automated access. The owner accepted
+that risk for browser use. Follow the rules in keyword-radar's
+`references/semrush-similarweb.md`:
+
+- at most 15 Semrush report pages per round;
+- read one page at a time;
+- never click Export or create projects;
+- stop at a captcha, a limit message or a sign-out.
+
+That file also lists the URLs and the table-reading snippet.
+
+- **Keyword Magic** (`/analytics/keywordmagic/?q=<seed>&db=us`) expands one seed into a topic
+  list. Read the first page (100 rows sorted by volume) for the seeds that matter most. Do not
+  page through tens of thousands of rows: use `suggest` for breadth.
+- **Competitor ranking keywords**: if keyword-radar already saved the competitor as
+  `seo/radar/site-keywords/<domain>-<date>-semrush.json`, import that file. Look a site up
+  yourself only when it is not in that folder.
+- Save what you read as JSON in the format under "Structured JSON" below, then import it with
+  `import --format json --source semrush_kmt` (or `semrush_positions`).
+  - Set `source_ref` to `semrush_kmt:<seed>:<db>:<data date>`.
+  - Record volume as `volume_unperiodized`. Semrush shows it rounded ("4.4K"), so note that it
+    is rounded.
+  - Keep Semrush KD% in `metrics.semrush_kd`. It is a different scale from other difficulty
+    scores, so never put it in the same column as them.
+- When the subscription has lapsed or the site is blocked, skip this source and say so in the
+  round notes.
 
 ## Structured JSON (anything else)
 
