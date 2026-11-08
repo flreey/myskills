@@ -31,6 +31,7 @@
 | [site-geo](./site-geo) | AI 搜索可见度检查：robots.txt 对各 AI 爬虫（搜索、用户触发、训练三类）的规则，用 AI user-agent 实测访问，llms.txt 是否与站点一致（死链、noindex、漏页、停用说法）；再经用户同意用固定提问模板去 ChatGPT 验证能否打开页面、是否愿意推荐以及要改什么。事实与抽样分开报告。只读。 |
 | [adsense-check](./adsense-check) | AdSense 过审预检：只读脚本核对广告代码、ads.txt、完整 sitemap、信任页、隐私政策、CMP、抽样页字数和带参数 URL，再拿哥飞 `adsense_audit` 或用户贴来的报告逐条查证（属实 / 部分属实 / 误报 / 现在不适用 / 无法查证），并核对页面承诺与实际行为；默认只评估不改文件。 |
 | [site-measure](./site-measure) | 把已有网站从 Google Analytics 迁到自建 Umami：先只读盘点（加载代码、事件、排除规则、CSP、隐私文字、测试、GA4 报表脚本），再分两次发布：先和 GA 并行、事件两边都发并补等待队列，对完数再删 GA；另带一个只读的 Umami 报表脚本。依赖本机 `~/Projects/umami` 的 umami-connect 和自建 Umami 服务；迁移不用于 site-kit 建的站；报表脚本能读任何站点，包括 site-kit 站点。 |
+| [stripe-launch](./stripe-launch) | Stripe 从沙盒切到正式收款（site-kit app 站为主，也兼容非 kit 站）：分阶段清单覆盖沙盒价格和 webhook、正式账户激活（AI 只填非敏感项）、美元收款和结算币种、欧盟/英国增值税方案（Stripe Tax 自报或 Managed Payments）、kit 的 `taxBehavior` / `managedPayments` 配置及部署顺序；附带一个站长在自己终端运行的通用脚本，用来建价格、转移 lookup key、重建 webhook 和写入密钥，密钥不经过 AI。 |
 | [family-story-kit-design](./family-story-kit-design) | 设计和审查交付给家庭的可打印亲子场景游戏（寻宝、生日冒险、跨日节庆故事套装）：先写体验承诺，把剧情转成孩子真正要做的动作，闭合线索链与谜题唯一解，从玩法推导材料，再按家长布置与孩子游玩两条视角走查；纸面模拟、PDF 渲染与真实试玩分开记录。不负责生成器代码、网站或支付。 |
 
 ## 📋 一键安装（直接复制粘贴）
@@ -59,6 +60,7 @@
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/site-geo
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/site-measure
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/family-story-kit-design
+帮我装这个 skill：https://github.com/flreey/myskills/tree/main/stripe-launch
 ```
 
 > **就这一行。** 现代 coding agent 已经原生理解 GitHub `tree/main/<subdir>` 这种子目录 URL + `SKILL.md` 标准 + skills 目录约定，不需要手把手写步骤。
