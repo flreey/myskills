@@ -144,7 +144,7 @@ What this showed:
 
 ## Checks
 
-- `python3 -m unittest test_report test_scan test_audit test_funnel` in `scripts/`: 30 tests pass.
+- `python3 -m unittest test_report test_scan test_audit test_funnel` in `scripts/`: 30 tests passed at release; 32 after the follow-up below.
   They cover synthetic projects (spreads, ternaries, attributes, kit events, private keys and values,
   a time key with two meanings, missing roles, the disclosure check) and a fake Umami (paging, ordered
   and any-order funnels, exclusion rules, plan alias mapping, per-event fields, server fallback).
@@ -157,3 +157,21 @@ What this showed:
   owner's session was mixed in, and `report.py` could not read fields.
 - The audit has run on site-kit sites only. On other stacks it depends on literal event names; GA-style
   `gtag('event', ...)` calls are `scan.py`'s job, not the audit's.
+
+## Follow-up: fixing ToHD with the skill (2026-11-09)
+
+The owner approved the three code fixes from the audit; ToHD commit 0a06905, not deployed:
+
+- `cloud_job_end` now sends `length` (band) and `seconds` (GPU time, `finished_at - started_at`);
+- `cloud_click` sends file bands only when a file is loaded;
+- `analyticsEvents` names the device check, the clicked cloud link, missing credits, partial
+  batches and cloud processing time.
+
+`npm run check` passed (types, build, astro check, 170 Workers tests, kit:check). The first run failed
+in `astro check` on a spread of an optional `seconds` into `track()`'s data type, which was fixed with
+a plain object. The re-audit reported no missing roles, no naming or field issues, no unresolved
+spreads and no fields missing from the disclosure. That needed two audit fixes: spreads of helper
+calls (`...fileCtx()`), and variables with a type annotation whose keys are added later
+(`data.seconds = ...`). The kit's single `legal.effectiveDate` (shared by privacy and terms) was left
+unchanged. Production proof (a `cloud_job_end` with GPU `seconds` in Umami) waits for a deploy and a
+real cloud job.

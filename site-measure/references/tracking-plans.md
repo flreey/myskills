@@ -142,7 +142,7 @@ Site events go through `site/src/site/components/track.ts` (`track(name, data)`,
 | take-away | `tool_download` | Upscaler | settings (added 2026-11-09; before that, results were never counted) |
 | upsell | `cloud_click` | Upscaler | `from` (`tool_hint`, `tool_4k_option`, `tool_4k_start`, `tool_4k_pricing`) + settings |
 | paywall | `cloud_short` | `app/App.tsx` | `tier`, `files`, `missing`, `fits` |
-| job | `cloud_start`, `cloud_uploaded`, `cloud_job_end`, `cloud_start_error`, `cloud_upload_error`, `cloud_download` | App.tsx | `tier`, `out`, `files`, `credits`, `partial`, `status`, `reason` |
+| job | `cloud_start`, `cloud_uploaded`, `cloud_job_end`, `cloud_start_error`, `cloud_upload_error`, `cloud_download` | App.tsx | `tier`, `out`, `files`, `credits`, `partial`, `status`, `length`, GPU `seconds`, `reason` |
 | buy click | `buy_click` (`from=app_bar`, `app_short`) | App.tsx, `data-umami-event` | `from` |
 | kit paid funnel | `pricing_buy`, `billing_buy`, `nav_account`, `checkout_*`, `purchase` | `src/kit/ui/**` | `product`, `plan`, `amount`, `currency`, `status`, `error` |
 
@@ -158,7 +158,10 @@ Lessons from ToHD, now in the rules above:
 
 - The download of the result had no event, so "used the tool" could not be told from "watched it run".
 - `seconds` first meant the video length; it now means processing time on `tool_preview` and
-  `tool_done`. `cloud_job_end.seconds` still comes from the job record, which is the video length:
-  the audit flags that key as meaning two things.
+  `tool_done`. `cloud_job_end.seconds` came from the job record's `seconds` column, which is the video
+  length; the audit flagged the key as meaning two things. Since ToHD commit 0a06905 it sends the
+  length as a `length` band and `seconds` as GPU time (`finished_at - started_at`).
+- `cloud_click` spread the file bands before any file was loaded and sent empty strings; it now
+  sends them only when there is a file. Field value counts show this as `(empty)`; the audit cannot.
 - The owner's own test session was most of the early events (one session, dozens of events); funnels
   are read with the owner's sessions excluded (`--exclude-session`, `--exclude-screen`, `--exclude-city`).

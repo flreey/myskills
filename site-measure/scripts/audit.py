@@ -52,7 +52,7 @@ DISCLOSURE_HINTS = {
     "res": r"resolution", "length": r"length|duration", "size": r"size", "mode": r"\bmode",
     "out": r"output", "msPerFrame": r"millisecond|per frame|speed", "ms": r"millisecond",
     "seconds": r"second|how long|time", "backend": r"backend|graphics|gpu", "reason": r"error|reason",
-    "error": r"error", "state": r"device|support|capab|gpu", "from": r"which (?:link|button)|placement|where",
+    "error": r"error", "state": r"device|support|capab|gpu", "from": r"which .{0,20}(?:link|button)|clicked|placement|where",
     "tier": r"tier|plan|pack", "plan": r"plan", "files": r"number of files|files", "credits": r"credit",
     "partial": r"part of|partial", "missing": r"credit|short|missing", "fits": r"fit", "status": r"finish|fail|status",
     "product": r"product", "amount": r"amount", "currency": r"currency", "results": r"result",
@@ -155,13 +155,27 @@ def spread_keys(text, expr, seen=None):
     """Keys of an object spread like `...ctx.current`, from literals assigned to it in the same file."""
     seen = seen or set()
     expr = expr.strip()
-    base = re.match(r"^([A-Za-z_$][\w$]*)(?:\.current)?$", expr)
+    base = re.match(r"^([A-Za-z_$][\w$]*)(\.current|\(\s*\))?$", expr)
     if not base or base.group(1) in seen:
         return set(), False
     name = base.group(1)
     seen.add(name)
     keys, found = set(), False
-    pattern = re.compile(r"\b" + re.escape(name) + r"(?:\.current)?\s*=\s*(?:useRef\s*<\s*)?\{")
+    if base.group(2) and base.group(2).startswith("("):
+        # A helper such as `const fileCtx = () => (file ? { ...ctx.current } : {})`.
+        arrow = re.compile(r"\b" + re.escape(name) + r"\s*=\s*(?:async\s*)?\([^)]*\)\s*(?::[^=]+)?=>\s*\(")
+        for m in arrow.finditer(text):
+            start = m.end() - 1
+            more, still = arg_fields(text, text[start + 1:closing(text, start) - 1])
+            keys |= set(more)
+            found = found or (bool(more) or not still)
+        return keys, found
+    for m in re.finditer(r"\b" + re.escape(name) + r"\.([A-Za-z_$][\w$]*)\s*=(?!=)", text):  # data.seconds = ...
+        if m.group(1) != "current":
+            keys.add(m.group(1))
+            found = True
+    # `name = {`, `const name: Record<string, number> = {`, `name.current = {`, `useRef<{ ... }>`.
+    pattern = re.compile(r"\b" + re.escape(name) + r"(?:\.current)?\s*(?::\s*[\w<>,\s|\[\]]+?)?=\s*(?:useRef\s*<\s*)?\{")
     for m in pattern.finditer(text):
         start = m.end() - 1
         body = text[start + 1:closing(text, start) - 1]

@@ -107,6 +107,22 @@ class AuditTest(unittest.TestCase):
         report = audit.audit(root)
         self.assertEqual(report["fields"][0]["issue"], "value may carry private data")
 
+    def test_helper_spread(self):
+        root = project({"src/a.ts": "const fileCtx = () => (fileRef.current ? { ...ctx.current } : {});\n"
+                        "ctx.current = { res: band, length: len };\n"
+                        "track('cloud_click', { from: 'hint', ...fileCtx() });\n"})
+        report = audit.audit(root)
+        self.assertEqual(report["events"][0]["fields"], ["from", "length", "res"])
+        self.assertEqual(report["unresolved_spreads"], [])
+
+    def test_typed_variable_and_later_keys(self):
+        root = project({"src/a.ts": "const data: Record<string, string | number> = { status: j.status, length: band(j.seconds) };\n"
+                        "if (j.finishedAt) data.seconds = Math.round((j.finishedAt - j.startedAt) / 1000);\n"
+                        "track('cloud_job_end', data);\n"})
+        report = audit.audit(root)
+        self.assertEqual(report["events"][0]["fields"], ["length", "seconds", "status"])
+        self.assertEqual(report["unresolved_spreads"], [])
+
     def test_media_length_only(self):
         root = project({"src/a.ts": "track('tool_done', { seconds: video.duration });\n"})
         issues = [n["issue"] for n in audit.audit(root)["naming"]]
