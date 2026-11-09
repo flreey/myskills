@@ -4,7 +4,8 @@ Which events a site needs, what they may carry, and which funnel answers the sit
 The types are site-kit's (`tool`, `landing`, `directory`, `app`) plus content sites. A site that is
 two things at once (ToHD: a free tool plus a paid app) takes both plans. The machine-readable half,
 with the alias patterns, lives in [tracking-plans.json](tracking-plans.json); `scripts/audit.py`
-checks a project against it and `scripts/funnel.py --plan <type>` builds the standard funnel from it.
+checks a project against it, `scripts/funnel.py --plan <type>` builds the standard funnel from it, and
+`scripts/umami_reports.py draft` turns its funnels and goals into the site's saved Umami reports.
 
 ## Rules for every plan
 
@@ -46,7 +47,7 @@ result away? Where do they drop, and how slow is it on their device?
 | upsell click (opt.) | `cloud_click` | `from` |
 
 **Funnel:** tool page view → input → start → result → take-away. Read it per input band: a drop at
-"result" that only hits `1080p+` is a speed problem, not a copy problem.
+"result" that only hits `1080p+` is a speed problem, not a copy problem. **Goal:** take-away.
 
 **Common misses:** no take-away event (the result link is a plain `<a download>` nobody tracks); no
 done event, only start; `seconds` filled with the input's length; errors sent with the raw message;
@@ -66,6 +67,7 @@ the waitlist), and which placement earns the click?
 | paid (kit) | `purchase` | `product`, `amount` (minor units), `currency` |
 
 **Funnel:** home view → main CTA → pricing buy → checkout start → purchase (or home → waitlist).
+**Goals:** main CTA, purchase.
 
 **Common misses:** store and install links leave the site untracked; one event per button instead of
 `from`; the waitlist form counts page views of `/thanks` but not failed submits.
@@ -81,7 +83,7 @@ items send the clicks out?
 | outbound click | `outbound_click`, `visit_site` | `from` (card, item page), `category`, `position` |
 | submit (opt.) | `submit_item` | `category` |
 
-**Funnel:** hub view → item view (`path:` steps) → outbound click.
+**Funnel:** hub view → item view (`path:` steps) → outbound click. **Goal:** outbound click.
 
 **Common misses:** outbound links are plain `target="_blank"` anchors with no event; the search box
 sends what was typed; the item slug is sent as a field when the page URL already says it.
@@ -103,7 +105,7 @@ get their results out?
 | checkout and purchase (kit) | `checkout_start`, `checkout_cancel`, `checkout_error`, `purchase` | `product`, `amount`, `currency` |
 
 **Funnels:** activation: `/app` view → job start → job end → download. Paid: paywall or pricing view →
-buy click → checkout start → purchase.
+buy click → checkout start → purchase. **Goals:** result download, purchase.
 
 **Common misses:** a job-end event whose `seconds` is the input's length (the job record's `seconds`
 column often is); no download event for results fetched from storage; sign-up has no event because
@@ -121,7 +123,7 @@ tool, sign up, click an affiliate link)?
 | outbound or affiliate (opt.) | `outbound_click`, `affiliate_click` | `from`, `category` |
 | subscribe (opt.) | `subscribe` | `from` |
 
-**Funnel:** article view → read depth → CTA click.
+**Funnel:** article view → read depth → CTA click. **Goal:** CTA click.
 
 **Common misses:** average time on page read as reading (tabs left open); the article title sent as a
 field; every link tracked, so the CTA drowns.
@@ -153,6 +155,21 @@ python3 scripts/funnel.py --domain tohd.video --days 14 \
   --steps 'path:/,tool_file,tool_start,tool_preview,tool_done,tool_download' --exclude-screen <owner WxH>
 python3 scripts/funnel.py --domain tohd.video --days 14 --plan tool --plan app --fields --exclude-city '<owner city>'
 ```
+
+Saved in Umami since 2026-11-09, from `umami-reports.json` at the ToHD repository root
+(`umami_reports.py sync`):
+
+| Saved report | Steps |
+| --- | --- |
+| funnel 本地工具：上传到下载 | `path:/` → `tool_file` → `tool_start` → `tool_preview` → `tool_full` → `tool_done` → `tool_download` |
+| funnel 云端激活：任务到下载 | `path:/app` → `cloud_start` → `cloud_job_end[status=done]` → `cloud_download` |
+| funnel 付费：定价页到购买 | `path:/pricing` → `pricing_buy` → `checkout_start` → `purchase` |
+| goals | `tool_download`, `cloud_download`, `purchase` |
+
+The draft had three roles with two or more events (`tool_start`/`tool_full`, `tool_done`/`tool_preview`,
+`pricing_buy`/`billing_buy`/`buy_click`). The code settled the first two: the full run needs a preview
+first, and the download link appears only after `tool_done`, so all four became consecutive steps. The
+paid funnel starts on `/pricing`, so it keeps `pricing_buy`; the in-app `buy_click` path is not in it.
 
 Lessons from ToHD, now in the rules above:
 

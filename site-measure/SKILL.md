@@ -1,6 +1,6 @@
 ---
 name: site-measure
-description: Use when an existing website project (not a site-kit site) should start using the self-hosted Umami analytics, replace or remove Google Analytics (GA4, gtag.js, Google Tag Manager) in favor of Umami, or finish a GA-to-Umami cutover after a parallel period; when deciding which events a site should track for its type (tool, landing, directory, app, content), auditing a project's tracking calls against that plan and its privacy text, or reading funnels, conversion rates and event-field distributions from Umami without the owner's test sessions; and when pulling Umami traffic and event reports for any site, site-kit sites included. Also for 接入 Umami、用 Umami 替换 GA、去掉 GA、GA 迁移、统计迁移、Umami 报表、该埋哪些点、埋点方案、埋点审计、漏斗、转化率、事件字段分布、排除自测流量. Formerly site-analytics. NOT for wiring the tracker into site-kit sites (the kit loads it from site.config.ts; plans, audits and reports apply) or for only reading existing GA4 reports.
+description: Use when an existing website project (not a site-kit site) should start using the self-hosted Umami analytics, replace or remove Google Analytics (GA4, gtag.js, Google Tag Manager) in favor of Umami, or finish a GA-to-Umami cutover after a parallel period; when deciding which events a site should track for its type (tool, landing, directory, app, content), auditing a project's tracking calls against that plan and its privacy text, or reading funnels, conversion rates and event-field distributions from Umami without the owner's test sessions; when setting up a site's measurement system once its features are built (saved Umami funnels and goals kept in a reviewed spec file); and when pulling Umami traffic and event reports for any site, site-kit sites included. Also for 接入 Umami、用 Umami 替换 GA、去掉 GA、GA 迁移、统计迁移、Umami 报表、该埋哪些点、埋点方案、埋点审计、漏斗、转化率、事件字段分布、排除自测流量、衡量体系、建漏斗、Umami 目标和漏斗配置. Formerly site-analytics. NOT for wiring the tracker into site-kit sites (the kit loads it from site.config.ts; plans, audits and reports apply) or for only reading existing GA4 reports.
 ---
 
 # site-measure: Umami analytics
@@ -8,11 +8,12 @@ description: Use when an existing website project (not a site-kit site) should s
 Move existing sites from Google Analytics to the user's self-hosted Umami without losing visits,
 events or truthful privacy text. It takes two releases: Umami next to GA first, GA out later.
 It also decides which events a site should send for its type, audits the tracking calls a project
-has, and reads funnels and event fields from Umami (any site, site-kit sites included).
+has, reads funnels and event fields from Umami, and keeps each site's saved Umami funnels and goals
+in a spec file it syncs (any site, site-kit sites included).
 Questions about running or reading GA4 reports when nothing is being migrated are out of scope:
 answer them directly, without a scan or migration advice.
 
-Scripts (Python 3.9+ stdlib, read-only):
+Scripts (Python 3.9+ stdlib; read-only except `umami_reports.py sync --apply`):
 
 - `python3 <skill-dir>/scripts/scan.py --project <dir> [--domain <host>] [--format json]`: inventory with
   file:line evidence, framework, phase, and a ready `umami-connect --dry-run` command when the layout is unambiguous.
@@ -29,6 +30,11 @@ Scripts (Python 3.9+ stdlib, read-only):
   [--exclude-country CC] [--exclude-device D] [--list-sessions N] [--format json]`: per-session ordered
   funnels with step and overall conversion, event counts, string-field value counts and number spreads
   (`seconds`, `msPerFrame`), all with the matching sessions left out.
+- `python3 <skill-dir>/scripts/umami_reports.py draft --project <dir> [--type t]...`, then
+  `sync --spec <project>/umami-reports.json [--apply]` and `status (--spec <file> | --domain <host>) [--days 14]`:
+  drafts the site's saved funnels and goals from its plan and the events its code sends (choices it cannot
+  make go into `todo`), creates or updates them in Umami by name (preview unless `--apply`; never deletes),
+  and reads their numbers. Step syntax: `path:/x`, `event`, `event[key=value;key!=value]`, `*` at either end.
 
 The user's Umami tool does registration and layout wiring: `~/Projects/umami` (override with `UMAMI_TOOL_ROOT`).
 
@@ -69,6 +75,13 @@ The user's Umami tool does registration and layout wiring: `~/Projects/umami` (o
   `/event-data/:eventId` returns one event's fields; `/event-data/properties`, `/event-data/fields?event=`
   and `/event-data/values?event=&propertyName=` are server totals over every session (no exclusions).
   A Umami session can span several visits and days.
+- Saved reports API (checked 2026-11-09 against the v3.4.0 source): `/api/websites/:id/funnels` and `/goals`
+  list (GET) and create (POST `{name, description, parameters}`); POST `/:reportId` updates, DELETE removes;
+  `/:reportId/stats?startAt&endAt` computes. Funnel parameters `{window, steps}`: `window` is minutes between
+  consecutive steps, 2 to 8 steps of `{type: path|event, value, filters?}`, `filters` (events only) are
+  `{property, operator: eq|neq|c|dnc, value}`. Goal parameters `{type: path|event, value}`, no filters.
+  A value starting or ending with `*` becomes SQL `like`; otherwise it matches exactly. One value per step:
+  no alternatives. Saved reports count every session, the owner's too.
 - site-kit sites switch with `analytics.umami` in `site.config.ts` and `sitekit.py --root <site> umami --apply`.
   Never run umami-connect on them; it edits layouts the kit owns.
 
@@ -206,6 +219,37 @@ sends them, or where visitors drop. Plans per type: [references/tracking-plans.m
 6. **Fields.** `--fields` for distributions; numbers are only meaningful if the audit found the key means
    one thing. `report.py` does not read fields; use `funnel.py` for them.
 
+## Measurement system (after the features are built)
+
+When a site's features work and the owner wants to see, from then on, whether visitors use and pay for
+them. It turns the tracking plan into saved Umami funnels and goals the owner can open in the Umami UI,
+kept in one spec file in the project so they change with the code.
+
+1. **Events first.** Run the audit (section above) and fix its `MISS` lines; a funnel step with no event
+   behind it stays at zero. A step needs an event that has shipped: `sync` warns about steps not seen in
+   the last 30 days.
+2. **Draft.** `umami_reports.py draft --project <dir>` (both types for a two-sided site). Each plan funnel
+   (`funnel`, `more_funnels`) and goal (`goals`) in `tracking-plans.json` becomes an entry. Write it to
+   `umami-reports.json` at the repository root (next to `umami.config.json` on non-kit sites; on site-kit
+   sites outside the kit-owned paths).
+3. **Resolve `todo` from the code, not the names.** Umami takes one value per step, so for each role with
+   several events read the flow: steps the UI forces in order become consecutive steps (ToHD: preview
+   before the full run, so `tool_start` → `tool_preview` → `tool_full` → `tool_done`); alternatives that
+   are not ordered get one funnel each or the main one. Replace path placeholders with real paths, add
+   field filters where one value means success (`cloud_job_end[status=done]`), set `window` (default 1440
+   minutes), and give names the owner reads in the Umami UI. Show the owner the funnels and goals and
+   empty `todo`.
+4. **Sync.** `sync --spec umami-reports.json` previews: `+` create, `~` update, `=` unchanged, `?` saved in
+   Umami but not in the spec (left alone, never deleted). Writing to Umami needs the owner's approval; then
+   `--apply`, and `status` to confirm each report computes. Commit the spec and note it in the project's
+   notes (README or the site notes) with the usual commit approval.
+5. **Keep it current.** An event rename, a new step or a new paid path changes the spec in the same change
+   as the code; re-run `sync` after it ships. Renaming a saved report creates a new one and leaves the old
+   one as `?`: remove that one in the Umami UI if the owner wants it gone.
+6. **Read it honestly.** The Umami UI and `status` include the owner's sessions. Quote numbers from
+   `funnel.py` with the exclusions (`status` prints the matching `--steps`; field filters are not in
+   funnel.py), and treat steps under about 30 sessions as anecdotes.
+
 ## Counting AI assistant visits
 
 When a report needs AI traffic on its own:
@@ -227,6 +271,8 @@ When a report needs AI traffic on its own:
   env names, reports.
 - Each guard translation: GA rule → Umami behavior.
 - Each verification step with its result: checks, commit, push, deploy, production evidence.
+- Measurement system: the spec file, each saved funnel and goal with its sync result (created, updated,
+  unchanged, left alone), the steps `sync` warned about, and where the project notes record them.
 - What comes next (parallel end date or leftovers) and any decision the user still owes (report scripts,
   period length).
 - How the owner keeps their own visits out: on the site, run `localStorage.setItem('umami.disabled', '1')`

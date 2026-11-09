@@ -1,6 +1,6 @@
 {
   "schema": "site-measure/tracking-plans@1",
-  "note": "Machine-readable half of tracking-plans.md; audit.py and funnel.py read it. Role names are canonical; aliases are regexes matched against the whole event name.",
+  "note": "Machine-readable half of tracking-plans.md; audit.py, funnel.py and umami_reports.py read it. Role names are canonical; aliases are regexes matched against the whole event name. funnel and more_funnels are ordered steps (roles or path:); goals are roles whose event counts as a goal in Umami.",
   "safe_fields": [
     "from", "state", "status", "reason", "error", "mode", "out", "tier", "plan", "product", "kind",
     "res", "length", "size", "count", "files", "items", "results", "credits", "amount", "currency",
@@ -25,7 +25,7 @@
         {"role": "tool_limit", "required": false, "aliases": "tool_(too_long|too_large|limit|unsupported|device)", "fields": ["length", "size", "state"]},
         {"role": "upsell_click", "required": false, "aliases": "(cloud|upgrade|pricing|pro)_click|buy_click", "fields": ["from"]}
       ],
-      "funnel": ["path:<tool page>", "tool_input", "tool_start", "tool_done", "tool_takeaway"]
+      "funnel": ["path:<tool page>", "tool_input", "tool_start", "tool_done", "tool_takeaway"], "goals": ["tool_takeaway"]
     },
     "landing": {
       "question": "Does the page get visitors to take its one main action (install, start, buy or join the waitlist), and from which placement?",
@@ -36,7 +36,7 @@
         {"role": "checkout_start", "required": false, "aliases": "checkout_start", "fields": ["product"]},
         {"role": "purchase", "required": false, "aliases": "purchase", "fields": ["product", "amount", "currency"]}
       ],
-      "funnel": ["path:/", "cta_click", "pricing_buy", "checkout_start", "purchase"]
+      "funnel": ["path:/", "cta_click", "pricing_buy", "checkout_start", "purchase"], "goals": ["cta_click", "purchase"]
     },
     "directory": {
       "question": "Do visitors find an item (search, filter or browse) and leave to it? Which hubs and items send the clicks out?",
@@ -45,7 +45,7 @@
         {"role": "outbound_click", "required": true, "aliases": "outbound(_click)?|visit_(site|item)|item_(click|visit|out)|go_out|external_click", "fields": ["from", "category", "rank", "position"]},
         {"role": "submit_item", "required": false, "aliases": "submit(_item|_tool|_site)?", "fields": ["category"]}
       ],
-      "funnel": ["path:<hub>", "path:<item>", "outbound_click"]
+      "funnel": ["path:<hub>", "path:<item>", "outbound_click"], "goals": ["outbound_click"]
     },
     "app": {
       "question": "Do visitors sign in, reach a first real job (activation), hit the paywall, pay, and get their results out?",
@@ -62,7 +62,9 @@
         {"role": "checkout_error", "required": false, "aliases": "checkout_error", "fields": ["product", "status", "error"]},
         {"role": "purchase", "required": true, "aliases": "purchase", "fields": ["product", "amount", "currency"]}
       ],
-      "funnel": ["path:/app", "job_start", "job_end", "result_download"]
+      "funnel": ["path:/app", "job_start", "job_end", "result_download"],
+      "more_funnels": [{"key": "paid", "steps": ["path:/pricing", "pricing_buy", "checkout_start", "purchase"]}],
+      "goals": ["result_download", "purchase"]
     },
     "content": {
       "question": "Which articles bring readers who read on and then take the site's action (tool, signup, affiliate click)?",
@@ -72,7 +74,7 @@
         {"role": "outbound_click", "required": false, "aliases": "outbound(_click)?|affiliate_click|external_click", "fields": ["from", "category", "position"]},
         {"role": "subscribe", "required": false, "aliases": "subscribe|newsletter(_submit)?|waitlist(_submit)?", "fields": ["from"]}
       ],
-      "funnel": ["path:<article>", "read_depth", "cta_click"]
+      "funnel": ["path:<article>", "read_depth", "cta_click"], "goals": ["cta_click"]
     }
   }
 }
