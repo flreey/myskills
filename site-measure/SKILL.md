@@ -1,12 +1,14 @@
 ---
 name: site-measure
-description: Use when an existing website project (not a site-kit site) should start using the self-hosted Umami analytics, replace or remove Google Analytics (GA4, gtag.js, Google Tag Manager) in favor of Umami, or finish a GA-to-Umami cutover after a parallel period; and when pulling Umami traffic and event reports for any site, site-kit sites included. Also for 接入 Umami、用 Umami 替换 GA、去掉 GA、GA 迁移、统计迁移、Umami 报表. Formerly site-analytics. NOT for wiring analytics into site-kit sites (their analytics live in site.config.ts) or for only reading existing GA4 reports.
+description: Use when an existing website project (not a site-kit site) should start using the self-hosted Umami analytics, replace or remove Google Analytics (GA4, gtag.js, Google Tag Manager) in favor of Umami, or finish a GA-to-Umami cutover after a parallel period; when deciding which events a site should track for its type (tool, landing, directory, app, content), auditing a project's tracking calls against that plan and its privacy text, or reading funnels, conversion rates and event-field distributions from Umami without the owner's test sessions; and when pulling Umami traffic and event reports for any site, site-kit sites included. Also for 接入 Umami、用 Umami 替换 GA、去掉 GA、GA 迁移、统计迁移、Umami 报表、该埋哪些点、埋点方案、埋点审计、漏斗、转化率、事件字段分布、排除自测流量. Formerly site-analytics. NOT for wiring the tracker into site-kit sites (the kit loads it from site.config.ts; plans, audits and reports apply) or for only reading existing GA4 reports.
 ---
 
 # site-measure: Umami analytics
 
 Move existing sites from Google Analytics to the user's self-hosted Umami without losing visits,
 events or truthful privacy text. It takes two releases: Umami next to GA first, GA out later.
+It also decides which events a site should send for its type, audits the tracking calls a project
+has, and reads funnels and event fields from Umami (any site, site-kit sites included).
 Questions about running or reading GA4 reports when nothing is being migrated are out of scope:
 answer them directly, without a scan or migration advice.
 
@@ -17,6 +19,16 @@ Scripts (Python 3.9+ stdlib, read-only):
 - `python3 <skill-dir>/scripts/report.py --domain <host> [--days 7 | --start D --end D] [--daily] [--format json]`:
   Umami totals with the previous period, top pages, referrers, channels, events, countries. It reads any
   website registered in Umami, site-kit sites included; only the migration steps are limited to non-kit sites.
+- `python3 <skill-dir>/scripts/audit.py --project <dir> [--type tool --type app] [--privacy <file>] [--format json]`:
+  the project's `track(` / `umami.track(` / `data-umami-event` call sites against the plan for its type
+  (from `.sitekit.json`, or `--type`, repeatable): missing required events, naming problems (style,
+  near-duplicates, a time key that means processing time in one event and the input's length in
+  another), private-looking or non-allowlisted fields, and the fields the privacy text never mentions.
+- `python3 <skill-dir>/scripts/funnel.py --domain <host> [--days 14] [--steps 'path:/,a,b|c,d'] [--plan <type>]
+  [--fields | --field event.key] [--exclude-session ID] [--exclude-screen WxH] [--exclude-city C]
+  [--exclude-country CC] [--exclude-device D] [--list-sessions N] [--format json]`: per-session ordered
+  funnels with step and overall conversion, event counts, string-field value counts and number spreads
+  (`seconds`, `msPerFrame`), all with the matching sessions left out.
 
 The user's Umami tool does registration and layout wiring: `~/Projects/umami` (override with `UMAMI_TOOL_ROOT`).
 
@@ -51,6 +63,12 @@ The user's Umami tool does registration and layout wiring: `~/Projects/umami` (o
   but the Nginx access log on the analytics host records visitor IPs (the host is DNS-only, not proxied).
 - Report API: `/stats` returns pageviews, visitors, visits, bounces, totaltime and a `comparison` period;
   `/metrics?type=path|referrer|channel|event|country` returns `[{x, y}]`. `type=url` is gone (HTTP 400).
+- Event API (checked 2026-11-09): `/events` and `/sessions` page with `page`/`pageSize` and return
+  `{data, count, isCapped}`; an event has `sessionId`, `createdAt`, `eventType` (1 page view, 2 custom),
+  `eventName`, `urlPath`, `hasData`; a session has `screen`, `city`, `country`, `device`, `visits`.
+  `/event-data/:eventId` returns one event's fields; `/event-data/properties`, `/event-data/fields?event=`
+  and `/event-data/values?event=&propertyName=` are server totals over every session (no exclusions).
+  A Umami session can span several visits and days.
 - site-kit sites switch with `analytics.umami` in `site.config.ts` and `sitekit.py --root <site> umami --apply`.
   Never run umami-connect on them; it edits layouts the kit owns.
 
@@ -164,6 +182,30 @@ query-only URL changes counted as pageviews.
 8. Commit and deploy with approval. In production, confirm there are no requests to
    google-analytics.com or googletagmanager.com, and that Umami still records pageviews and events.
 
+## Tracking plan, audit and funnels
+
+For any site, site-kit sites included, when the question is which events to send, whether the code
+sends them, or where visitors drop. Plans per type: [references/tracking-plans.md](references/tracking-plans.md).
+
+1. **Type.** Take it from `.sitekit.json` (`site.type`) or ask; a site that is two things (a free tool
+   plus a paid app) takes both. Write the type's core question at the top of the plan.
+2. **Audit.** Run `audit.py`. Read every `MISS`, naming and field line before proposing changes; open
+   each flagged call site. The privacy section is keyword matching: read the disclosure against the
+   event list and say which fields it does not cover.
+3. **Plan the change.** Missing events, renamed keys and dropped private fields go in one list with the
+   files to edit and the privacy sentence to add. Changing event code is a project edit (commit and deploy
+   approval as usual). On site-kit sites edit only the site's own code and `modules.legal.analyticsEvents`;
+   kit events (`src/kit/**`) change in the kit, and a generic event name moves into the kit only when a
+   second site needs it. Renaming an event or key breaks its history: keep the old name unless it is wrong.
+4. **Owner traffic.** Run `funnel.py --list-sessions 10` first. Agree with the owner which sessions are
+   theirs (screen, city, device, one very busy session), then exclude them in every funnel reported. Tell
+   them to set `umami.disabled` (Delivery report) so new visits stay out; old ones stay in Umami.
+5. **Funnels.** Use the plan's funnel (`--plan <type>`) or the site's own steps (`--steps`). Report each
+   step's sessions, conversion from the previous step and from the first, and the exclusions used. Small
+   numbers (under about 30 sessions at a step) are anecdotes: say so instead of quoting rates.
+6. **Fields.** `--fields` for distributions; numbers are only meaningful if the audit found the key means
+   one thing. `report.py` does not read fields; use `funnel.py` for them.
+
 ## Counting AI assistant visits
 
 When a report needs AI traffic on its own:
@@ -196,3 +238,6 @@ When a report needs AI traffic on its own:
   plus the event queue.
 - [references/privacy.md](references/privacy.md): disclosure paragraphs for both releases.
 - [references/example-randtools.md](references/example-randtools.md): the first pilot (Next.js App Router).
+- [references/tracking-plans.md](references/tracking-plans.md): events, fields, funnels and common misses per
+  site type, with ToHD as the tool + app example; [references/tracking-plans.json](references/tracking-plans.json)
+  is the machine-readable half the scripts use.

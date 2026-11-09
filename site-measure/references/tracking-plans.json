@@ -1,0 +1,78 @@
+{
+  "schema": "site-measure/tracking-plans@1",
+  "note": "Machine-readable half of tracking-plans.md; audit.py and funnel.py read it. Role names are canonical; aliases are regexes matched against the whole event name.",
+  "safe_fields": [
+    "from", "state", "status", "reason", "error", "mode", "out", "tier", "plan", "product", "kind",
+    "res", "length", "size", "count", "files", "items", "results", "credits", "amount", "currency",
+    "seconds", "ms", "msPerFrame", "backend", "partial", "fits", "missing", "step", "variant", "depth",
+    "lang", "category", "group", "rank", "position"
+  ],
+  "private_fields": "(^|_)(name|filename|file_name|email|mail|phone|query|q|term|search_text|text|input|prompt|message|url|href|link|path|title|ip|address|user|user_id|uid|token|key|password|frame|content)$",
+  "time_fields": "^(seconds|secs|ms|millis|duration|elapsed|time|took|processing_seconds|wait_seconds)$",
+  "elapsed_expr": "elapsed|performance\\.now|Date\\.now|startedAt|took|durationMs|processing",
+  "media_length_expr": "\\.duration\\b|\\bduration\\b|\\.d\\b|\\.seconds\\b|videoLength|clipLength|lengthSeconds",
+  "kit_events": ["pricing_buy", "billing_buy", "nav_account", "checkout_start", "checkout_error", "checkout_cancel", "purchase"],
+  "types": {
+    "tool": {
+      "question": "Do visitors who land on a tool page give it an input, get a result and take the result away? Where do they drop, and how slow is it?",
+      "roles": [
+        {"role": "tool_input", "required": true, "aliases": "tool_(file|input|paste|upload|load)|file_(selected|added)|input_(added|set)", "fields": ["res", "length", "size", "mode", "out"]},
+        {"role": "tool_start", "required": true, "aliases": "tool_(start|run|full)|(generate|convert|run)(_start)?", "fields": ["mode", "out", "res", "length"]},
+        {"role": "tool_done", "required": true, "aliases": "tool_(done|preview|complete|completed|result|success)|(generate|convert)_(done|success)", "fields": ["seconds", "msPerFrame", "backend", "res", "length", "mode", "out"]},
+        {"role": "tool_error", "required": true, "aliases": "tool_(error|fail|failed)|(generate|convert)_(error|fail)", "fields": ["reason"]},
+        {"role": "tool_takeaway", "required": true, "aliases": "tool_(download|copy|share|export|save)|(copy|download|share|export)(_success|_click)?", "fields": ["out", "mode"]},
+        {"role": "tool_cancel", "required": false, "aliases": "tool_(cancel|abort|stop)", "fields": []},
+        {"role": "tool_limit", "required": false, "aliases": "tool_(too_long|too_large|limit|unsupported|device)", "fields": ["length", "size", "state"]},
+        {"role": "upsell_click", "required": false, "aliases": "(cloud|upgrade|pricing|pro)_click|buy_click", "fields": ["from"]}
+      ],
+      "funnel": ["path:<tool page>", "tool_input", "tool_start", "tool_done", "tool_takeaway"]
+    },
+    "landing": {
+      "question": "Does the page get visitors to take its one main action (install, start, buy or join the waitlist), and from which placement?",
+      "roles": [
+        {"role": "cta_click", "required": true, "aliases": "(cta|hero|install|store|get_started|start|signup|try)_click|cta|install|store_click", "fields": ["from", "plan", "product"]},
+        {"role": "waitlist_submit", "required": false, "aliases": "waitlist(_submit|_join)?|subscribe|newsletter(_submit)?", "fields": ["from"]},
+        {"role": "pricing_buy", "required": false, "aliases": "pricing_buy|billing_buy|buy_click", "fields": ["product", "plan", "from"]},
+        {"role": "checkout_start", "required": false, "aliases": "checkout_start", "fields": ["product"]},
+        {"role": "purchase", "required": false, "aliases": "purchase", "fields": ["product", "amount", "currency"]}
+      ],
+      "funnel": ["path:/", "cta_click", "pricing_buy", "checkout_start", "purchase"]
+    },
+    "directory": {
+      "question": "Do visitors find an item (search, filter or browse) and leave to it? Which hubs and items send the clicks out?",
+      "roles": [
+        {"role": "search", "required": false, "aliases": "search|filter|sort|search_(run|submit)|filter_(set|change)", "fields": ["results", "kind", "category", "count"]},
+        {"role": "outbound_click", "required": true, "aliases": "outbound(_click)?|visit_(site|item)|item_(click|visit|out)|go_out|external_click", "fields": ["from", "category", "rank", "position"]},
+        {"role": "submit_item", "required": false, "aliases": "submit(_item|_tool|_site)?", "fields": ["category"]}
+      ],
+      "funnel": ["path:<hub>", "path:<item>", "outbound_click"]
+    },
+    "app": {
+      "question": "Do visitors sign in, reach a first real job (activation), hit the paywall, pay, and get their results out?",
+      "roles": [
+        {"role": "nav_account", "required": true, "aliases": "nav_account|sign_in_click|login_click", "fields": []},
+        {"role": "job_start", "required": true, "aliases": "(cloud|job|app)_start|job_(create|submit)ted?", "fields": ["tier", "out", "files", "credits", "partial"]},
+        {"role": "job_end", "required": true, "aliases": "(cloud|job|app)_(job_)?end|job_(done|failed|finished)", "fields": ["status", "out", "seconds"]},
+        {"role": "job_error", "required": true, "aliases": "(cloud|job|app)_(start_|upload_)?error", "fields": ["reason"]},
+        {"role": "result_download", "required": true, "aliases": "(cloud|job|app|result)_download", "fields": ["out"]},
+        {"role": "paywall", "required": true, "aliases": "(cloud|app|credits?)_short|paywall(_hit)?|limit_hit|out_of_credits", "fields": ["tier", "missing", "fits", "files"]},
+        {"role": "pricing_buy", "required": true, "aliases": "pricing_buy|billing_buy|buy_click", "fields": ["product", "plan", "from"]},
+        {"role": "checkout_start", "required": true, "aliases": "checkout_start", "fields": ["product"]},
+        {"role": "checkout_cancel", "required": false, "aliases": "checkout_cancel", "fields": ["product"]},
+        {"role": "checkout_error", "required": false, "aliases": "checkout_error", "fields": ["product", "status", "error"]},
+        {"role": "purchase", "required": true, "aliases": "purchase", "fields": ["product", "amount", "currency"]}
+      ],
+      "funnel": ["path:/app", "job_start", "job_end", "result_download"]
+    },
+    "content": {
+      "question": "Which articles bring readers who read on and then take the site's action (tool, signup, affiliate click)?",
+      "roles": [
+        {"role": "read_depth", "required": false, "aliases": "read_(depth|50|75|100|complete|end)|scroll_(50|75|90|100)", "fields": ["depth"]},
+        {"role": "cta_click", "required": true, "aliases": "(cta|tool|article_cta|inline_cta)_click|cta", "fields": ["from", "position"]},
+        {"role": "outbound_click", "required": false, "aliases": "outbound(_click)?|affiliate_click|external_click", "fields": ["from", "category", "position"]},
+        {"role": "subscribe", "required": false, "aliases": "subscribe|newsletter(_submit)?|waitlist(_submit)?", "fields": ["from"]}
+      ],
+      "funnel": ["path:<article>", "read_depth", "cta_click"]
+    }
+  }
+}

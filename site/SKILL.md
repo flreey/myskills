@@ -15,7 +15,7 @@ next, then load that skill. This skill never writes project files.
 | 3 build | `site-kit` (kit sites) or the project's own stack | pages, SEO plumbing, checks, deploy | 建站、改页面、发布 |
 | 4 verify | `site-check`, then see [Page SEO check](#page-seo-check) | keyword copy, FAQ, server HTML, structure, internal links and templates; registry matches the built site | 页面 SEO 验收、内链和模板检查 |
 | 4 verify (AI) | `site-geo` | AI crawler access, llms.txt, ChatGPT open and recommendation probes | GPT 能不能访问、会不会推荐 |
-| 5 measure | `site-measure` | Umami wiring and traffic reports | 接入 Umami、看流量 |
+| 5 measure | `site-measure` | Umami wiring, tracking plans and audits, traffic and funnel reports | 接入 Umami、看流量、该埋哪些点、漏斗 |
 | 6 review | `site-plan` review mode | GSC windows → enrich, split, merge, retire; unmapped queries back to stage 1 | 拆页合页、GSC 回看 |
 
 ## Find the stage

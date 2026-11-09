@@ -69,3 +69,91 @@ the skill now asks for.
 
 - Production behaviour: Release 1 has not shipped anywhere yet.
 - Release 2 and the parallel check have not run on a real site.
+
+# Validation: tracking plans, audit and funnels (2026-11-09)
+
+Added `references/tracking-plans.md` (+ `.json`), `scripts/audit.py` and `scripts/funnel.py`, and the
+"Tracking plan, audit and funnels" workflow. Checked on ToHD (tohd.video, site-kit 2.5.1, type `app`
+with a free browser tool; code read-only at commit 86dbd80, deployed version e035c9cb). Website and
+session IDs and the owner's location and screen are left out here; the full outputs are in the
+session notes, outside the repo.
+
+## Umami 3.4 API, probed before writing the scripts
+
+- `/events` and `/sessions` page with `page` and `pageSize` (500 worked) and return
+  `{data, count, page, pageSize, isCapped}`.
+- Events carry `sessionId`, `eventType` (1 page view, 2 custom), `eventName`, `urlPath`, `hasData`.
+  They also carry `city` and `device`, but not the screen size: exclusions are matched on sessions.
+- `/event-data/:eventId` returns that event's rows (`dataKey`, `stringValue` or `numberValue`, `dataType`).
+- `/event-data/properties`, `/event-data/fields?event=` and `/event-data/values?event=&propertyName=`
+  aggregate over every session. For an event that never fired, they return `[]`, not an error.
+  `funnel.py` therefore reads values per event when it excludes sessions, and falls back to these
+  totals (saying so) only above `--max-event-data`.
+- One Umami session spanned 7 visits over two days, so funnels are per visitor, not per visit.
+
+## Audit on ToHD
+
+`audit.py --project ~/Projects/tohd.video --type tool --type app` (the `.sitekit.json` type alone gives `app`):
+
+- 26 event names: 19 from the site, 7 from the kit. Spreads like `...ctx.current` were resolved
+  from the `useRef<{...}>` type and assignments in the same file. Both arms of
+  `full ? 'tool_full' : 'tool_start'` were found, and so was the kit's
+  `{ 'data-umami-event': 'pricing_buy', ... }` object.
+- Every required role of both plans was filled. `tool_download` was added that morning; one commit
+  earlier, `tool.tool_takeaway` would have been `MISS`.
+- Naming: `'seconds' means two things`. On `tool_done` and `tool_preview` it is processing time
+  (`elapsed()`); on `cloud_job_end` it is `Math.round(j.seconds)`, the job record's video length.
+  This is the mistake found earlier, still present in the app's event.
+- Fields: none private, none outside the allowlist.
+- Privacy (`modules.legal.analyticsEvents`): no words in the text match `state` (the `tool_device`
+  check), `from` (which link was clicked), `fits` or `partial`. Reading the text confirms the device
+  check and the click placement are not disclosed. Fixing this is the site's job.
+- Outside the plan: `cloud_uploaded` (fine). Non-literal call site: the kit's own `track` wrapper, as
+  expected.
+
+## Funnel report on ToHD, 2026-11-08 to 2026-11-09 (UTC)
+
+`--list-sessions 10` showed one session with 68 page views and 40 events, plus a second one with the
+same screen and city: the owner's testing. All runs used
+`--steps 'path:/,tool_file,tool_start,tool_preview,tool_done,tool_download' --plan tool --plan app --fields`.
+
+| | All sessions | Owner excluded (`--exclude-screen`, `--exclude-city`) |
+| --- | --- | --- |
+| Sessions | 20 | 18 (2 excluded) |
+| Events | 152 (99 page views) | 28 (17 page views) |
+| `path:/` | 18 | 16 |
+| `tool_file` → `tool_start` → `tool_preview` | 1 → 1 → 1 | 0 |
+| `tool_done`, `tool_download` | 0 | 0 |
+| `tool_device.state` | ok 33, bad 11 | bad 11 (11 sessions) |
+| `cloud_click` | 2 (`from` = `tool_4k_option`, `tool_4k_pricing`; the other fields empty) | 0 |
+
+What this showed:
+
+- Every tool use, every `cloud_click` and every `nav_account` in the first two days came from the owner.
+- The other visitors' only events were 11 `tool_device` with `state=bad`. Those sessions are one page
+  view each, often within the same minute, with screens such as 800x600 and 1024x1024. They look like
+  automated previews passing the kit loader's bot filter, a lead to check in site-kit, not proof.
+- `cloud_click` sent empty `res`, `length`, `mode` and `out`. The value counts make this visible as
+  `(empty)`; the audit cannot see it, because the keys exist.
+- The median time from step 1 was about 3.4 hours: the owner's first home-page view was in an
+  earlier visit of the same session.
+- `--plan tool` mapped `tool_done` to `tool_preview` (no `tool_done` had fired yet) and reported
+  `tool_takeaway (no events seen)`. `--plan app` found no `/app` page view after the exclusion.
+- With `--max-event-data 5`, `--field tool_device.state` fell back to the server totals
+  (`ok 33, bad 11`, exclusions not applied) and said so.
+
+## Checks
+
+- `python3 -m unittest test_report test_scan test_audit test_funnel` in `scripts/`: 30 tests pass.
+  They cover synthetic projects (spreads, ternaries, attributes, kit events, private keys and values,
+  a time key with two meanings, missing roles, the disclosure check) and a fake Umami (paging, ordered
+  and any-order funnels, exclusion rules, plan alias mapping, per-event fields, server fallback).
+- Credentials are read through the Umami tool only. No output prints a token, a username or a password.
+
+## Not yet verified
+
+- No A/B run of the new workflow with and without the skill. The ToHD session that asked for it
+  serves as the baseline: the download event was missing, `seconds` meant the video length, the
+  owner's session was mixed in, and `report.py` could not read fields.
+- The audit has run on site-kit sites only. On other stacks it depends on literal event names; GA-style
+  `gtag('event', ...)` calls are `scan.py`'s job, not the audit's.
