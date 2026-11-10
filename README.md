@@ -19,6 +19,7 @@
 | [relight-game-design-guardrails](./relight-game-design-guardrails) | Relight 玩法设计护栏：任何新机制/章节/关卡批量规划先回答“连线后恢复了什么意义”，避免为了连线而连线，强调 star-chart/world-state 的可见回报。 |
 | [hook-template-builder](./hook-template-builder) | 扫描项目并推荐 Codex/Claude agent hooks：先识别语言、测试命令、CI、AGENTS/CLAUDE、已有 hooks，再输出候选表；默认只生成提醒型项目模板，阻断型、全局安装、网络通知必须用户确认。 |
 | [review-fix-push](./review-fix-push) | 轻量交付编排：当用户说“review 没问题就提交 push，有问题修到完成”时，先审查 staged/unstaged/untracked/未 push commits，全量修可判定问题并复验，再 commit + regular push；判断型问题才停下来问。 |
+| [branch-cleanup](./branch-cleanup) | 把当前 git 项目收拢到只剩 main：只读盘点本地/远端分支和 worktree（已合并、可快进、无冲突分叉、冲突、squash 过；脏改动、正在用的进程、软链、会被删的忽略文件），完成的工作合进本地 main 并跑项目测试，其余打 `archive/<branch>` 标签再删，用快照核对没丢提交；不推送、不删远端。 |
 | [ai-feature-delivery](./ai-feature-delivery) | 把业务级功能修改请求变成受控交付流程：先只读识别影响面、验收场景、non-goals 和验证计划，确认后再实现，最后输出验证证据与剩余风险。 |
 | [chatgpt-pro-engineering-loop](./chatgpt-pro-engineering-loop) | Codex Desktop 通过已登录的 ChatGPT Pro 委派复杂仓库任务：优先用独立 GitHub 任务分支 + Draft PR 交换代码，以持久 conversation ID 恢复中断任务，并在本地隔离验收；GitHub 不可用或源码不能发布时回退到安全源码包。 |
 | [project-truth](./project-truth) | 让 AI 从经过校验的 Capability、Receipt 和 Git 状态驱动实现：只读获取紧凑真相上下文，通过固定版本 CLI 记录真实证据，重建离线 Dashboard，并停在人工验收和外部动作边界。 |
