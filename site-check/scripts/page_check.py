@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Read-only evidence for one page's SEO acceptance, from the raw HTML a crawler receives.
 
-    python3 page_check.py --url <url> [--keyword "phrase"]... [--brief <brief.json>] [--pool <observations.jsonl>]
+    python3 page_check.py --url <url> [--keyword "phrase"]... [--brief <brief.json>] [--geo-brief <geo brief.json>] [--pool <observations.jsonl>]
                           [--retired "phrase"]... [--format text|json]
     python3 page_check.py --sitemap <url|file> [--base <origin>] [--limit N] [--retired "phrase"]... [--format text|json]
 
@@ -303,6 +303,49 @@ def load_brief(path):
     return {"page": data.get("page"), "phrasings": phrasings, "questions": questions, "subneeds": subneeds}
 
 
+GEO_QUESTION_SECTIONS = ("conditions", "faq", "faq_or_resource", "alternatives", "resource", "review")
+
+
+def coverage(phrase, text_tokens):
+    """Share of a phrase's content words found in the page text (light stemming). A pre-sort only."""
+    words = {stem(w) for w in tokens(phrase) - STOPWORDS}
+    if not words:
+        return 0.0
+    return round(len(words & text_tokens) / len(words), 2)
+
+
+def cover_hint(c):
+    return "likely_present" if c >= 0.7 else "check" if c >= 0.4 else "likely_missing"
+
+
+def geo_brief_report(path, page, text, opening):
+    """Compare a site-geo O4b page brief with the server HTML: openings against the first paragraph,
+    each routed question against visible questions and the page text, conditions against the text."""
+    b = json.loads(Path(path).read_text(encoding="utf-8"))
+    text_tokens = {stem(w) for w in tokens(text)}
+    opening_tokens = {stem(w) for w in tokens(opening)}
+    on_page = page.questions()
+    out = {"page": b.get("page"), "answer_first": [], "questions": [], "conditions": [],
+           "unknown_constraints": [c.get("constraint") for c in b.get("unknown_constraints", [])],
+           "not_this_page": [c.get("cluster") for c in b.get("not_this_page", [])]}
+    for o in b.get("answer_first", []):
+        c = coverage(o.get("opening", ""), opening_tokens)
+        out["answer_first"].append({"opening": o.get("opening"), "opening_coverage": c, "hint": cover_hint(c)})
+    for sec in GEO_QUESTION_SECTIONS:
+        for item in b.get(sec, []):
+            if item.get("q"):
+                m = match_questions([item["q"]], on_page)[0]
+                c = coverage(item["q"], text_tokens)
+                hint = "likely_answered" if m["hint"] == "likely_answered" else cover_hint(c)
+                out["questions"].append({"section": sec, "q": item["q"], "closest_question": m["closest_on_page"],
+                                         "question_overlap": m["overlap"], "text_coverage": c, "hint": hint})
+            elif sec == "conditions" and item.get("constraint"):
+                c = coverage(item["constraint"], text_tokens)
+                out["conditions"].append({"constraint": item["constraint"], "status": item.get("status"),
+                                          "text_coverage": c, "hint": cover_hint(c)})
+    return out
+
+
 def pool_questions(path, keywords, limit=40):
     """Question-form queries from a site-research pool that share a subject word with the keywords."""
     subject = set().union(*(tokens(k) for k in keywords)) - GENERIC - STOPWORDS if keywords else set()
@@ -416,7 +459,7 @@ def fact_issues(f):
     return issues
 
 
-def check(url, keywords, brief_path=None, pool_path=None, retired=()):
+def check(url, keywords, brief_path=None, pool_path=None, retired=(), geo_brief_path=None):
     brief = load_brief(brief_path) if brief_path else None
     if brief and not keywords:
         keywords = brief["phrasings"]
@@ -452,6 +495,8 @@ def check(url, keywords, brief_path=None, pool_path=None, retired=()):
     if brief:
         report["brief"] = {"page": brief["page"], "subneeds": brief["subneeds"],
                            "questions": match_questions(brief["questions"], on_page)}
+    if geo_brief_path:
+        report["geo_brief"] = geo_brief_report(geo_brief_path, page, text, " ".join(words[:60]))
     if pool_path:
         report["pool_questions"] = match_questions(pool_questions(pool_path, keywords), on_page)
     report["rendering"] = {
@@ -495,6 +540,14 @@ def render(r):
         out.append(f"  schema-only (not visible): {fq['schema_only']}")
     if fq["schema_answer_not_visible"]:
         out.append(f"  schema answer not in server HTML text: {fq['schema_answer_not_visible']}")
+    if "geo_brief" in r:
+        g = r["geo_brief"]
+        out.append(f"  GEO brief ({g['page']}) — lexical pre-sort, judge each line:")
+        out += [f"  [{o['hint']}] opening in first paragraph: {o['opening']}" for o in g["answer_first"]]
+        out += [f"  [{q['hint']}] {q['section']}: {q['q']}  ~ {q['closest_question']}" for q in g["questions"]]
+        out += [f"  [{c['hint']}] condition ({c['status']}): {c['constraint']}" for c in g["conditions"]]
+        if g["unknown_constraints"]:
+            out.append(f"  unknown, do not claim: {', '.join(g['unknown_constraints'])}")
     if "brief" in r:
         out.append(f"  brief questions ({r['brief']['page']}):")
         out += [f"  [{q['hint']}] {q['question']}  ~ {q['closest_on_page']}" for q in r["brief"]["questions"]]
@@ -863,6 +916,7 @@ def main(argv=None):
     ap.add_argument("--limit", type=int, default=500, help="sweep: maximum URLs")
     ap.add_argument("--keyword", action="append", default=[], help="target phrase; repeatable")
     ap.add_argument("--brief", help="site-plan brief JSON (seo/work/briefs/<slug>.json)")
+    ap.add_argument("--geo-brief", help="site-geo page brief JSON (geo/optimize/briefs/<page>.json): GEO mode coverage")
     ap.add_argument("--pool", help="site-research pool (seo/discovery/observations.jsonl): question queries for check 2")
     ap.add_argument("--retired", action="append", default=[],
                     help="product name or phrase the site no longer uses; repeatable")
@@ -872,7 +926,7 @@ def main(argv=None):
         r = sweep(a.sitemap, a.base, a.limit, a.retired)
         print(json.dumps(r, ensure_ascii=False, indent=2) if a.format == "json" else render_sweep(r))
         return 0
-    r = check(a.url, a.keyword, a.brief, a.pool, a.retired)
+    r = check(a.url, a.keyword, a.brief, a.pool, a.retired, a.geo_brief)
     print(json.dumps(r, ensure_ascii=False, indent=2) if a.format == "json" else render(r))
     return 0 if r["fetch"].get("ok") else 1
 

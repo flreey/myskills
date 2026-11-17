@@ -33,6 +33,7 @@ Schema version: 1 (`project.json.schema`). All files below are implemented: site
 | `waves.json` | geo_engine.py wave-plan / wave-release | implemented | waves, dates, which combinations each holds |
 | `measure/snapshots.jsonl` | site-batch | implemented | crawl, index, AI fetch, citation and referral snapshots by URL and date |
 | `<site>/data/<template>.jsonl` | geo_engine.py build, kit target (generated) | implemented | kit collection data: gated rows rendered for the page |
+| `snapshots/<template>/` (`<date>/*.html`, `index.jsonl`) | geo_engine.py snapshot | implemented | adopt templates: live HTML of existing pages before a retrofit |
 | `<site>/data/<template>.groups.json` | geo_engine.py build, kit target (generated) | implemented | group content read by the group page override |
 | `out/` (`<template>.json`, `index.json`, `urls.txt`) | geo_engine.py build, json target (generated) | implemented | released pages for sites that are not site-kit (site-batch `references/json-output.md`) |
 
@@ -142,7 +143,9 @@ Full field rules: site-batch `references/templates.md` (templates) and `referenc
             "combos": {"convert": ["heic__jpg__batch", "heic__png__offline"]}, "note": "seed; expand convert next"}]}
 ```
 
-A combination belongs to at most one wave. Only one wave is `planned` at a time.
+A combination belongs to at most one wave. Only one wave is `planned` at a time. With
+`wave-plan --control-ratio`, a wave also lists `"control": {"<template>": [combo ids]}`: similar rows
+held back for the review; later waves skip them unless `--include-control`.
 
 ### data/<template>.jsonl (generated, read by the kit collection module)
 

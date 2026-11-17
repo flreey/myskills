@@ -166,6 +166,34 @@ class PageCheckTest(unittest.TestCase):
         self.assertEqual(hints["is a password generator safe"], "likely_answered")
         self.assertEqual(hints["how to remember a random password"], "likely_missing")
 
+    def test_geo_brief_coverage(self):
+        brief = {"page": "/random-password-generator",
+                 "answer_first": [{"cluster": "k1", "opening": "create strong passwords in my browser"},
+                                  {"cluster": "k2", "opening": "share a vault with my family"}],
+                 "conditions": [{"q": "Is this password generator safe?", "kind": "constraint"},
+                                {"id": "c1", "constraint": "works offline without an account", "status": "met"},
+                                {"id": "c2", "constraint": "symbol options", "status": "met"}],
+                 "faq": [{"q": "How long should a password be?", "kind": "why"}],
+                 "faq_or_resource": [{"q": "How do I import passwords into Bitwarden?", "kind": "howto"}],
+                 "unknown_constraints": [{"id": "c9", "constraint": "FIPS certified"}]}
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump(brief, f)
+        r = pc.check(self.base + "/random-password-generator", [], geo_brief_path=f.name)
+        Path(f.name).unlink()
+        g = r["geo_brief"]
+        first = {o["opening"]: o["hint"] for o in g["answer_first"]}
+        self.assertEqual(first["create strong passwords in my browser"], "likely_present")
+        self.assertEqual(first["share a vault with my family"], "likely_missing")
+        qs = {q["q"]: q["hint"] for q in g["questions"]}
+        self.assertEqual(qs["Is this password generator safe?"], "likely_answered")
+        self.assertEqual(qs["How long should a password be?"], "likely_answered")
+        self.assertEqual(qs["How do I import passwords into Bitwarden?"], "likely_missing")
+        conds = {c["constraint"]: c["hint"] for c in g["conditions"]}
+        self.assertEqual(conds["symbol options"], "likely_present")
+        self.assertEqual(conds["works offline without an account"], "likely_missing")
+        self.assertEqual(g["unknown_constraints"], ["FIPS certified"])
+        self.assertIn("GEO brief", pc.render(r))
+
     def test_sweep_groups_issues_by_pattern(self):
         r = pc.sweep(self.base + "/sitemap.xml", base=self.base)
         self.assertEqual(r["urls"], 9)

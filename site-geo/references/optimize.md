@@ -144,6 +144,7 @@ clusters always go to `optimize`. Then per batch:
  "window_days": 28, "falsified_if": "in-answer rate on treatment does not beat control by the review"}
 ```
 
+How to change an existing page without losing its search traffic: [retrofit.md](retrofit.md).
 Control clusters are similar `optimize` clusters left unchanged for the window. One kind of change
 per batch; several kinds on one day cannot be told apart. Page and copy changes follow the project's
 own workflow and approvals; this skill writes only `geo/optimize/`.

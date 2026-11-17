@@ -28,6 +28,7 @@ Optimize engine (Python stdlib), `python3 <skill-dir>/scripts/geo_optimize.py --
 | --- | --- | --- |
 | **Check** | A site or page should be reachable, quotable and recommended by AI assistants; before and after a launch | G1–G4 below |
 | **Optimize** | A live site wants more AI recommendations and citations over time: which tasks, why assistants pick others, what to change, did it work | G5 below, then the loop in [references/optimize.md](references/optimize.md) (O1–O8) |
+| **Retrofit** | Existing pages should become GEO pages without losing search traffic | [references/retrofit.md](references/retrofit.md): single pages step by step; families of similar pages through site-batch adopt mode |
 
 Optimize starts from tasks, not keywords; Google keyword data is context only. New sites with no
 traffic start in site-idea instead.

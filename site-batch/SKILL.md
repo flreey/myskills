@@ -11,10 +11,10 @@ data, so each one must hold an answer the assistants cannot give on their own; n
 slowly and punish thin bulk, so pages ship in waves and each template earns the next one.
 
 Engine (Python stdlib): `python3 <skill-dir>/scripts/geo_engine.py --root <project> <command>` with
-`lint`, `build`, `status`, `questions`, `scaffold`, `wave-plan`, `wave-release`, `funnel`, `prune`. State
+`lint`, `build`, `status`, `questions`, `snapshot`, `scaffold`, `wave-plan`, `wave-release`, `funnel`, `prune`. State
 contract: [../site-idea/references/state.md](../site-idea/references/state.md). References:
 [templates](references/templates.md), [questions to pages](references/question-mapping.md), [facts and rows](references/combos.md),
-[non-kit output](references/json-output.md), [measuring waves](references/measure.md).
+[non-kit output](references/json-output.md), [adopting existing pages](references/adopt.md), [measuring waves](references/measure.md).
 
 ## Iron rules
 
@@ -45,6 +45,7 @@ contract: [../site-idea/references/state.md](../site-idea/references/state.md). 
 | Templates approved, gated rows ready, or a wave due | [Release](#release) |
 | A released wave is past its window | [Review](#review) |
 | Adding long-tail values to an approved template | site-idea `extend` (owner) → rows for the new values → `lint` → [Release](#release) |
+| A family of existing pages should become GEO pages (keep URLs) | adopt template ([references/adopt.md](references/adopt.md)): `snapshot` first, then blueprint steps 3–5, release with `--control-ratio` |
 
 ## Blueprint
 

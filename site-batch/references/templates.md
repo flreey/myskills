@@ -52,6 +52,7 @@ never answer the same task.
 
 | Field | Rule |
 | --- | --- |
+| `adopt` | `true` for a family of existing pages: rows carry `url`, collection and item patterns become optional, output is always JSON. See [adopt.md](adopt.md). |
 | `dimensions` | Generating dimensions from `dimensions.json`; the combination of their values is the page. |
 | `collection.*` | Goes into `site.config.ts` through `geo_engine.py scaffold`. `itemType` is one of the kit's: `Thing`, `CreativeWork`, `Product`, `Place`, `Dataset`, `SoftwareApplication`, `DefinedTerm`. `groups.by` is one of the template's dimensions; `groups.intro` may use `{count}` and `{name}`. |
 | `patterns` | `{dim}` = value id, `{dim.label}` = value label, `{field}` = a row field (e.g. `{headline}`). `slug` must contain every dimension. The rendered description must be 50–155 characters or the row fails. |

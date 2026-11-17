@@ -13,7 +13,12 @@ Commands
   questions --template ID      the gap samples seen through one template: openings with the page level
                                they route to (item, group, hub) and follow-ups grouped by kind, to set
                                question_slots, title patterns and group content
-  wave-plan --per-template N   put the next N gated, unreleased combinations of each template in a new wave
+  wave-plan --per-template N [--control-ratio R] [--include-control]
+                               put the next N gated, unreleased combinations of each template in a new
+                               wave; with R, hold back that share of similar rows as the wave's control
+  snapshot --template ID --base ORIGIN [--limit N]
+                               adopt templates: save the live HTML of each row's existing URL before a
+                               retrofit (geo/snapshots/<template>/), for before/after and rollback
   wave-release --wave K        mark wave K released (then build, check and deploy through site-kit)
   funnel                       crawl / index / AI fetch / citation rates by template, wave and arm
   prune --min-days 28          released pages still not indexed after N days: merge or noindex candidates
@@ -28,6 +33,9 @@ from collections import Counter, defaultdict
 from datetime import date
 import hashlib
 import json
+import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 import re
 import sys
@@ -127,6 +135,11 @@ def advance(st, stage, note):
         proj.setdefault("log", []).append({"date": date.today().isoformat(), "stage": stage, "note": note})
         write_json(st.project, proj)
 
+def is_adopt(t):
+    """Adopt templates take over existing pages: rows carry the live URL, nothing new is created."""
+    return bool(t.get("adopt"))
+
+
 def labels(dims):
     out = {}
     for d in dims.get("dimensions", []):
@@ -207,23 +220,25 @@ def lint_templates(templates, dims, errs, warns):
             if d not in dim_ids:
                 errs.append(f"{w}: unknown dimension {d!r}")
         col = t.get("collection", {})
+        if is_adopt(t) and col.get("groups"):
+            warns.append(f"{w}: adopt templates keep the site's own group pages; collection.groups is ignored")
         for k in ("basePath", "label", "hub"):
-            if not col.get(k):
+            if not is_adopt(t) and not col.get(k):
                 errs.append(f"{w}: collection.{k} is required")
         bp = col.get("basePath", "")
-        if bp in paths:
+        if bp and bp in paths:
             errs.append(f"{w}: basePath {bp} is used by another template")
         paths.add(bp)
         if col.get("itemType", "Thing") not in ITEM_TYPES:
             errs.append(f"{w}: itemType must be one of {sorted(ITEM_TYPES)}")
-        g = col.get("groups")
+        g = None if is_adopt(t) else col.get("groups")
         if g and g.get("by") not in t.get("dimensions", []):
             errs.append(f"{w}: groups.by must be one of the template's dimensions")
         pats = t.get("patterns", {})
         for k in ("slug", "name", "title", "h1", "description"):
-            if not pats.get(k):
+            if not is_adopt(t) and not pats.get(k):
                 errs.append(f"{w}: patterns.{k} is required")
-        if pats.get("slug") and not all(f"{{{d}}}" in pats["slug"] for d in t.get("dimensions", [])):
+        if not is_adopt(t) and pats.get("slug") and not all(f"{{{d}}}" in pats["slug"] for d in t.get("dimensions", [])):
             errs.append(f"{w}: patterns.slug must contain every dimension id so slugs stay unique")
         if "core_answer" not in t.get("required", []):
             errs.append(f"{w}: required must include core_answer (the answer-first paragraph)")
@@ -318,11 +333,25 @@ def gate_row(row, t, lab, facts, decision):
     if r and not str(r.get("url", "")).startswith(("/", "http")):
         failed.append("resource.url must be a path or URL")
     pats = t.get("patterns", {})
+    if is_adopt(t):
+        # Existing page: the URL is its identity; title and the rest change only when the row or a pattern says so.
+        url = str(row.get("url") or "")
+        if not url.startswith("/"):
+            failed.append("adopt rows need url: the existing page's path, starting with /")
+        seg = url.rstrip("/").rsplit("/", 1)[-1] or "home"
+        out = {"slug": row.get("slug") or re.sub(r"[^a-z0-9]+", "-", seg.lower()).strip("-") or "home", "url": url}
+        for k in ("name", "title", "h1", "description"):
+            out[k] = str(row.get(k) or (render(pats[k], row, lab) if pats.get(k) else ""))
+        if out["description"] and not 50 <= len(out["description"]) <= 155:
+            failed.append(f"description is {len(out['description'])} chars (50-155)")
+        return failed, out
     out = {k: render(pats.get(k, ""), row, lab) for k in ("slug", "name", "title", "h1", "description")}
     if not SLUG.match(out["slug"]):
         failed.append(f"slug {out['slug']!r} is not a slug")
     if not 50 <= len(out["description"]) <= 155:
         failed.append(f"description is {len(out['description'])} chars (50-155)")
+    base = (t.get("collection") or {}).get("basePath", "").rstrip("/")
+    out["url"] = f"{base}/{out['slug']}"
     return failed, out
 
 
@@ -361,6 +390,7 @@ def evaluate(st):
     lab = labels(dims)
     decision = proj.get("decision")
     rel = released_map(waves)
+    ctl = {(tid, cid): w["id"] for w in waves.get("waves", []) for tid, ids in (w.get("control") or {}).items() for cid in ids}
     result = {}
     for tid, t in templates.items():
         rows = combos.get(tid, [])
@@ -375,10 +405,11 @@ def evaluate(st):
             failed, out = gate_row(row, t, lab, facts, decision)
             if cid in seen_cid:
                 failed.append("duplicate combo_id")
-            if out["slug"] in seen_slug:
-                failed.append("duplicate slug")
+            ident = out["url"] if is_adopt(t) else out["slug"]
+            if ident in seen_slug:
+                failed.append("duplicate url" if is_adopt(t) else "duplicate slug")
             seen_cid.add(cid)
-            seen_slug.add(out["slug"])
+            seen_slug.add(ident)
             evald.append({"row": row, "cid": cid, "arm": arm, "failed": failed, "out": out, "sh": shingles(prose(row))})
         counts = Counter(s for e in evald for s in e["sh"])
         minu = float(t.get("min_unique_ratio", 0.6))
@@ -389,6 +420,7 @@ def evaluate(st):
                 e["failed"].append(f"unique ratio {e['unique']} < {minu}")
             w = rel.get((tid, e["cid"]))
             e["wave"], e["released"], e["released_on"] = (w if w else (None, False, None))
+            e["control_of"] = ctl.get((tid, e["cid"]))
         result[tid] = {"template": t, "items": evald}
     return proj, dims, facts, templates, waves, result
 
@@ -436,8 +468,8 @@ def cmd_build(st, a):
     instances, summary, index, urls = [], {}, [], []
     for tid, r in result.items():
         t = r["template"]
-        base = t["collection"]["basePath"].rstrip("/")
-        gby = (t["collection"].get("groups") or {}).get("by")
+        base = (t.get("collection") or {}).get("basePath", "").rstrip("/")
+        gby = None if is_adopt(t) else ((t.get("collection") or {}).get("groups") or {}).get("by")
         lab = labels(dims)
         built = {e["cid"]: {"combo_id": e["cid"], "combo": e["row"]["combo"], "slug": e["out"]["slug"]}
                  for e in r["items"] if not e["failed"]}
@@ -445,7 +477,8 @@ def cmd_build(st, a):
         for e in r["items"]:
             row, out = e["row"], e["out"]
             instances.append({
-                "template": tid, "combo_id": e["cid"], "slug": out["slug"], "url": f"{base}/{out['slug']}",
+                "template": tid, "combo_id": e["cid"], "slug": out["slug"], "url": out["url"],
+                "adopt": is_adopt(t), "control_of": e["control_of"],
                 "gate": {"pass": not e["failed"], "failed": e["failed"]}, "unique_ratio": e["unique"],
                 "wave": e["wave"], "released": e["released"], "released_on": e["released_on"], "arm": e["arm"],
             })
@@ -462,9 +495,14 @@ def cmd_build(st, a):
                 "follow_ups": row.get("follow_ups") or [], "resource": row.get("resource"),
                 "alternatives": row.get("alternatives") or [],
             })
-        gcontent, gfail = group_content(st.group_rows(tid), t, data, facts, lab, base)
+        gcontent, gfail = group_content(st.group_rows(tid), t, data, facts, lab, base) if gby else ({}, {})
         labels_out = {**LABELS, **(t.get("labels") or {})}
-        if target == "kit":
+        if is_adopt(t):
+            # Existing pages on any stack: always plain JSON, read by the site's own templates.
+            out_file = write_json_target(out_dir, tid, t, data, base)
+            index.append({"id": tid, "file": out_file.name, "adopt": True,
+                          "items": sum(1 for d in data if d["released"]), "pending": sum(1 for d in data if not d["released"])})
+        elif target == "kit":
             out_file = st.data / f"{tid}.jsonl"
             write_jsonl(out_file, data)
             write_json(st.data / f"{tid}.labels.json", labels_out)
@@ -474,12 +512,12 @@ def cmd_build(st, a):
             out_file = write_json_target(out_dir, tid, t, data, base, gcontent)
             index.append({"id": tid, "file": out_file.name, "basePath": base,
                           "items": sum(1 for d in data if d["released"]), "pending": sum(1 for d in data if not d["released"])})
-            urls += [f"{base}/{d['slug']}" for d in data if d["released"]]
+            urls += [d["url"] for d in data if d["released"]]
         summary[tid] = {"rows": len(r["items"]), "gated": len(data),
                         "released": sum(1 for d in data if d["released"]), "output": str(out_file)}
         if gfail:
             summary[tid]["group_failures"] = gfail
-    if target == "json":
+    if target == "json" or any(i.get("adopt") for i in index):
         write_json(out_dir / "index.json", {"generated": date.today().isoformat(), "templates": index})
         (out_dir / "urls.txt").write_text("".join(u + "\n" for u in sorted(urls)))
     write_jsonl(st.instances, instances)
@@ -541,14 +579,15 @@ def output_target(st, proj, a):
 def write_json_target(out_dir, tid, t, data, base, gcontent=None):
     """One file per template: released items only, related links limited to released pages."""
     released = [d for d in data if d["released"]]
-    live = {d["slug"] for d in released}
+    url_of = {d["slug"]: d.get("url") or f"{base}/{d['slug']}" for d in released}
     items = []
     for d in released:
         item = {k: v for k, v in d.items() if k != "released"}
-        item["url"] = f"{base}/{d['slug']}"
-        item["related"] = [x for x in d["related"] if x in live]
+        item["url"] = url_of[d["slug"]]
+        item["related"] = [x for x in d["related"] if x in url_of]
+        item["related_urls"] = [url_of[x] for x in item["related"]]
         items.append(item)
-    col = t["collection"]
+    col = t.get("collection") or {}
     groups = defaultdict(lambda: {"count": 0})
     for d in released:
         if d["group"]:
@@ -566,6 +605,7 @@ def write_json_target(out_dir, tid, t, data, base, gcontent=None):
             entry["content"] = gcontent[key]
         group_list.append(entry)
     doc = {"template": tid, "version": t.get("version", 1), "generated": date.today().isoformat(),
+           "adopt": is_adopt(t),
            "collection": {**{k: col[k] for k in ("basePath", "label", "hub", "itemType") if k in col},
                           "labels": {**LABELS, **(t.get("labels") or {})}},
            "groups": group_list, "items": items, "pending": len(data) - len(released)}
@@ -655,6 +695,55 @@ def cmd_scaffold(st, a):
                      ensure_ascii=False, indent=2))
 
 
+# ---------- snapshots ----------
+
+def page_summary(html):
+    title = re.search(r"<title[^>]*>(.*?)</title>", html, re.S | re.I)
+    h1 = re.search(r"<h1[^>]*>(.*?)</h1>", html, re.S | re.I)
+    text = re.sub(r"<script.*?</script>|<style.*?</style>", " ", html, flags=re.S | re.I)
+    text = re.sub(r"<[^>]+>", " ", text)
+    clean = lambda m: re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", m.group(1))).strip() if m else ""
+    return {"title": clean(title), "h1": clean(h1), "words": len(text.split())}
+
+
+def cmd_snapshot(st, a):
+    proj, dims, facts, templates, combos, waves = st.load()
+    t = templates.get(a.template)
+    if not t:
+        die(f"no template {a.template!r}")
+    if not is_adopt(t):
+        die("snapshot is for adopt templates: generated pages have no earlier version")
+    rows = [r for r in combos.get(a.template, []) if str(r.get("url", "")).startswith("/")][: a.limit]
+    day = date.today().isoformat()
+    folder = st.geo / "snapshots" / a.template / day
+    folder.mkdir(parents=True, exist_ok=True)
+    index_rows, failed = [], 0
+    for i, r in enumerate(rows):
+        url = a.base.rstrip("/") + r["url"]
+        req = urllib.request.Request(url, headers={"User-Agent": "site-batch-snapshot/1.0 (+owner's own site)"})
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                status, html = resp.status, resp.read(3_000_000).decode("utf-8", "replace")
+        except urllib.error.HTTPError as e:
+            status, html = e.code, ""
+        except (urllib.error.URLError, TimeoutError) as e:
+            status, html = None, ""
+        name = re.sub(r"[^a-z0-9]+", "-", r["url"].lower()).strip("-") or "home"
+        row = {"date": day, "url": r["url"], "combo_id": r.get("combo_id"), "status": status}
+        if html:
+            (folder / f"{name}.html").write_text(html)
+            row.update(page_summary(html), file=str((folder / f"{name}.html").relative_to(st.root)),
+                       sha256=hashlib.sha256(html.encode()).hexdigest()[:16])
+        else:
+            failed += 1
+        index_rows.append(row)
+        if a.delay and i < len(rows) - 1:
+            time.sleep(a.delay)
+    idx = st.geo / "snapshots" / a.template / "index.jsonl"
+    write_jsonl(idx, read_jsonl(idx) + index_rows)
+    print(json.dumps({"saved": len(index_rows) - failed, "failed": failed, "folder": str(folder)}, ensure_ascii=False, indent=2))
+
+
 # ---------- questions ----------
 
 def route_level(scope, t):
@@ -719,22 +808,36 @@ def cmd_wave_plan(st, a):
     proj, dims, facts, templates, waves, result = evaluate(st)
     if any(w["status"] == "planned" for w in waves["waves"]):
         die("a planned wave exists: release it or edit geo/waves.json first")
-    combos = {}
+    combos, control = {}, {}
     for tid, r in result.items():
         if a.template and tid != a.template:
             continue
-        ready = [e for e in r["items"] if not e["failed"] and e["wave"] is None]
+        ready = [e for e in r["items"] if not e["failed"] and e["wave"] is None
+                 and (e["control_of"] is None or a.include_control)]
         ready.sort(key=lambda e: (-float(e["row"].get("priority", 0) or 0), e["cid"]))
-        pick = [e["cid"] for e in ready[: a.per_template]]
+        if a.control_ratio:
+            # Alternate along the priority order so the two groups stay alike: every k-th row is held back.
+            k = max(2, round(1 / a.control_ratio))
+            take = ready[: round(a.per_template / (1 - 1 / k))]
+            pick = [e["cid"] for i, e in enumerate(take) if i % k != k - 1][: a.per_template]
+            hold = [e["cid"] for i, e in enumerate(take) if i % k == k - 1]
+            if hold:
+                control[tid] = hold
+        else:
+            pick = [e["cid"] for e in ready[: a.per_template]]
         if pick:
             combos[tid] = pick
     if not combos:
         die("nothing to plan: no gated combinations outside earlier waves")
     wid = max([w["id"] for w in waves["waves"]] + [0]) + 1
-    waves["waves"].append({"id": wid, "status": "planned", "planned": date.today().isoformat(),
-                           "released": None, "combos": combos, "note": a.note or ""})
+    wave = {"id": wid, "status": "planned", "planned": date.today().isoformat(),
+            "released": None, "combos": combos, "note": a.note or ""}
+    if control:
+        wave["control"] = control
+    waves["waves"].append(wave)
     write_json(st.waves, waves)
-    print(json.dumps({"wave": wid, "sizes": {k: len(v) for k, v in combos.items()}}, ensure_ascii=False, indent=2))
+    print(json.dumps({"wave": wid, "sizes": {k: len(v) for k, v in combos.items()},
+                      "control": {k: len(v) for k, v in control.items()}}, ensure_ascii=False, indent=2))
 
 
 def cmd_wave_release(st, a):
@@ -767,11 +870,16 @@ def rate(n, d):
 
 
 def cmd_funnel(st, a):
-    inst = [i for i in read_jsonl(st.instances) if i["gate"]["pass"] and i["released"]]
+    all_inst = read_jsonl(st.instances)
+    inst = [i for i in all_inst if i["gate"]["pass"] and i["released"]]
     if not inst:
         die("no released pages in geo/instances.jsonl: release a wave and build first")
     snaps = latest_snapshots(st)
     groups = defaultdict(list)
+    for i in all_inst:
+        # Held-back rows of a wave: same kind of page, left as it was (adopt) or not yet published.
+        if i.get("control_of") is not None and not i["released"]:
+            groups[(i["template"], f"wave {i['control_of']}", "control")].append(i)
     for i in inst:
         groups[(i["template"], "all", "all")].append(i)
         groups[(i["template"], f"wave {i['wave']}", "all")].append(i)
@@ -818,10 +926,17 @@ def main(argv=None):
     s.add_argument("--template", required=True)
     s.add_argument("--force-override", action="store_true")
     sub.add_parser("status")
+    s = sub.add_parser("snapshot")
+    s.add_argument("--template", required=True)
+    s.add_argument("--base", required=True, help="origin of the live site, e.g. https://example.com")
+    s.add_argument("--limit", type=int, default=500)
+    s.add_argument("--delay", type=float, default=0.5)
     s = sub.add_parser("questions")
     s.add_argument("--template", required=True)
     s = sub.add_parser("wave-plan")
     s.add_argument("--per-template", type=int, required=True)
+    s.add_argument("--control-ratio", type=float, default=0.0, help="share of picked rows held back as control (e.g. 0.5)")
+    s.add_argument("--include-control", action="store_true", help="allow rows held back by an earlier wave")
     s.add_argument("--template")
     s.add_argument("--note")
     s = sub.add_parser("wave-release")
@@ -833,7 +948,7 @@ def main(argv=None):
     s.add_argument("--today")
     a = p.parse_args(argv)
     st = State(a.root)
-    {"lint": cmd_lint, "build": cmd_build, "scaffold": cmd_scaffold, "status": cmd_status, "questions": cmd_questions,
+    {"lint": cmd_lint, "build": cmd_build, "scaffold": cmd_scaffold, "status": cmd_status, "questions": cmd_questions, "snapshot": cmd_snapshot,
      "wave-plan": cmd_wave_plan, "wave-release": cmd_wave_release, "funnel": cmd_funnel,
      "prune": cmd_prune}[a.cmd](st, a)
 

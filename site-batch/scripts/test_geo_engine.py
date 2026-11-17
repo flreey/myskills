@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Tests for geo_engine.py: python3 -B -m unittest discover -s <skill>/scripts -p 'test_*.py'"""
 import contextlib
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import importlib.util
+import threading
 import io
 import json
 from pathlib import Path
@@ -294,6 +296,86 @@ class EngineTest(unittest.TestCase):
         code, out = run(self.root, "scaffold", "--template", "convert")
         self.assertEqual(len(json.loads(out)["overrides_written"]), 2)
         self.assertTrue((self.root / "src/site/overrides/templates/DirectoryGroup.astro").exists())
+
+    def adopt_setup(self):
+        t = {"id": "families", "adopt": True, "task": "find {source} sounds", "dimensions": ["source", "target"],
+             "required": ["core_answer"], "min_unique_ratio": 0.2, "approved": {"by": "user", "date": "2026-11-17"},
+             "patterns": {"title": "{source.label} to {target.label}: {headline}"}}
+        ge.write_json(self.root / "geo/templates/families.json", t)
+        rows = []
+        for i, (src, tgt) in enumerate([("heic", "jpg"), ("heic", "png"), ("webp", "jpg"), ("webp", "png")]):
+            r = row(src, tgt, f"Answer {'abcd'[i]} about {src} and {tgt} with its own wording, variant {'wxyz'[i]}.", url=f"/sounds/{src}-{tgt}",
+                    priority=4 - i)
+            r["fact_ids"], r["follow_ups"] = ["f1"], []
+            r["constraint_results"][0]["note"] = f"{src} {tgt} note"
+            rows.append(r)
+        rows.append(row("heic", "jpg", "Duplicate url row.", url="/sounds/heic-jpg", combo_id="heic__jpg2"))
+        rows.append(row("webp", "jpg", "No url row.", combo_id="webp__jpg2"))
+        ge.write_jsonl(self.root / "geo/combos/families.jsonl", rows)
+        (self.root / "geo/templates/convert.json").unlink()
+
+    def test_adopt_rows_keep_their_urls_and_output_json(self):
+        self.adopt_setup()
+        (self.root / ".sitekit.json").write_text("{}")          # even on a kit site, adopt goes to JSON
+        code, out = run(self.root, "lint")
+        self.assertNotIn("collection.basePath is required", out)
+        run(self.root, "build")
+        inst = {i["combo_id"]: i for i in ge.read_jsonl(self.root / "geo/instances.jsonl")}
+        self.assertEqual(inst["heic__jpg"]["url"], "/sounds/heic-jpg")
+        self.assertTrue(inst["heic__jpg"]["gate"]["pass"], inst["heic__jpg"]["gate"])
+        self.assertIn("duplicate url", inst["heic__jpg2"]["gate"]["failed"])
+        self.assertTrue(any("adopt rows need url" in f for f in inst["webp__jpg2"]["gate"]["failed"]))
+        self.assertFalse((self.root / "data/families.jsonl").exists())
+        run(self.root, "wave-plan", "--per-template", "2", "--control-ratio", "0.5")
+        waves = json.loads((self.root / "geo/waves.json").read_text())
+        self.assertEqual(waves["waves"][0]["combos"]["families"], ["heic__jpg", "webp__jpg"])   # 1st and 3rd by priority
+        self.assertEqual(waves["waves"][0]["control"]["families"], ["heic__png", "webp__png"])  # 2nd and 4th held back
+        run(self.root, "wave-release", "--wave", "1", "--date", "2026-10-01")
+        run(self.root, "build")
+        doc = json.loads((self.root / "geo/out/families.json").read_text())
+        self.assertTrue(doc["adopt"])
+        self.assertEqual(sorted(i["url"] for i in doc["items"]), ["/sounds/heic-jpg", "/sounds/webp-jpg"])
+        self.assertEqual(doc["items"][0]["title"].split(":")[0], "HEIC to JPG")
+        self.assertTrue(all(set(i["related_urls"]) <= {"/sounds/heic-jpg", "/sounds/webp-jpg"} for i in doc["items"]))
+        code, out = run(self.root, "wave-plan", "--per-template", "5")
+        self.assertEqual(code, 2)                                   # only control rows left, held back
+        code, out = run(self.root, "wave-plan", "--per-template", "5", "--include-control")
+        self.assertEqual(json.loads(out)["sizes"], {"families": 2})
+        ge.write_jsonl(self.root / "geo/measure/snapshots.jsonl", [
+            {"date": "2026-11-01", "url": "/sounds/heic-jpg", "cited": True},
+            {"date": "2026-11-01", "url": "/sounds/heic-png", "cited": False}])
+        rows = json.loads(run(self.root, "funnel")[1])
+        ctrl = next(r for r in rows if r["arm"] == "control")
+        self.assertEqual((ctrl["wave"], ctrl["released"], ctrl["cited"]), ("wave 1", 2, 0.0))
+
+    def test_snapshot_saves_live_html(self):
+        self.adopt_setup()
+
+        class H(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_GET(self):
+                if self.path == "/sounds/webp-png":
+                    self.send_response(404); self.end_headers(); return
+                body = f"<html><head><title>Old {self.path}</title></head><body><h1>Old page</h1><p>a b c</p></body></html>".encode()
+                self.send_response(200); self.send_header("Content-Type", "text/html"); self.end_headers(); self.wfile.write(body)
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            code, out = run(self.root, "snapshot", "--template", "families", "--base",
+                            f"http://127.0.0.1:{srv.server_address[1]}", "--delay", "0")
+        finally:
+            srv.shutdown()
+        rep = json.loads(out)
+        self.assertEqual((rep["saved"], rep["failed"]), (4, 1))   # 5 rows with urls (one duplicate), one 404
+        idx = ge.read_jsonl(self.root / "geo/snapshots/families/index.jsonl")
+        ok = next(r for r in idx if r["url"] == "/sounds/heic-png")
+        self.assertEqual((ok["status"], ok["title"], ok["h1"]), (200, "Old /sounds/heic-png", "Old page"))
+        self.assertTrue((self.root / ok["file"]).exists())
+        code, _ = run(self.root, "snapshot", "--template", "nope", "--base", "http://x")
+        self.assertEqual(code, 2)
 
     def test_lint_requires_decision_and_valid_template(self):
         bad = dict(TEMPLATE, patterns=dict(TEMPLATE["patterns"], slug="{source}"))

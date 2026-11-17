@@ -25,6 +25,10 @@ Engine (Python stdlib, read-only), `python3 <skill-dir>/scripts/page_check.py`:
   [--retired "phrase"]...`: one page in depth. With `--brief seo/work/briefs/<slug>.json` from
   site-plan it takes the primary phrasings, questions and sub-needs from there.
 
+- `--url <url> --geo-brief geo/optimize/briefs/<page>.json`: GEO mode coverage against a site-geo page
+  brief: openings vs the first paragraph, each brief question vs visible questions and page text, each
+  condition vs page text (lexical pre-sort; judge every line).
+
 Both take `--format json`. `--retired` lists product names and positioning the site no longer uses
 (after a pivot or rename); the sweep finds every page that still says them.
 
@@ -64,7 +68,8 @@ its own mode. Checks 2b–5 and S2–S4 are the same in both modes.
    `npm run check` gates the build; also read its warnings (`link-noindex`, `jsonld`), which do not
    fail the build and are easy to miss. Fix shared causes once (template, component, robots,
    headers), not page by page.
-2. **Pick pages** for the page checks. Always: the home page and the store, hub or category pages
+2. **Pick pages** for the page checks (GEO mode on a retrofitted live page: run `--geo-brief` before
+   and after the change). Always: the home page and the store, hub or category pages
    (they carry the broad keywords and most internal links). Then new or changed pages, the pages
    with the most GSC impressions (site-plan's latest window), and one page per issue shape from the
    sweep. After a pivot, a rename or a batch launch, check every hub page, not only the new pages.

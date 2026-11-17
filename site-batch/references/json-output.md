@@ -38,6 +38,9 @@
   nothing else from this file.
 - `related` lists only released slugs, so links never point at unbuilt pages.
 - `title` is the raw title: apply the site's own title template.
+- Adopt templates (`"adopt": true` in the file): items are existing pages at `url`; render the content
+  blocks into those pages and leave the rest of each page as it is. Empty `title`, `h1`, `description`
+  mean keep the page's current value. Use `related_urls` for links.
 
 ## What the page must render
 
