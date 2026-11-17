@@ -328,15 +328,21 @@ class EngineTest(unittest.TestCase):
         self.assertFalse((self.root / "data/families.jsonl").exists())
         run(self.root, "wave-plan", "--per-template", "2", "--control-ratio", "0.5")
         waves = json.loads((self.root / "geo/waves.json").read_text())
-        self.assertEqual(waves["waves"][0]["combos"]["families"], ["heic__jpg", "webp__jpg"])   # 1st and 3rd by priority
-        self.assertEqual(waves["waves"][0]["control"]["families"], ["heic__png", "webp__png"])  # 2nd and 4th held back
+        picked, held = waves["waves"][0]["combos"]["families"], waves["waves"][0]["control"]["families"]
+        # Pairs in priority order (heic__jpg, heic__png), (webp__jpg, webp__png): one of each pair on each side.
+        for pair in ({"heic__jpg", "heic__png"}, {"webp__jpg", "webp__png"}):
+            self.assertEqual(len(pair & set(picked)), 1)
+            self.assertEqual(len(pair & set(held)), 1)
+        self.assertIn("heic__jpg", picked)   # fixed by the hash for this template and wave
         run(self.root, "wave-release", "--wave", "1", "--date", "2026-10-01")
         run(self.root, "build")
         doc = json.loads((self.root / "geo/out/families.json").read_text())
         self.assertTrue(doc["adopt"])
-        self.assertEqual(sorted(i["url"] for i in doc["items"]), ["/sounds/heic-jpg", "/sounds/webp-jpg"])
-        self.assertEqual(doc["items"][0]["title"].split(":")[0], "HEIC to JPG")
-        self.assertTrue(all(set(i["related_urls"]) <= {"/sounds/heic-jpg", "/sounds/webp-jpg"} for i in doc["items"]))
+        live = sorted(inst[c]["url"] for c in picked)
+        self.assertEqual(sorted(i["url"] for i in doc["items"]), live)
+        self.assertEqual(doc["pending"], 0)   # held-back control rows are not pending
+        self.assertEqual(next(i for i in doc["items"] if i["combo_id"] == "heic__jpg")["title"].split(":")[0], "HEIC to JPG")
+        self.assertTrue(all(set(i["related_urls"]) <= set(live) for i in doc["items"]))
         code, out = run(self.root, "wave-plan", "--per-template", "5")
         self.assertEqual(code, 2)                                   # only control rows left, held back
         code, out = run(self.root, "wave-plan", "--per-template", "5", "--include-control")
@@ -347,6 +353,128 @@ class EngineTest(unittest.TestCase):
         rows = json.loads(run(self.root, "funnel")[1])
         ctrl = next(r for r in rows if r["arm"] == "control")
         self.assertEqual((ctrl["wave"], ctrl["released"], ctrl["cited"]), ("wave 1", 2, 0.0))
+
+    def test_questions_on_adopt_template_without_collection(self):
+        self.adopt_setup()
+        ge.write_jsonl(self.root / "geo/gap/samples.jsonl", [
+            {"combo_id": "heic__jpg", "combo": {"source": "heic", "target": "jpg"}, "opening": "x",
+             "opening_scope": ["source", "target"], "follow_ups": [{"q": "Loop?", "kind": "constraint"}]}])
+        code, out = run(self.root, "questions", "--template", "families")
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out)["levels"], {"item": 1})
+        code, _ = run(self.root, "scaffold", "--template", "families")
+        self.assertEqual(code, 2)   # adopt templates are read by the site's own template, not a kit module
+        code, out = run(self.root, "lint")
+        self.assertIn("adopt template without diagnosis", out)
+
+    def test_status_groups_reasons_without_numbers(self):
+        same = "Exactly the same words on every page about converting images in the browser quickly."
+        rows = [row("heic", "jpg", same), row("heic", "png", same + " Also more."), row("webp", "jpg", same + " And so.")]
+        for r in rows:
+            r["follow_ups"], r["headline"], r["constraint_results"] = [], "same", [{"constraint": "x", "status": "met"}]
+        ge.write_jsonl(self.root / "geo/combos/convert.jsonl", rows)
+        out = json.loads(run(self.root, "status")[1])
+        self.assertEqual(list(out["convert"]["failed_by_reason"]), ["unique ratio N < N"])
+
+    def test_shared_text_is_left_out_of_the_unique_ratio(self):
+        shared = "All sounds are CC0 and free for commercial use without credit."
+        rows = [row(s, t, f"{shared} {s} to {t} keeps its own detail number one.") for s, t in (("heic", "jpg"), ("heic", "png"), ("webp", "jpg"))]
+        for r in rows:
+            r["follow_ups"], r["headline"] = [], f"{r['combo_id']} head"
+        ge.write_jsonl(self.root / "geo/combos/convert.jsonl", rows)
+        t = json.loads(json.dumps(TEMPLATE))
+        t["min_unique_ratio"] = 0.6
+        ge.write_json(self.root / "geo/templates/convert.json", t)
+        before = self.gates()["heic__jpg"]["unique_ratio"]
+        t["shared_text"] = [shared]
+        ge.write_json(self.root / "geo/templates/convert.json", t)
+        after = self.gates()["heic__jpg"]["unique_ratio"]
+        self.assertGreater(after, before)
+
+    def test_assets_gate_and_queue(self):
+        rows = json.loads(json.dumps(COMBOS))
+        rows[0]["assets"] = [{"id": "a1", "kind": "sound", "status": "to_generate", "brief": "metal footsteps on stairs"},
+                             {"id": "a2", "kind": "sound", "status": "ready"}]
+        rows[1]["assets"] = [{"id": "a3", "status": "maybe"}]
+        ge.write_jsonl(self.root / "geo/combos/convert.jsonl", rows)
+        g = self.gates()
+        self.assertIn("assets not ready: 1 to_generate", g["heic__jpg"]["gate"]["failed"])
+        self.assertTrue(any("has status 'maybe'" in f for f in g["heic__png"]["gate"]["failed"]))
+        out = json.loads(run(self.root, "assets")[1])["convert"]
+        self.assertEqual(out["rows_waiting"], 2)
+        self.assertEqual(out["queue"][0]["assets"][0]["brief"], "metal footsteps on stairs")
+        self.assertEqual(json.loads(run(self.root, "status")[1])["convert"]["assets_pending"], 2)
+
+    def test_hidden_key_facts_source_numbers_but_stay_off_the_page(self):
+        rows = COMBOS[:2] + [row("webp", "jpg", "WebP to JPG: pick the 3 files named below.",
+                                 key_facts=[{"label": "files", "value": "3", "source": "computed from catalog", "hidden": True}])]
+        ge.write_jsonl(self.root / "geo/combos/convert.jsonl", rows)
+        self.assertTrue(self.gates()["webp__jpg"]["gate"]["pass"])
+        data = {d["combo_id"]: d for d in ge.read_jsonl(self.root / "data/convert.jsonl")}
+        self.assertNotIn("files", [f["label"] for f in data["webp__jpg"]["facts"]])
+
+    def test_slot_when_limits_required_slots(self):
+        t = json.loads(json.dumps(TEMPLATE))
+        t["question_slots"] = [{"id": "loop", "question": "Does it loop?", "kind": "constraint", "when": {"source": "webp"}}]
+        ge.write_json(self.root / "geo/templates/convert.json", t)
+        g = self.gates()
+        self.assertTrue(g["heic__jpg"]["gate"]["pass"], g["heic__jpg"]["gate"])
+        self.assertIn("unanswered question slots ['loop']", g["webp__jpg"]["gate"]["failed"])
+        t["question_slots"][0]["when"] = {"colour": "red"}
+        ge.write_json(self.root / "geo/templates/convert.json", t)
+        self.assertIn("not a template dimension", run(self.root, "lint")[1])
+
+    def test_rows_can_name_related_combinations(self):
+        rows = json.loads(json.dumps(COMBOS))
+        rows[0]["related"] = ["webp__jpg", "nope"]
+        ge.write_jsonl(self.root / "geo/combos/convert.jsonl", rows)
+        run(self.root, "build", "--target", "kit")
+        data = {d["combo_id"]: d for d in ge.read_jsonl(self.root / "data/convert.jsonl")}
+        self.assertEqual(data["heic__jpg"]["related"], ["webp-to-jpg"])
+
+    def test_preview_renders_one_row_without_touching_waves(self):
+        run(self.root, "build", "--target", "json")
+        before = (self.root / "geo/instances.jsonl").read_text()
+        code, out = run(self.root, "build", "--target", "json", "--preview", "convert:heic__jpg")
+        self.assertEqual(code, 0)
+        doc = json.loads((self.root / "geo/out/preview/convert.json").read_text())
+        self.assertEqual([i["combo_id"] for i in doc["items"]], ["heic__jpg"])
+        self.assertFalse((self.root / "geo/waves.json").exists())
+        self.assertEqual((self.root / "geo/instances.jsonl").read_text(), before)
+        code, _ = run(self.root, "build", "--preview", "convert:webp__png")
+        self.assertEqual(code, 2)   # failing rows cannot be previewed as pages
+
+    def test_deployed_date_drives_prune_and_baselines_are_summed(self):
+        rows = json.loads(json.dumps(COMBOS))
+        for i, r in enumerate(rows):
+            r["baseline"], r["priority"] = {"ai_landings": 10 * (i + 1)}, 5 - i
+        ge.write_jsonl(self.root / "geo/combos/convert.jsonl", rows)
+        run(self.root, "build")
+        code, out = run(self.root, "wave-plan", "--per-template", "1", "--control-ratio", "0.5")
+        plan = json.loads(out)
+        self.assertEqual(plan["sizes"], {"convert": 1})
+        b = plan["baseline"]["convert"]
+        self.assertEqual(sorted([b["wave"]["ai_landings"], b["control"]["ai_landings"]]), [10.0, 20.0])
+        out = json.loads(run(self.root, "wave-release", "--wave", "1", "--date", "2026-10-01")[1])
+        self.assertIn("wave-deployed", out["next"])
+        code, _ = run(self.root, "wave-deployed", "--wave", "1", "--date", "2026-11-01")
+        self.assertEqual(code, 0)
+        run(self.root, "build")
+        live = [i for i in ge.read_jsonl(self.root / "geo/instances.jsonl") if i["released"]]
+        self.assertEqual(live[0]["deployed_on"], "2026-11-01")
+        ge.write_jsonl(self.root / "geo/measure/snapshots.jsonl", [
+            {"date": "2026-11-15", "url": live[0]["url"], "crawled": True, "indexed": False}])
+        cands = json.loads(run(self.root, "prune", "--min-days", "28", "--today", "2026-11-17")[1])["candidates"]
+        self.assertEqual(cands, [])   # 16 days since the deploy, though 47 since release
+
+    def test_geo_dir(self):
+        (self.root / "geo").rename(self.root / "geo-families")
+        code, out = run(self.root, "--geo-dir", "geo-families", "build", "--target", "kit")
+        self.assertEqual(code, 0)
+        self.assertTrue((self.root / "geo-families/instances.jsonl").exists())
+
+    def test_snapshot_titles_are_unescaped(self):
+        self.assertEqual(ge.page_summary("<title>Cats &amp; Dogs</title><h1>A &#39;b&#39;</h1>")["title"], "Cats & Dogs")
 
     def test_snapshot_saves_live_html(self):
         self.adopt_setup()

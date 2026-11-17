@@ -57,15 +57,17 @@ never answer the same task.
 | `collection.*` | Goes into `site.config.ts` through `geo_engine.py scaffold`. `itemType` is one of the kit's: `Thing`, `CreativeWork`, `Product`, `Place`, `Dataset`, `SoftwareApplication`, `DefinedTerm`. `groups.by` is one of the template's dimensions; `groups.intro` may use `{count}` and `{name}`. |
 | `patterns` | `{dim}` = value id, `{dim.label}` = value label, `{field}` = a row field (e.g. `{headline}`). `slug` must contain every dimension. The rendered description must be 50–155 characters or the row fails. |
 | `field_sources` | Where each answer field comes from. A field with no real source is a field the template cannot require. |
-| `title_source` | One line: which real openings and signals the title and H1 patterns follow (`questions` lists them). |
+| `title_source` | One line: which real openings, signals and captured assistant search queries the title and H1 patterns follow (`questions` lists the openings; site-idea's report lists the queries). |
 | `labels` | Optional headings for the two sections the geo overrides add: `chooser` (group page) and `alternatives` (item page). Write them in the site's language (`{"chooser": "怎么选", "alternatives": "其他做法"}`); the English defaults apply otherwise. The kit's own headings follow its i18n messages. |
-| `question_slots` | 5–8 follow-ups every row answers, generalised from the sampled conversations ([question-mapping.md](question-mapping.md) §3). Rows tag answers with `slot`; unanswered required slots fail the gate. |
+| `question_slots` | 5–8 follow-ups every row answers, generalised from the sampled conversations ([question-mapping.md](question-mapping.md) §3). Rows tag answers with `slot`; unanswered required slots fail the gate. A slot with `when` (`{"need": ["batch"]}`) is required only on the combinations it names. |
+| `shared_text` | Sentences every page states on purpose (licence, format support). Their 3-word shingles are left out of the unique ratio, so the ratio measures what is specific to each row. |
+| `diagnosis` | Adopt templates: the evidence that these pages are the bottleneck and the running experiments the rows avoid ([adopt.md](adopt.md)). |
 | `required` | Must include `core_answer`. A row missing any required field never becomes a page. |
 | `facts_fields` | Extra row fields shown as fact rows: `[{"label": "Quality loss", "field": "loss_note"}]`. |
 | `min_unique_ratio` | Share of a row's 3-word shingles found in no other row of the template. Start at 0.6. |
 | `allow_numbers` | Numbers allowed in prose without a fact (step numbers, "1 page"). Keep it short. |
 | `experiment` | `{"name": "...", "arms": ["a", "b"]}`: arms are assigned per combination by hash; rows carry `variants.b` with the fields that differ. |
-| `approved` | `{"by": "user", "date": "YYYY-MM-DD"}` once the owner approved this spec and one rendered example. |
+| `approved` | `{"by": "user", "date": "YYYY-MM-DD"}` once the owner approved this spec and one rendered example (`build --preview <id>:<combo>`). |
 | `version` | Bump when patterns or required fields change; scaffold writes it into the module header. |
 
 ## From the gap report to required fields

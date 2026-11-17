@@ -3,6 +3,25 @@
 New domains have little traffic, so the unit is the template (and the wave and arm inside it), not
 the page. `geo_engine.py funnel` reads `geo/measure/snapshots.jsonl`; this file says how to fill it.
 
+## What counts as the result
+
+The goal is that assistants send people here. The page-side funnel (crawled → indexed → AI fetch →
+cited → referrals) shows where pages drop, but its later steps say what happens after a page is
+opened. Read each wave against two results as well:
+
+1. **Presence:** re-run the site-idea probes for a sample of the wave's combinations (and the control)
+   with the same questions as the baseline: share of answers with the site, first recommendations,
+   own pages cited. This is the primary result.
+2. **Retrieval:** for the search queries captured in the baseline, where the wave's pages rank (Search
+   Console and Bing for the owner's site, or a quick check of the query). A page that does not show up
+   for the rewritten query will not be opened, whatever it says.
+
+AI referrals and the site's core action per landing page (site-measure) come next. "Referrals ÷ AI
+fetch" and take-rate are secondary: they move only for pages that are already found.
+
+Windows count from the wave's `deployed` day (`wave-deployed`); without it, from `released`, and the
+funnel says so.
+
 ## Snapshot rows
 
 ```json
@@ -47,7 +66,8 @@ the same wave. Small counts decide nothing: say how many pages each rate rests o
 
 ## Pruning
 
-`prune --min-days 28` lists released pages whose newest snapshot says not indexed after the window.
+`prune --min-days 28` lists released pages whose newest snapshot says not indexed after the window,
+counted from the deploy day when it is recorded.
 For each: check links and content first; then merge it into a sibling or the group page (the row
 leaves the combos file; add a redirect through site-plan's registry or the kit's redirect config) or
 keep it unreleased. Removing pages is the owner's call and ships through the site-kit release.

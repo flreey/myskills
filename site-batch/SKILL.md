@@ -1,6 +1,6 @@
 ---
 name: site-batch
-description: 批量页面（程序化 GEO / 长尾页）：site-idea 定下“做”或“缩小范围”之后，把任务空间变成大量页面——盘点每个组合的独特资产、写有来源的事实库、设计 2–5 个页面模板（站长批准）、填组合数据并过质量门槛、接入 site-kit directory 站或输出通用 JSON 给其他技术栈，然后分波次发布、按模板看抓取/收录/AI 抓取/引用漏斗、扩量、暂停或修剪；已验证模板里补长尾取值也用它。Also for programmatic pages, long-tail pages, 批量页面、长尾页面、模板页、组合答案表、分波次发布、按模板复盘、修剪页面。不用于：想法是否值得做（site-idea）、单个关键词要不要建页（site-plan）、普通建站与部署（site-kit）、已上线站点的 AI 可见度检查（site-geo）。
+description: 批量页面（程序化 GEO / 长尾页）：site-idea 定下“做”或“缩小范围”之后，把任务空间变成大量页面——盘点每个组合的独特资产（缺的资产先列成待生成 / 待采集队列，补齐才放行）、写有来源的事实库、设计 2–5 个页面模板（站长批准）、填组合数据并过质量门槛、接入 site-kit directory 站或输出通用 JSON 给其他技术栈，然后分波次发布、按模板看抓取/收录/AI 抓取/引用漏斗、扩量、暂停或修剪；已验证模板里补长尾取值也用它。Also for programmatic pages, long-tail pages, 批量页面、长尾页面、模板页、组合答案表、分波次发布、按模板复盘、修剪页面。不用于：想法是否值得做（site-idea）、单个关键词要不要建页（site-plan）、普通建站与部署（site-kit）、已上线站点的 AI 可见度检查（site-geo）。
 ---
 
 # site-batch: many pages from data, released in waves
@@ -10,8 +10,14 @@ Decided task space → assets → facts → templates (owner approves) → combi
 data, so each one must hold an answer the assistants cannot give on their own; new domains index
 slowly and punish thin bulk, so pages ship in waves and each template earns the next one.
 
-Engine (Python stdlib): `python3 <skill-dir>/scripts/geo_engine.py --root <project> <command>` with
-`lint`, `build`, `status`, `questions`, `snapshot`, `scaffold`, `wave-plan`, `wave-release`, `funnel`, `prune`. State
+The number of pages comes from dimensions × assets, never from the number of questions: probes
+validate a template's question pattern on a sample, and every page still needs its own files, data or
+results. A product that can make assets (a generator, a converter, a measurement) can fill missing
+combinations first and then publish them; rows say which assets they wait for.
+
+Engine (Python stdlib): `python3 <skill-dir>/scripts/geo_engine.py --root <project> [--geo-dir geo] <command>` with
+`lint`, `build` (`--preview T:COMBO`), `status`, `assets`, `questions`, `snapshot`, `scaffold`, `wave-plan`,
+`wave-release`, `wave-deployed`, `funnel`, `prune`. State
 contract: [../site-idea/references/state.md](../site-idea/references/state.md). References:
 [templates](references/templates.md), [questions to pages](references/question-mapping.md), [facts and rows](references/combos.md),
 [non-kit output](references/json-output.md), [adopting existing pages](references/adopt.md), [measuring waves](references/measure.md).
@@ -24,8 +30,9 @@ contract: [../site-idea/references/state.md](../site-idea/references/state.md). 
    type goes back to site-idea.
 2. **Facts have sources.** Every number and claim on a page traces to `geo/facts.jsonl` (a re-checkable
    source and a date) or to a computed key fact. Not the model's memory, not a search snippet.
-3. **Missing data means no row.** A combination without the assets for its required fields is left
-   out. The gate is never loosened to let thin rows through.
+3. **Missing data means no page.** A combination without the assets for its required fields is left
+   out, or kept as a row whose `assets` say what it waits for (`to_generate`, `to_collect`): it fails
+   the gate until each one is `ready`. The gate is never loosened to let thin rows through.
 4. **The owner approves each template** after seeing the spec and one rendered row (`approved`), and
    each wave before release. Pattern or required-field changes bump `version` and need approval again.
 5. **Waves, never everything at once.** Seed wave 50–200 pages across templates; later waves grow only
@@ -45,23 +52,31 @@ contract: [../site-idea/references/state.md](../site-idea/references/state.md). 
 | Templates approved, gated rows ready, or a wave due | [Release](#release) |
 | A released wave is past its window | [Review](#review) |
 | Adding long-tail values to an approved template | site-idea `extend` (owner) → rows for the new values → `lint` → [Release](#release) |
-| A family of existing pages should become GEO pages (keep URLs) | adopt template ([references/adopt.md](references/adopt.md)): `snapshot` first, then blueprint steps 3–5, release with `--control-ratio` |
+| A family of existing pages should become GEO pages (keep URLs) | only after site-geo optimize (O4–O5) shows these pages are the bottleneck; then an adopt template ([references/adopt.md](references/adopt.md)): `snapshot` first, then blueprint steps 3–5, release with `--control-ratio` |
 
 ## Blueprint
 
 1. **Read the decision.** `geo/project.json` (verdict, subspace), `geo/gap/report.md` (which gaps
-   dominate), `geo/gap/samples.jsonl` (follow-ups, signals, what assistants recommend).
+   dominate, whether the site is in the answers, the lever hint and the captured search queries),
+   `geo/needs.md` and `geo/bank.md` when present, `geo/gap/samples.jsonl` (follow-ups, signals, what
+   assistants recommend). When the report's notes say the answers rest on lists, forums or no search,
+   tell the owner the pages need site-offsite work beside them before planning a large wave.
 2. **Assets.** For the subspace, list what can supply each answer: product capabilities, own tests or
    measurements, structured public data, tool outputs, files people can use. Generated outputs go
-   under `geo/assets/`. Show which combinations have assets; the rest are out until they do.
+   under `geo/assets/`. Show which combinations have assets. Combinations with a real need but no asset
+   yet get rows with `assets` marked `to_generate` or `to_collect` ([references/combos.md](references/combos.md));
+   `assets` lists that work queue by priority. Making the assets (paid generation, collection) follows
+   the project's own approvals; the rows pass the gate only when every asset is `ready`.
 3. **Facts.** Write `geo/facts.jsonl` ([references/combos.md](references/combos.md)).
 4. **Templates.** One per task type, 2–5 in all, each `geo/templates/<id>.json`
    ([references/templates.md](references/templates.md)); `required` follows the dominant gaps. Then
    `questions --template <id>` and map the questions
    ([references/question-mapping.md](references/question-mapping.md)): openings routed to item, group
    or hub by scope; follow-ups merged into 5–8 `question_slots`; `title_source` from item-level
-   openings; group-level openings into group content. Fill two or three rows (and one group), `build`,
-   show the owner the spec, one rendered item page and one group page, record `approved`.
+   openings and the captured search queries; group-level openings into group content. Fill two or
+   three rows (and one group), `build --preview <template>:<combo>` (renders one row as if released,
+   without a wave), show the owner the spec, one rendered item page and one group page, record
+   `approved`, then delete `geo/out/preview/`.
 5. **Rows.** Fill `geo/combos/<id>.jsonl` for at least the seed wave, every required question slot
    answered for that combination, and `geo/combos/<id>.groups.jsonl` for the groups the wave touches;
    `lint`, `status`, fix data until the failure reasons (and `group_failures`) are understood.
@@ -81,16 +96,21 @@ contract: [../site-idea/references/state.md](../site-idea/references/state.md). 
 1. `lint` (no errors, templates approved) and `status` (enough gated rows).
 2. `wave-plan --per-template <n>` (seed: total 50–200; `--template` for one). Show sizes and sample
    URLs; adjust `geo/waves.json` with the owner.
+   With `--control-ratio`, read the printed `baseline` (rows' `baseline` fields summed per side) and
+   re-plan if the two sides differ a lot.
 3. After the owner's yes: `wave-release --wave <k>`, `build`, the site's checks (kit: `npm run check`
    and a screenshot of a new item page per template), commit, then the site's release (kit: site-kit
-   release, which submits new URLs to IndexNow). First wave: the owner submits the sitemap in Search
-   Console and Bing Webmaster (MANUAL).
+   release, which submits new URLs to IndexNow). When the pages are live, `wave-deployed --wave <k>
+   --date <day>` and `build`: windows and pruning count from that day. First wave: the owner submits the
+   sitemap in Search Console and Bing Webmaster (MANUAL).
 
 ## Review
 
 1. One week after a release, then every 1–2 weeks, append rows to `geo/measure/snapshots.jsonl`
    ([references/measure.md](references/measure.md)).
-2. After the window: `funnel`; per template decide with the owner — expand (larger next wave), hold
+2. After the window (from the `deployed` day): re-run the baseline probes for a sample of the wave and
+   its control (presence: in the answer, first, cited) and check the captured search queries; this
+   is the primary result ([references/measure.md](references/measure.md)). Then `funnel`; per template decide with the owner — expand (larger next wave), hold
    (fix the step that drops first), fix (rows or template, re-approval for template changes), prune
    (`prune --min-days 28` candidates, handled as references/measure.md says). Write the decision into
    the wave's `note`.
@@ -100,7 +120,7 @@ contract: [../site-idea/references/state.md](../site-idea/references/state.md). 
 ## Report
 
 Mode and stage → templates (task, required fields, approval) and facts (count, oldest `checked`) →
-rows per template: total, gated, top failure reasons → waves (planned, released, sizes) → checks and
+rows per template: total, gated, top failure reasons, rows waiting for assets → waves (planned, released, sizes) → checks and
 deploy stages, each separately → funnel per template with page counts and window → decisions → MANUAL
 items for the owner → what was not verified.
 

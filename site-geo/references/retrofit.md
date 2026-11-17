@@ -6,7 +6,7 @@ earns in search. Two cases:
 | Case | Tool |
 | --- | --- |
 | A few hand-made pages (home, pricing, a guide, a category page) | this file, one page at a time |
-| A family of similar pages built from one template (hundreds of sound pages, product pages, city pages) | site-batch **adopt** mode (`site-batch/references/adopt.md`): rows keep the live URLs, content blocks come from data, retrofit in waves with a control group |
+| A family of similar pages built from one template (hundreds of sound pages, product pages, city pages) | first O4–O5 of optimize mode: is the page content the bottleneck (lever `onsite`), or do answers rest on lists, forums and no search? Only for `onsite`: site-batch **adopt** mode (`site-batch/references/adopt.md`): rows keep the live URLs, content blocks come from data, retrofit in waves with a control group |
 
 ## What the page should become
 

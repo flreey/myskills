@@ -191,5 +191,208 @@ class GeoIdeaTest(unittest.TestCase):
         self.assertIn("Follow-up 1", (self.root / "geo/gap/probes.md").read_text())
 
 
+NEEDS = [
+    {"id": "n-safe", "need": "use sounds in a commercial game without claims", "personas": ["indie game dev"],
+     "where_asked": ["assistant", "forum"], "evidence_level": "validated", "count": 111,
+     "evidence": [{"source": "forum", "url": "https://www.reddit.com/r/gamedev/x", "quote": "100% copyright free sounds"},
+                  {"source": "site_search", "ref": "search_log 2026-09-18..11-17", "q": "cc0 gunshot", "n": 9}]},
+    {"id": "n-fit", "need": "a sound that drops straight into the engine", "personas": ["indie game dev"],
+     "where_asked": ["agent"], "evidence_level": "hypothesis", "evidence": []},
+]
+
+
+def q(qid, need, angle, text, level="derived", **kw):
+    r = {"id": qid, "need_id": need, "question": text, "persona": "first-time Godot dev", "stage": "choosing",
+         "angle": angle, "evidence_level": level, "evidence": ["forum-1"] if level != "hypothesis" else [],
+         "follow_ups": [{"q": "Do I have to credit anyone?", "kind": "constraint"}], "origin": "model"}
+    r.update(kw)
+    return r
+
+
+BANK = [
+    q("q1", "n-safe", "recommend", "Where do I get gun sounds I can ship in a Steam game without crediting anyone?", "quoted"),
+    q("q2", "n-safe", "constraint", "If I sell my game, do I need to credit whoever made the sound effects?"),
+    q("q3", "n-safe", "problem", "My trailer got a copyright claim on a royalty-free sound, what now?"),
+    q("q4", "n-safe", "compare", "Is a CC0 library safer than a royalty-free subscription for a small game?"),
+    q("q5", "n-fit", "howto", "How do I make a footstep loop cleanly in Godot?", "hypothesis"),
+]
+
+
+class DemandAndBankTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        run(self.root, "init", "--name", "Mint", "--idea", "sounds for games", "--live", "--origin", "https://example.com")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_needs_validates_evidence_and_advances_stage(self):
+        bad = json.loads(json.dumps(NEEDS))
+        bad[0]["evidence"][1].pop("ref")
+        bad[1]["evidence_level"] = "validated"
+        gi.write_jsonl(self.root / "geo/needs.jsonl", bad)
+        code, out = run(self.root, "needs")
+        self.assertEqual(code, 1)
+        self.assertIn("needs ref", out)
+        self.assertIn("validated needs evidence", out)
+        gi.write_jsonl(self.root / "geo/needs.jsonl", NEEDS)
+        code, out = run(self.root, "needs")
+        self.assertEqual(code, 0)
+        proj = json.loads((self.root / "geo/project.json").read_text())
+        self.assertEqual(proj["stage"], "needs")
+        self.assertTrue(proj["site"]["live"])
+        self.assertIn("n-safe", (self.root / "geo/needs.md").read_text())
+        code, _ = run(self.root, "check")
+        self.assertEqual(code, 0)  # no task space yet is fine at the needs stage
+
+    def test_bank_flags_brands_duplicates_and_thin_angles(self):
+        gi.write_jsonl(self.root / "geo/needs.jsonl", NEEDS)
+        gi.write_jsonl(self.root / "geo/competitors.jsonl", [{"id": "pixabay", "name": "Pixabay", "domain": "pixabay.com", "kind": "library"}])
+        bank = BANK + [q("q6", "n-safe", "alternative", "Is Pixabay ok for a commercial game?"),
+                       q("q7", "n-safe", "constraint", "If I sell my game, do I need to credit whoever made the sound effects??"),
+                       q("q8", "n-zzz", "recommend", "Where?")]
+        gi.write_jsonl(self.root / "geo/questions.jsonl", bank)
+        code, out = run(self.root, "bank")
+        self.assertEqual(code, 1)
+        self.assertIn("need_id 'n-zzz' is not in needs.jsonl", out)
+        self.assertIn("names ['pixabay']", out)
+        self.assertIn("q2 and q7", out)
+        self.assertIn("need n-fit: 1 angles", out)
+        gi.write_jsonl(self.root / "geo/questions.jsonl", BANK)
+        code, _ = run(self.root, "bank")
+        self.assertEqual(code, 0)
+        self.assertIn("quoted / derived / hypothesis", (self.root / "geo/bank.md").read_text())
+
+    def test_sample_from_questions_spreads_needs_and_skips_hypotheses(self):
+        gi.write_jsonl(self.root / "geo/needs.jsonl", NEEDS)
+        gi.write_jsonl(self.root / "geo/questions.jsonl", BANK)
+        code, out = run(self.root, "sample", "--n", "10", "--from-questions")
+        self.assertEqual(code, 0)
+        rows = gi.read_jsonl(self.root / "geo/gap/samples.jsonl")
+        self.assertEqual({r["question_id"] for r in rows}, {"q1", "q2", "q3", "q4"})
+        self.assertEqual(json.loads(out)["needs_uncovered"], ["n-fit"])
+        code, _ = run(self.root, "sample", "--n", "10", "--from-questions", "--include-hypothesis", "--force")
+        self.assertEqual(len(gi.read_jsonl(self.root / "geo/gap/samples.jsonl")), 5)
+        code, _ = run(self.root, "probes")
+        self.assertEqual(code, 0)
+
+    def test_report_presence_lever_and_notes(self):
+        gi.write_jsonl(self.root / "geo/needs.jsonl", NEEDS)
+        gi.write_jsonl(self.root / "geo/questions.jsonl", BANK)
+        run(self.root, "sample", "--n", "4", "--from-questions")
+        base = {"platform": "ChatGPT", "date": "2026-11-18", "mode": "browser", "web_search": True}
+        lists = [{"url": "https://list.example/top-10", "type": "list"}, {"url": "https://reddit.com/x", "type": "forum"}]
+        runs = [
+            {**base, "combo_id": "q1", "gap": "no_resource", "own": "absent", "cited": lists, "recommended": ["A", "B"],
+             "search_queries": ["free gun sound effects commercial no attribution"]},
+            {**base, "combo_id": "q2", "gap": "generic", "own": "absent", "cited": lists, "recommended": ["A"], "search_queries": None},
+            {**base, "combo_id": "q3", "gap": "self_made", "own": "absent", "cited": lists, "outcome": "lists_forums"},
+            {**base, "combo_id": "q4", "gap": "good", "own": "listed", "cited_own": True,
+             "cited": [{"url": "https://example.com/x", "type": "brand"}], "recommended": ["A", "Mint"]},
+        ]
+        gi.write_jsonl(self.root / "geo/gap/runs.jsonl", runs)
+        code, _ = run(self.root, "check")
+        self.assertEqual(code, 0)
+        code, out = run(self.root, "report")
+        self.assertEqual(code, 0)
+        rep = json.loads((self.root / "geo/gap/report.json").read_text())
+        p = rep["presence"]
+        self.assertEqual(p["in_answer_share"], 0.25)
+        self.assertEqual(p["lever_hint"], "offsite")
+        self.assertEqual(p["queries_captured"], 1)
+        self.assertEqual(p["self_made"], 1)
+        self.assertEqual(rep["groups"]["need_id"]["n-safe"]["probed"], 4)
+        self.assertTrue(any("self_made" in n for n in rep["notes"]))
+        md = (self.root / "geo/gap/report.md").read_text()
+        self.assertIn("Is the site in the answer", md)
+        self.assertIn("Lever hint: **offsite**", md)
+        gi.write_jsonl(self.root / "geo/gap/runs.jsonl", [{**runs[0], "own": "maybe", "search_queries": "x"}])
+        code, out = run(self.root, "check")
+        self.assertEqual(code, 1)
+        self.assertIn("own must be one of", out)
+        self.assertIn("search_queries is a list", out)
+
+    def test_low_presence_note_when_lever_is_offsite(self):
+        gi.write_jsonl(self.root / "geo/needs.jsonl", NEEDS)
+        gi.write_jsonl(self.root / "geo/questions.jsonl", BANK)
+        run(self.root, "sample", "--n", "4", "--from-questions")
+        lists = [{"url": "https://list.example/top-10", "type": "list"}]
+        gi.write_jsonl(self.root / "geo/gap/runs.jsonl", [
+            {"combo_id": c, "platform": "ChatGPT", "date": "2026-11-18", "mode": "manual", "web_search": True,
+             "gap": "generic", "own": "absent", "cited": lists} for c in ("q1", "q2", "q3", "q4")])
+        run(self.root, "report")
+        rep = json.loads((self.root / "geo/gap/report.json").read_text())
+        self.assertEqual(rep["hint"], "go")
+        self.assertTrue(any("pages alone are unlikely" in n for n in rep["notes"]))
+
+    def test_competitor_search_pages_get_their_own_note(self):
+        gi.write_jsonl(self.root / "geo/needs.jsonl", NEEDS)
+        gi.write_jsonl(self.root / "geo/questions.jsonl", BANK)
+        run(self.root, "sample", "--n", "3", "--from-questions")
+        cited = [{"url": "https://pixabay.com/sound-effects/search/dog%20bark/", "type": "competitor"},
+                 {"url": "https://mixkit.co/free-sound-effects/dog/", "type": "competitor"}]
+        gi.write_jsonl(self.root / "geo/gap/runs.jsonl", [
+            {"combo_id": c, "platform": "ChatGPT", "date": "2026-11-18", "mode": "manual", "web_search": True,
+             "gap": "generic", "own": "absent", "cited": cited} for c in ("q1", "q2", "q3")])
+        run(self.root, "report")
+        rep = json.loads((self.root / "geo/gap/report.json").read_text())
+        self.assertEqual(rep["presence"]["lever_hint"], "onsite")
+        self.assertEqual(rep["presence"]["competitor_search_page_share"], 0.5)
+        self.assertTrue(any("search or tag result pages" in n for n in rep["notes"]))
+
+    def test_decide_without_probes_needs_validated_needs(self):
+        (self.root / "geo/dimensions.json").write_text(json.dumps(DIMS))
+        code, _ = run(self.root, "decide", "--verdict", "go", "--by", "user", "--without-probes")
+        self.assertEqual(code, 2)
+        gi.write_jsonl(self.root / "geo/needs.jsonl", NEEDS)
+        code, _ = run(self.root, "decide", "--verdict", "go", "--by", "model", "--without-probes")
+        self.assertEqual(code, 2)
+        code, out = run(self.root, "decide", "--verdict", "go", "--by", "user", "--without-probes")
+        self.assertEqual(code, 0)
+        dec = json.loads((self.root / "geo/project.json").read_text())["decision"]
+        self.assertEqual(dec["evidence"]["basis"], "first-party demand")
+        self.assertEqual(dec["evidence"]["needs_validated"], 1)
+
+    def test_pool_sample_spreads_strata_and_first_party_signals(self):
+        dims = {"dimensions": [{"id": "family", "kind": "entity", "changes_answer": True, "why": "different sounds",
+                                "source": "catalog", "values": [{"id": f"f{i}"} for i in range(12)]}]}
+        (self.root / "geo/dimensions.json").write_text(json.dumps(dims))
+        pool = [{"combo": {"family": f"f{i}"}, "url": f"/sounds/f{i}", "stratum": "high" if i < 3 else "low"} for i in range(12)]
+        gi.write_jsonl(self.root / "pool.jsonl", pool)
+        code, out = run(self.root, "sample", "--n", "6", "--pool", "pool.jsonl")
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out)["strata"], {"high": 3, "low": 3})
+        p = self.root / "geo/gap/samples.jsonl"
+        rows = gi.read_jsonl(p)
+        self.assertTrue(all(r["url"].startswith("/sounds/") for r in rows))
+        rows[0]["signals"] = [{"source": "site_search", "ref": "search_log 60d", "q": "dog bark", "n": 163},
+                              {"source": "site_search", "q": "no ref"}]
+        gi.write_jsonl(p, rows)
+        code, out = run(self.root, "check")
+        self.assertEqual(code, 1)
+        self.assertIn("needs ref", out)
+
+    def test_report_after_pages_stage_keeps_the_stage(self):
+        gi.write_jsonl(self.root / "geo/needs.jsonl", NEEDS)
+        gi.write_jsonl(self.root / "geo/questions.jsonl", BANK)
+        run(self.root, "sample", "--n", "2", "--from-questions")
+        gi.write_jsonl(self.root / "geo/gap/runs.jsonl", [
+            {"combo_id": "q1", "platform": "ChatGPT", "date": "2026-11-18", "mode": "manual", "gap": "generic"}])
+        p = self.root / "geo/project.json"
+        proj = json.loads(p.read_text())
+        proj["stage"] = "pages"
+        p.write_text(json.dumps(proj))
+        code, _ = run(self.root, "report")
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(p.read_text())["stage"], "pages")
+
+    def test_geo_dir_keeps_two_projects_apart(self):
+        code, _ = run(self.root, "--geo-dir", "geo-families", "init", "--name", "Families", "--idea", "x")
+        self.assertEqual(code, 0)
+        self.assertTrue((self.root / "geo-families/project.json").exists())
+        self.assertEqual(json.loads((self.root / "geo/project.json").read_text())["name"], "Mint")
+
+
 if __name__ == "__main__":
     unittest.main()

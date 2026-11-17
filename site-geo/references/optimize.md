@@ -29,7 +29,10 @@ A cluster is "who × doing what × under which conditions × wanting what". Sour
 4. Bing AI Performance grounding queries: topic-level, supporting evidence only.
 5. Model brainstorming: hypotheses, `evidence_level: hypothesis` until a real source shows the same task.
 
-Sources and windows as in [ai-demand.md](ai-demand.md). Keyword volume is not a source here.
+Sources and windows as in [ai-demand.md](ai-demand.md). Keyword volume is not a source here. When
+site-idea already wrote a demand map (`geo/needs.jsonl`, with first-party and off-site evidence), turn
+its needs into clusters instead of collecting again, and its question bank (`geo/questions.jsonl`)
+into O3 conversations; the same evidence rules apply.
 
 ```json
 {"id": "k-ui-clicks-mobile", "task": "find subtle tap and click sounds for a mobile app that won't annoy users",

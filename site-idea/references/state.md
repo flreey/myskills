@@ -5,7 +5,12 @@ first, checks the preconditions of its stage, writes only the files it owns, and
 Chaining is through these files, not through conversation memory.
 
 Schema version: 1 (`project.json.schema`). All files below are implemented: site-idea
-(`geo_idea.py`), site-batch (`site-batch/scripts/geo_engine.py`).
+(`geo_idea.py`), site-batch (`site-batch/scripts/geo_engine.py`). Fields added on 2026-11-17 (demand
+map, question bank, presence, assets, deploy dates) are optional, so earlier folders stay valid.
+
+Both engines take `--geo-dir <folder>` (default `geo`) when one repository holds several GEO projects,
+for example `geo/` for a new page space and `geo-families/` for a retrofit; every path below is then
+under that folder.
 
 ## Where the folder lives
 
@@ -19,6 +24,9 @@ Schema version: 1 (`project.json.schema`). All files below are implemented: site
 | File | Owner | Status | Holds |
 | --- | --- | --- | --- |
 | `project.json` | all (each writes its own fields) | implemented | idea, audience, market, platforms, north star, stage, decision, log |
+| `needs.jsonl`, `needs.md` | site-idea | implemented | demand map: needs, personas, pains, where asked, evidence ([demand-map.md](demand-map.md)) |
+| `questions.jsonl`, `bank.md` | site-idea | implemented | question bank: questions per need and angle with evidence level ([question-bank.md](question-bank.md)) |
+| `competitors.jsonl` | site-idea | implemented | competitors for reverse-engineered questions ([competitor-probes.md](competitor-probes.md)) |
 | `dimensions.json` | site-idea | implemented | task-space dimensions, values, `changes_answer`, excludes |
 | `gap/samples.jsonl` | site-idea | implemented | sampled combinations with conversation paths and outside signals |
 | `gap/raw/*.md` | site-idea (user pastes) | implemented | full AI answers, one file per run |
@@ -36,17 +44,19 @@ Schema version: 1 (`project.json.schema`). All files below are implemented: site
 | `snapshots/<template>/` (`<date>/*.html`, `index.jsonl`) | geo_engine.py snapshot | implemented | adopt templates: live HTML of existing pages before a retrofit |
 | `<site>/data/<template>.groups.json` | geo_engine.py build, kit target (generated) | implemented | group content read by the group page override |
 | `out/` (`<template>.json`, `index.json`, `urls.txt`) | geo_engine.py build, json target (generated) | implemented | released pages for sites that are not site-kit (site-batch `references/json-output.md`) |
+| `out/preview/<template>.json` | geo_engine.py build --preview (generated) | implemented | one row rendered as if released, for template approval; delete after |
 
 ## Stages
 
-`project.json.stage` moves forward only: `idea` → `space` → `gap` → `decided` → `blueprint` → `pages`.
+`project.json.stage` moves forward only: `idea` → `needs` → `space` → `gap` → `decided` → `blueprint` → `pages`.
 
 | Stage | Set by | Precondition for the next skill |
 | --- | --- | --- |
 | `idea` | `geo_idea.py init` | — |
+| `needs` | `needs` with no errors and a validated need | demand map agreed with the owner |
 | `space` | `space` with no errors | dimensions valid |
 | `gap` | `report` with at least one judged run | gap report exists |
-| `decided` | `decide --by user` | verdict `go` or `narrow` lets site-batch start; `stop` ends the project |
+| `decided` | `decide --by user` (or `--without-probes` on validated needs) | verdict `go` or `narrow` lets site-batch start; `stop` ends the project |
 | `blueprint` | `geo_engine.py build` with at least one gated row | templates approved, rows for the seed wave gated |
 | `pages` | `geo_engine.py wave-release` | first wave released |
 
@@ -61,11 +71,13 @@ Schema version: 1 (`project.json.schema`). All files below are implemented: site
   "market": {"countries": ["US"], "languages": ["en"]},
   "platforms": ["ChatGPT", "Perplexity", "Google AI Mode"],
   "north_star": "AI-referred visits that finish a conversion",
+  "site": {"live": false, "origin": ""},
   "output": {"target": "kit", "dir": "geo/out"},
   "stage": "decided",
   "decision": {"verdict": "narrow", "date": "2026-11-20", "by": "user",
                "subspace": {"source": ["heic", "webp"]}, "note": "",
-               "evidence": {"probed": 40, "share_high": 0.28, "hint": "narrow"}},
+               "evidence": {"probed": 40, "share_high": 0.28, "hint": "narrow",
+                            "in_answer_share": 0.1, "lever_hint": "offsite"}},
   "log": [{"date": "2026-11-17", "stage": "idea", "note": "initialised"}]
 }
 ```
@@ -112,8 +124,13 @@ Schema version: 1 (`project.json.schema`). All files below are implemented: site
  "signals": [{"url": "https://www.reddit.com/r/...", "quote": "is there any way to batch convert heic", "date": "2026-10-02"}]}
 ```
 
-`signals` are outside evidence that people ask this: real URL, short quote, date. Empty when none was
-found.
+`signals` are evidence that people ask this: off-site (real URL, short quote, date) or first-party
+(`source`, `ref`, `q` or `quote`, `n`), as in [demand-map.md](demand-map.md). Empty when none was found.
+Older samples may carry first-party rows as `site_signals`.
+
+Samples from the question bank also carry `question_id`, `need_id`, `angle`, `conditions` and
+`evidence_level`, and use the question id as `combo_id`; samples from a pool carry `url` and `stratum`.
+The report groups results by each of these when present.
 
 ## gap/runs.jsonl
 
@@ -121,6 +138,8 @@ found.
 {"combo_id": "heic__jpg__batch", "platform": "ChatGPT", "model": "as shown in the app", "mode": "manual",
  "date": "2026-11-18", "run": 1, "web_search": true, "raw": "geo/gap/raw/heic__jpg__batch--chatgpt--1.md",
  "cited": [{"url": "https://...", "type": "forum"}], "recommended": ["Tool A", "Tool B"],
+ "own": "absent", "cited_own": false, "own_urls": [],
+ "search_queries": ["batch convert heic to jpg without upload"], "outcome": null,
  "gap": "unmet_constraint", "gap_note": "both tools upload files; user asked for no upload",
  "judged_by": "model"}
 ```
@@ -128,7 +147,10 @@ found.
 - `mode`: `manual` (the user ran it and pasted), `browser` (driven in the user's logged-in browser with
   their go-ahead), `api`.
 - `gap`: one of `generic`, `outdated`, `unmet_constraint`, `no_resource` (high opportunity),
-  `weak_sources` (medium), `good` (low), or `null` before judging. Rubric: [gap-rubric.md](gap-rubric.md).
+  `weak_sources`, `self_made` (medium), `good` (low), or `null` before judging. Rubric: [gap-rubric.md](gap-rubric.md).
+- `own`: `absent`, `mentioned`, `listed`, `first`, `excluded`, or `null` when not judged.
+  `search_queries`: list, or `null` when not captured. `outcome`: competitor probes only
+  ([competitor-probes.md](competitor-probes.md)).
 - `cited[].type`: `brand`, `competitor`, `list`, `forum`, `video`, `docs`, `news`, `other`.
 
 ## Blueprint and pages files
@@ -140,12 +162,15 @@ Full field rules: site-batch `references/templates.md` (templates) and `referenc
 
 ```json
 {"waves": [{"id": 1, "status": "released", "planned": "2026-11-20", "released": "2026-11-24",
+            "deployed": "2026-11-25",
             "combos": {"convert": ["heic__jpg__batch", "heic__png__offline"]}, "note": "seed; expand convert next"}]}
 ```
 
-A combination belongs to at most one wave. Only one wave is `planned` at a time. With
-`wave-plan --control-ratio`, a wave also lists `"control": {"<template>": [combo ids]}`: similar rows
-held back for the review; later waves skip them unless `--include-control`.
+A combination belongs to at most one wave. Only one wave is `planned` at a time. `released` is the day
+the wave was marked in the data; `deployed` is the day the pages went live (`wave-deployed`), and
+windows count from it. With `wave-plan --control-ratio`, a wave also lists `"control": {"<template>":
+[combo ids]}`: rows held back for the review, one of each priority pair chosen by hash; later waves
+skip them unless `--include-control`.
 
 ### data/<template>.jsonl (generated, read by the kit collection module)
 

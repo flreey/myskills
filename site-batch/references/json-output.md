@@ -7,7 +7,8 @@
 | File | Holds |
 | --- | --- |
 | `<template>.json` | one template: collection settings, groups and the released items |
-| `index.json` | every template: file, basePath, released item count, pending count |
+| `index.json` | every template: file, basePath, released item count, pending count, control count |
+| `preview/<template>.json` | `build --preview`: one row as if released, for approval only; never deploy it |
 | `urls.txt` | released item URLs, one per line, for the site's sitemap |
 
 ## `<template>.json`
@@ -34,8 +35,8 @@
 }
 ```
 
-- `items` holds released pages only; `pending` counts gated rows waiting for a wave. Build every item,
-  nothing else from this file.
+- `items` holds released pages only; `pending` counts gated rows waiting for a wave (held-back control
+  rows are not pending). Build every item, nothing else from this file.
 - `related` lists only released slugs, so links never point at unbuilt pages.
 - `title` is the raw title: apply the site's own title template.
 - Adopt templates (`"adopt": true` in the file): items are existing pages at `url`; render the content
@@ -44,7 +45,7 @@
 
 ## What the page must render
 
-Render in this order, all in the server HTML (no client-only content):
+New pages: render in this order, all in the server HTML (no client-only content):
 
 1. `h1`, then `answer` as the first paragraph (inline markdown).
 2. `resource` as a visible link or button when present.
@@ -55,6 +56,21 @@ Render in this order, all in the server HTML (no client-only content):
 
 Section headings for the chooser and alternatives are in `collection.labels` (the template's `labels`,
 English defaults otherwise).
+
+### Existing pages (adopt)
+
+The page already has an order that works for its users (a player or product list above the fold, an
+intro, its own FAQ). Keep it, and fit the blocks in:
+
+- `answer` goes right after the H1 or in place of the current intro paragraph, in the server HTML.
+  It must not push the page's main content (the list people came for) out of the first screen; on
+  narrow screens it may follow that content.
+- `facts` may sit below the main content. `follow_ups` merge into the page's existing FAQ and its
+  `FAQPage` JSON-LD: put them first, and remove existing questions they duplicate only with the
+  owner's approval (removing content is their call).
+- `alternatives` after the FAQ. `dateModified` in the page's structured data takes the row's `updated`.
+- Pages not in `items` must render exactly as before; a test that compares a control page with its
+  snapshot (site-batch `snapshot`) keeps it that way.
 
 Group pages: `content.answer` under the H1, then `content.chooser` as a two-column table (condition →
 link), then the item list, then `content.follow_ups` as visible Q&A with a FAQPage JSON-LD. Groups

@@ -43,6 +43,10 @@ out, not filled with guesses.
 | `follow_ups` | One entry per required question slot (`slot`), plus row-specific questions without a slot. Answers are specific to the combination and follow the same fact rule. |
 | `resource` | `url` is a site path or URL that exists when the wave ships (kit:check reports broken links). |
 | `fact_ids` | Every fact the prose relies on. Numbers in prose that appear in no cited fact or key fact fail the gate. |
+| `key_facts[].hidden` | `true` sources a number in the prose (a count, a named file's length) without showing it as a fact row. |
+| `assets` | What the answer needs that may not exist yet: `[{"id": "a1", "kind": "sound", "status": "to_generate", "brief": "metal footsteps running up stairs, 4–8 takes"}]`. `status`: `ready`, `to_generate`, `to_collect`, `missing`. Any status other than `ready` fails the gate; `geo_engine.py assets` lists the queue by priority. |
+| `related` | Optional list of combo ids to link instead of the automatic siblings (one-dimension templates have none). |
+| `baseline` | Optional numbers for the control split, e.g. `{"ai_fetch": 30, "ai_landings": 12}` over the last 28 days; `wave-plan --control-ratio` sums them per side. |
 | `priority` | Higher ships in an earlier wave. Start from the gap level of the nearest sampled combination. |
 | `variants` | Only with a template experiment: `{"b": {"core_answer": "..."}}` replaces those fields for arm b. |
 
@@ -51,6 +55,19 @@ out, not filled with guesses.
 Group pages for templates with `collection.groups`: answer, chooser and follow-ups per group value.
 Format and rules: [question-mapping.md](question-mapping.md) §5. Failures show in `build` as
 `group_failures`; a failing group renders without the extra content.
+
+## Rows from demand, assets made to order
+
+When the product can make the asset (generate a sound, run a conversion, take a measurement), the
+long tail grows from demand instead of from a word list:
+
+1. Take needs and values with evidence: site and agent searches, zero results, "not found" messages,
+   the question bank (site-idea `geo/needs.jsonl`, `geo/questions.jsonl`).
+2. For each combination an existing page cannot answer, write the row with `assets` marked
+   `to_generate` and a `brief` in the person's words.
+3. Make the assets through the product's own pipeline, within the owner's budget and approvals
+   (generation can cost money), store them, cite them, and set `ready`.
+4. The row passes the gate only then, and still needs its own answer and facts.
 
 ## Writing rows at scale
 

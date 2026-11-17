@@ -51,4 +51,17 @@ Claude does not spend a call per step, only a few calls to hand the run over and
    stall or export empty files. Run conversations one after another, and record failures
    (`Chat stopped unexpectedly`, not logged in, empty answer) as errors for a rerun.
 6. **Do not edit content on the assistant's page.** Changing an answer's text block can invalidate the
-   conversation. Discard that run and rerun it in a new chat.
+   conversation. Discard that run and rerun it in a new chat. Answers with an editable block (canvas)
+   take keyboard focus: type into the chat composer by its own selector, never the focused element.
+7. **Check the mode before every conversation, not once.** After a re-login, ChatGPT's temporary chat
+   came back as "Personalized" (memory on) on 2026-11-17; switch it to "Unpersonalized" and confirm on
+   the page. Also confirm the account is still logged in: a dropped network logged the session out
+   mid-run.
+8. **Count turns yourself and read the full conversation.** Long chats render only some turns, so
+   counting answers on the page sent one follow-up twice. Read the whole conversation from the
+   page's own data when the page exposes it, and record a repeated turn in the run's `gap_note`.
+9. **Capture the search queries with the answer.** Install the stream capture of site-geo
+   references/chatgpt-probes.md (section D) after each page load, before the opening; save the
+   queries and opened URLs with the answer, and write `search_queries: null` when the capture is
+   empty. The rewritten queries are what pages must match; a run without them cannot tell "not
+   searched for" from "searched, not chosen".

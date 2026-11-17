@@ -1,7 +1,12 @@
 # Writing conversation paths and finding signals
 
-A sample is one combination of dimension values. Turn it into the conversation a real person would
-have with an assistant, then look for evidence that people actually ask it.
+A sample is one combination of dimension values, one question-bank row (`sample --from-questions`) or
+one candidate page (`sample --pool`). Turn it into the conversation a real person would have with an
+assistant, then look for evidence that people actually ask it.
+
+Samples from the question bank arrive with `opening`, `persona` and `follow_ups` filled, plus
+`need_id`, `angle` and `evidence_level`; check them, do not rewrite them. Samples from a pool carry the
+page `url` and its `stratum`; write their conversations from the demand map and the site's own data.
 
 ## Conversation path
 
@@ -30,8 +35,17 @@ Rules:
 
 ## Signals
 
-For each sample, spend a few searches looking for people asking this combination: forums, Reddit,
-Q&A sites, product reviews, support communities, GitHub issues. Use the session's web search tool.
+Two kinds, both in `signals`:
+
+- **First-party** (live sites): the site's own records that people ask this, in the evidence format
+  of [demand-map.md](demand-map.md): `{"source": "site_search", "ref": "search_log 2026-09-18..11-17",
+  "q": "pistol gunshot", "n": 20}`. Sources: site, API and MCP search, misses, feedback, product logs,
+  support, surveys, AI fetches and referrals. Older samples may carry them as `site_signals`; both count.
+- **Off-site**: for each sample, spend a few searches looking for people asking this combination:
+  forums, Reddit, Q&A sites, product reviews, support communities, GitHub issues. Use the session's
+  web search tool.
+
+Off-site rules:
 
 - Keep only real posts: URL, a short quote (under 25 words), date if shown.
 - Search in the market's language. Two or three queries per sample; stop when one good signal is found.
@@ -42,5 +56,6 @@ Q&A sites, product reviews, support communities, GitHub issues. Use the session'
 ## How many
 
 Default 40 samples (`sample --n 40`), at least as many as the widest dimension so every value is
-sampled once. Each sample needs at least one run per target platform; two runs on the main platform
+sampled once. For one wide dimension (hundreds of existing pages, one value each), sample a pool by
+strata instead: per-value results mean nothing with one run each, per-stratum results do. Each sample needs at least one run per target platform; two runs on the main platform
 when time allows.
