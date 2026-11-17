@@ -7,7 +7,7 @@
 1. 在 Stripe 建一个沙盒（Sandbox），比如「<站名> sandbox」，以后一直留作测试。
 2. 交给站长运行（kit 站）：
    ```bash
-   python3 ~/.agents/skills/stripe-launch/scripts/stripe_launch.py --mode test --site ~/Projects/<站>/site --product-prefix <站名>
+   python3 ~/.agents/skills/site-stripe/scripts/stripe_launch.py --mode test --site ~/Projects/<站>/site --product-prefix <站名>
    ```
    脚本会按目录给每个 lookup key 建一个 Price（金额、币种、周期、`tax_behavior` 和目录一致；测试和正式用同一组 lookup key）。然后建 webhook，事件是 kit 的 9 个：`checkout.session.completed`、`checkout.session.async_payment_succeeded`、`checkout.session.async_payment_failed`、`checkout.session.expired`、`customer.subscription.created/updated/deleted`、`charge.refunded`、`charge.dispute.created`。最后用 `wrangler secret bulk` 写入 `STRIPE_SECRET_KEY` 和 `STRIPE_WEBHOOK_SECRET`。
 3. **第一次部署前 Worker 还不存在**：`wrangler secret bulk` 会把 Worker 一起建出来，kit 的部署预检要求密钥已经到位。Clerk 等其他密钥用 `npm run kit:secrets -- --template` 和 `--apply --confirm <worker>` 写入。想一次写齐的话，本脚本加 `--env-file .sitekit/secrets.env`，然后统一 apply。
@@ -30,7 +30,7 @@
 
 1. 把命令交给站长：
    ```bash
-   python3 ~/.agents/skills/stripe-launch/scripts/stripe_launch.py --mode live --site ~/Projects/<站>/site --tax-code txcd_10105001 --product-prefix <站名>
+   python3 ~/.agents/skills/site-stripe/scripts/stripe_launch.py --mode live --site ~/Projects/<站>/site --tax-code txcd_10105001 --product-prefix <站名>
    ```
    告诉站长密钥在哪里复制：后台切到正式模式 → Developers → API keys → **Secret key** → Reveal。不是 Publishable key。
 2. 脚本做的事：去掉粘贴带进来的空白，识别 `pk_` 或沙盒密钥并提示站长重新复制；显示账户 id。已有商品会复用（优先用旧价格所在的商品，其次按 `metadata.sitekit_product` 或商品名查找），金额、币种或 `tax_behavior` 不对的价格会新建一个，并用 `transfer_lookup_key=true` 把 lookup key 转过去；商品设置 `tax_code`。删掉同一地址的旧 webhook 后重建，因为**签名密钥只在新建时返回**。重建前会先问一次，避免删了旧 webhook 却没地方存新密钥。最后用 `wrangler secret bulk` 写入，写进去以后 Worker 立即开始用正式模式。

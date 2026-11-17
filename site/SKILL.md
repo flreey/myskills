@@ -1,6 +1,6 @@
 ---
 name: site
-description: Use as the entry point for the site-* skills when the user asks where a website project stands or what comes next across keyword research, page planning, building, SEO checks, launch and analytics — or does not remember which site-* skill to use. Also for 建站流程、下一步做什么、用哪个 site skill、页面 SEO 验收、上线前 SEO 检查. It only reads project files and routes; the work happens in site-research, site-plan, site-kit, site-check, site-geo and site-measure.
+description: 建站和增长的总入口：不知道该用哪个 site-* skill、想知道一个网站项目进行到哪一步、下一步做什么时用它。它只读项目文件判断阶段，然后指向对应的 skill：新想法验证（site-idea）、新站选词（site-radar）、扩词（site-research）、词到页面（site-plan）、批量页面（site-batch）、建站发布（site-kit）、SEO 验收（site-check）、AI 可见度（site-geo）、统计（site-measure）、外链（site-backlinks）、AdSense（site-adsense）、Stripe 收款（site-stripe）。Also for 建站流程、下一步做什么、用哪个 site skill、页面 SEO 验收、上线前 SEO 检查。
 ---
 
 # site: stage router
@@ -8,15 +8,23 @@ description: Use as the entry point for the site-* skills when the user asks whe
 One name to remember. Find the project's stage from its files, say which skill and command come
 next, then load that skill. This skill never writes project files.
 
-| Stage | Skill | Does | Typical ask |
+| 阶段 | Skill | 做什么 | 典型说法 |
 | --- | --- | --- | --- |
-| 1 research | `site-research` | keyword pool from external evidence (`seo/discovery/`) | 找关键词、扩词 |
-| 2 plan | `site-plan` | demand clusters, page registry, page briefs (`seo/mapper/`) | 要不要建页、归簇、页面需求单 |
-| 3 build | `site-kit` (kit sites) or the project's own stack | pages, SEO plumbing, checks, deploy | 建站、改页面、发布 |
-| 4 verify | `site-check`, then see [Page SEO check](#page-seo-check) | keyword copy, FAQ, server HTML, structure, internal links and templates; registry matches the built site | 页面 SEO 验收、内链和模板检查 |
-| 4 verify (AI) | `site-geo` | AI crawler access, llms.txt, ChatGPT open and recommendation probes | GPT 能不能访问、会不会推荐 |
-| 5 measure | `site-measure` | Umami wiring, tracking plans and audits, traffic and funnel reports, saved funnels and goals | 接入 Umami、看流量、该埋哪些点、漏斗、衡量体系 |
-| 6 review | `site-plan` review mode | GSC windows → enrich, split, merge, retire; unmapped queries back to stage 1 | 拆页合页、GSC 回看 |
+| 0 想法 | `site-idea` | 新想法要批量做页面前：任务空间、AI 答案缺口，站长决定做不做（`geo/`）；已验证维度补长尾取值用 `extend` | 这个想法值不值得做、从 0 做 GEO |
+| 1 选词 | `site-radar` | 新站 1–2 个月能排上去的词和同类站（`seo/radar/`） | 新站做什么词、找同类站 |
+| 1 扩词 | `site-research` | 方向定了以后扩大关键词池（`seo/discovery/`） | 找关键词、扩词 |
+| 2 规划 | `site-plan` | 需求簇、页面归属、页面需求单（`seo/mapper/`） | 要不要建页、归簇、拆页合页 |
+| 2 批量页面 | `site-batch` | 模板、组合数据、质量门槛、分波次发布、按模板复盘（`geo/`） | 批量做页面、补长尾页、发下一波 |
+| 3 建站 | `site-kit`（kit 站）或项目自己的技术栈 | 页面、SEO 基础设施、检查、部署 | 建站、改页面、发布 |
+| 4 验收 | `site-check`，见 [Page SEO check](#page-seo-check) | 关键词文案、FAQ、服务端 HTML、结构、内链和模板 | 页面 SEO 验收 |
+| 4 验收（AI） | `site-geo` | AI 爬虫、llms.txt、ChatGPT 能否打开和推荐 | GPT 能不能访问、会不会推荐 |
+| 5 统计 | `site-measure` | Umami 接入、埋点方案和审计、流量和漏斗报表 | 接入 Umami、看流量、漏斗 |
+| 6 复盘 | `site-plan` review 模式 | GSC 回看 → 充实、拆、合、下线；未归类查询回到第 1 阶段 | 拆页合页、GSC 回看 |
+| 增长 | `site-backlinks` | 新站外链：目录、竞品外链缺口、投稿和核验 | 找外链、提交目录 |
+| 变现 | `site-adsense` | AdSense 过审预检 | 能不能挂广告 |
+| 变现 | `site-stripe` | Stripe 从沙盒切到正式收款 | Stripe 切正式、开始收钱 |
+
+两条路线：按关键词建页走 1 → 2 site-plan → 3；从想法批量建页走 0 site-idea → 2 site-batch → 3。
 
 ## Find the stage
 
@@ -28,6 +36,8 @@ Read only what exists under the project root:
 | `seo/discovery/observations.jsonl`, but no `seo/mapper/pages.jsonl` | stage 2 next |
 | `seo/mapper/pages.jsonl` | registry exists; pages planned |
 | `.sitekit.json` | kit site: build, check and release go through `site-kit` |
+| `geo/project.json` | batch flow: its `stage` (`idea` → `space` → `gap` → `decided` → `blueprint` → `pages`) names the step; up to `decided` is site-idea, after it site-batch |
+| `seo/radar/` | site-radar has run; its similar-site list feeds site-research and site-backlinks |
 | `seo/work/sync-check.json` older than the last deploy, or missing | stage 4 is due |
 | `umami.config.json` | Umami wired |
 | `seo/mapper/evidence/gsc/*.jsonl` | GSC windows imported; newest file name gives the window |
@@ -52,6 +62,6 @@ indexability drift.
 
 ## Ownership
 
-Each fact has one owner: keyword evidence → site-research; clusters, page ownership, briefs and GSC
+Each fact has one owner: idea, gap check and decision → site-idea (`geo/project.json`, `geo/gap/`); templates, page data and waves → site-batch (`geo/`); similar sites → site-radar; keyword evidence → site-research; clusters, page ownership, briefs and GSC
 data → site-plan; what the built pages actually say → the site build (site-kit reports for kit
 sites); traffic → site-measure. site-check and site-geo own no data: they report.

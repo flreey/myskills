@@ -1,6 +1,6 @@
 ---
 name: site-research
-description: Use when building or expanding the keyword pool for a product or site — finding many real search queries from free sources (autocomplete, Keyword Planner, Google Trends, Search Console, SERP related searches, competitor sitemaps), importing keyword exports, defining a product's search boundary and seeds, or judging whether keyword discovery is saturated. Also for 找关键词、扩词、关键词挖掘、需求发现. Formerly site-keywords (earlier search-demand-discovery).
+description: 扩词（关键词池）：方向已定、要为一个产品或站点收集大量真实搜索词时用——从免费来源（联想词、Keyword Planner、Google Trends、Search Console、SERP 相关搜索、竞品 sitemap）找词、导入关键词导出文件、定义产品的搜索边界和种子词、判断扩词是否已经饱和。Also for 找关键词、扩词、关键词挖掘、需求发现、keyword pool。不用于：新站先做哪些词（site-radar）、词分到哪个页面（site-plan）、AI 渠道的问法（site-idea、site-geo）。
 ---
 
 # site-research: keyword discovery
@@ -50,7 +50,7 @@ bootstrap reference. Never expand raw item titles directly.
 | --- | --- | --- |
 | Expand | `suggest --level quick` then `--level standard` | `--dry-run` shows the query count. Use `deep` (alphabet) only after standard, and only for the most productive seeds |
 | Add browser sources | `import --format gkp\|gsc\|trends\|csv\|json\|lines` | Planner, GSC, Trends, SERP related searches, Bing WMT. See [references/sources.md](references/sources.md) |
-| Add competitor keywords | `import --format json --source gefei_site_keywords` | keyword-radar's saved `seo/radar/site-keywords/*.json`; this skill does not search for competitor sites itself |
+| Add competitor keywords | `import --format json --source gefei_site_keywords` | site-radar's saved `seo/radar/site-keywords/*.json`; this skill does not search for competitor sites itself |
 | Add top-down hypotheses | `sitemap --url <competitor>` | Competitors from `seo/radar/sites.md` when it exists. Slugs become `hypothesis` concepts, never keywords |
 | Alias hygiene | `seed aliases`, then `seed aliases --file` | Drop aliases other seeds' searches also produce; confirm synonyms |
 | Extract | `concepts` | Writes `seo/work/triage-input.json` |

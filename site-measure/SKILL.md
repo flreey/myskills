@@ -1,6 +1,6 @@
 ---
 name: site-measure
-description: Use when an existing website project (not a site-kit site) should start using the self-hosted Umami analytics, replace or remove Google Analytics (GA4, gtag.js, Google Tag Manager) in favor of Umami, or finish a GA-to-Umami cutover after a parallel period; when deciding which events a site should track for its type (tool, landing, directory, app, content), auditing a project's tracking calls against that plan and its privacy text, or reading funnels, conversion rates and event-field distributions from Umami without the owner's test sessions; when setting up a site's measurement system once its features are built (saved Umami funnels and goals kept in a reviewed spec file); and when pulling Umami traffic and event reports for any site, site-kit sites included. Also for 接入 Umami、用 Umami 替换 GA、去掉 GA、GA 迁移、统计迁移、Umami 报表、该埋哪些点、埋点方案、埋点审计、漏斗、转化率、事件字段分布、排除自测流量、衡量体系、建漏斗、Umami 目标和漏斗配置. Formerly site-analytics. NOT for wiring the tracker into site-kit sites (the kit loads it from site.config.ts; plans, audits and reports apply) or for only reading existing GA4 reports.
+description: 统计与衡量（Umami）：已有网站（非 site-kit）接入自建 Umami、用 Umami 替换或移除 Google Analytics（GA4、gtag.js、GTM）、完成 GA 到 Umami 的并行切换时用；也用于按站点类型（工具、落地页、目录、应用、内容站）决定该埋哪些事件、对照埋点方案和隐私文案审计代码里的埋点、排除站长自测流量后读漏斗、转化率和事件字段分布、功能完成后建立衡量体系（Umami 漏斗和目标写进经过审核的配置文件），以及给任何站（含 site-kit 站）拉流量和事件报表。Also for 接入 Umami、用 Umami 替换 GA、去掉 GA、GA 迁移、Umami 报表、埋点方案、埋点审计、漏斗、转化率、衡量体系。不用于：给 site-kit 站接入统计代码（kit 从 site.config.ts 自动加载，方案、审计和报表仍适用），或只读现有 GA4 报表。
 ---
 
 # site-measure: Umami analytics

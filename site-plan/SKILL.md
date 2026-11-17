@@ -1,6 +1,6 @@
 ---
 name: site-plan
-description: Use when deciding which search demand a site should serve and where — grouping keywords into demand clusters, deciding whether a keyword, modifier or cluster deserves its own page, a section, a filter or nothing, planning SEO information architecture from keyword data, briefing which sub-needs a page must cover before it is built or rewritten, reviewing Search Console data to enrich, split, merge or retire pages, or diagnosing keyword cannibalization. Also for 需求簇、关键词归类、要不要建页、拆页合页. Formerly site-pages (earlier search-demand-mapper).
+description: 词到页面（需求簇与页面规划）：决定一个站该服务哪些搜索需求、放在哪里时用——把关键词归成需求簇，判断一个词、修饰词或簇该单独建页、做成段落、做成筛选还是不做，规划 SEO 信息架构，在建页或改写前出页面需求单，按 Search Console 数据决定充实、拆页、合页或下线，诊断关键词自相竞争。Also for 需求簇、关键词归类、要不要建页、拆页合页、GSC 回看、keyword cannibalization。不用于：找词（site-research、site-radar）、按组合批量生成页面（site-batch）、建站（site-kit）。
 ---
 
 # site-plan: keyword → page mapping

@@ -1,9 +1,9 @@
 ---
-name: stripe-launch
+name: site-stripe
 description: 把一个站点的 Stripe 从沙盒配到正式收款，主要用于 site-kit app 站，也适用于非 kit 站。覆盖这些环节：沙盒价格和 webhook、正式账户激活向导、美元收款和银行账户、欧盟/英国增值税方案（Stripe Tax 自报或 Managed Payments）、kit 的 taxBehavior/managedPayments 配置、站长在自己的终端运行脚本切 live 密钥、部署后核对和真实付款加退款实测。站长说到 Stripe 正式收款、切正式、上线收款、开始收钱、激活 Stripe 账户、Managed Payments、记账商户、欧盟增值税 / EU VAT / OSS、收款币种、美元结算、结算币种、webhook 签名密钥，或者英文 go live with Stripe、switch Stripe to live mode、live keys、merchant of record、settlement currency，都要使用这个 skill；没提到 Stripe 但想让新站开始真实收款时也要用。不用于从零写 Stripe 接入代码（用 stripe-best-practices）、Connect 平台，也不用于只解释某个 Stripe 报错（用 stripe:explain-error）。
 ---
 
-# Stripe 正式收款（stripe-launch）
+# Stripe 正式收款（site-stripe）
 
 这个 skill 把站点从「沙盒能付款」推进到「正式账户真实收款，税务和结算都已定好」。流程来自 2026-11-08 ToHD（tohd.video，site-kit 2.4.0）切正式的完整过程，税务部分参考了 sfxmint 2026-10-31 的实测。
 
@@ -48,7 +48,7 @@ description: 把一个站点的 Stripe 从沙盒配到正式收款，主要用�
 把命令写成 `bash` 代码块交给站长，路径替换成真实值。AI 不要用 Bash 工具代跑：脚本会停在密钥提示上，而且密钥必须由站长自己粘贴。
 
 ```bash
-python3 ~/.agents/skills/stripe-launch/scripts/stripe_launch.py --mode live --site ~/Projects/<站>/site --tax-code txcd_10105001 --product-prefix <站名>
+python3 ~/.agents/skills/site-stripe/scripts/stripe_launch.py --mode live --site ~/Projects/<站>/site --tax-code txcd_10105001 --product-prefix <站名>
 ```
 
 - kit 站传 `--site`，lookup key、金额、币种、`taxBehavior` 从 `pricing.ts` 读，Worker 名和 `SITE_ORIGIN` 从 `wrangler.jsonc` 读，webhook 地址是 `<origin>/api/kit/webhooks/stripe`，事件用 kit 的 9 个。

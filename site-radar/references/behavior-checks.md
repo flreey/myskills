@@ -38,7 +38,7 @@
 - **v1（2026-10-29）**：教练式机会验证流程。在一次 checker 调查中初筛 15 个，确认 0 个。问题是过度规避误判，而且没有判断新站能不能排上去。
 - **v2（2026-10-30）**：改为新站选词，核心是 G3 可排名关卡，以上线后的 GSC 回收作为裁判。v1 的证据规则迁入 guardrails.md，深度验证迁入 deep-check.md。
 - **v2.1（2026-10-31）**：已有站点照样可以用来找新内页，但要看收录率定门槛；AI 渠道的需求改由 site-geo 的 G5 看（site-geo/references/ai-demand.md）。起因是给 sfxmint.com（约 2/3 流量来自 ChatGPT）跑 Google 口径的一轮，得到 3 个 4 分候选，KD 都在 37.7 以上。改用 AI 读页日志、Bing AI Performance 和站内搜索未命中重看后，新建页为 0，机会都在改已有页和补内容。这部分工作是在争取 AI 推荐，不属于找词。
-- **v2.2（2026-11-07）**：新站反推改为词站互找（references/word-site-loop.md）：词找站、站找词滚动，默认一层、深度上限 2；同类站记进 `sites.md`，`site_keywords` 原始结果存成 site-research 能导入的 JSON，backlink-outreach 从 `sites.md` 挑对照站。三个技能不合并，找站只在本技能做。
+- **v2.2（2026-11-07）**：新站反推改为词站互找（references/word-site-loop.md）：词找站、站找词滚动，默认一层、深度上限 2；同类站记进 `sites.md`，`site_keywords` 原始结果存成 site-research 能导入的 JSON，site-backlinks 从 `sites.md` 挑对照站。三个技能不合并，找站只在本技能做。
 - **v2.3（2026-11-07）**：第一次实跑（9 个同类站、1 个新站、11 积分）后补规则：平台子域名站的 DR 写不适用、域龄看批次或子域名快照；网页对话查询转存同格式 JSON，0 行也存 `[]`，按网页额度差值记花费；明确哪些算大平台；SERP 首页全是老站时看第 2 页或换长尾。
 - **v2.4（2026-11-08）**：接入站长的 3ue.co 拼车账号（Semrush GURU、Similarweb PRO），新增 references/semrush-similarweb.md。订阅有效时，站找词、拓词和判断起量优先用它们，G3 仍以哥飞版 KD 和 SERP 为准。平台禁止自动化，站长决定接受风险，因此每轮 Semrush 最多 15 页、Similarweb 最多 10 页，遇到限额就停；不点导出、不建项目。实测打开了 6 页：自然排名、Keyword Magic、外链概览、外链明细、Similarweb 网站表现，美国库可用，`/analytics/backlinks/refdomains/` 会跳回概览。
 - **v2.5（2026-11-08）**：semrush-similarweb.md 补上设备数量限制（同一时间只让一个会话用 Semrush）、翻页和排序的网址写法、外链明细默认排除 yahoo、外链差距行内展开的次数上限。

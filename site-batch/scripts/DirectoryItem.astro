@@ -1,0 +1,92 @@
+---
+// geo override of the kit's directory item page (src/kit/templates/DirectoryItem.astro, kit 2.15).
+// Written by geo_engine.py scaffold. Same page as the kit's, plus what geo rows carry: a resource
+// link under the answer, follow-up questions (visible FAQ + FAQPage) and alternatives. Rows without
+// those fields render exactly like the kit page, so non-geo collections are unaffected.
+// After a kit upgrade, diff this file against the kit original and carry over its changes.
+import { siteFor } from '../../../kit/site.ts';
+import type { PageEntry, PageIndex, QA } from '../../../kit/core/page-index.ts';
+import { buildGraph } from '../../../kit/core/jsonld.ts';
+import { absoluteUrl } from '../../../kit/core/url.ts';
+import { inlineMarkdown } from '../../../kit/core/text.ts';
+import { getCollectionData } from '../../../kit/astro/page-data.ts';
+import KitLayout from '../../../kit/ui/KitLayout.astro';
+import Breadcrumbs from '../../../kit/ui/Breadcrumbs.astro';
+import Section from '../../../kit/ui/Section.astro';
+import FactTable from '../../../kit/ui/FactTable.astro';
+import ItemList from '../../../kit/ui/ItemList.astro';
+import Faq from '../../../kit/ui/Faq.astro';
+import { fill } from '../../../kit/core/messages.ts';
+
+interface Props { page: PageEntry; index: PageIndex }
+interface GeoExtras {
+  resource?: { label: string; url: string } | null;
+  follow_ups?: QA[];
+  alternatives?: { name: string; note?: string; url?: string }[];
+}
+const { page, index } = Astro.props;
+const site = siteFor(page);
+const id = String(page.data.collection);
+const cfg = site.modules.directory!.collections.find((c) => c.id === id)!;
+const { def, bySlug, views } = getCollectionData(id);
+const item = bySlug.get(String(page.data.slug))!;
+const geo = item as unknown as GeoExtras;
+const me = views.find((v) => v.slug === page.data.slug)!;
+const linkable = (slug: string) => {
+  const p = index.byUrl.get(`${cfg.basePath}/${slug}`);
+  return p && p.indexable && p.url !== page.url ? p : undefined;
+};
+const explicit = me.related.map(linkable).filter((p): p is PageEntry => !!p);
+const pos = views.indexOf(me);
+const neighbours = views
+  .filter((v, i) => v.group && me.group && v.group.key === me.group.key && Math.abs(i - pos) <= 6)
+  .map((v) => linkable(v.slug))
+  .filter((p): p is PageEntry => !!p && !explicit.includes(p));
+const related = [...explicit, ...neighbours].slice(0, 8);
+const faq: QA[] = (geo.follow_ups ?? []).filter((f) => f && f.q && f.a);
+const alternatives = (geo.alternatives ?? []).filter((x) => x && x.name);
+const resource = geo.resource && geo.resource.url ? geo.resource : null;
+const primary = {
+  '@type': cfg.itemType,
+  name: page.h1,
+  description: page.description,
+  url: absoluteUrl(site.origin, page.url),
+  ...(def.schema?.(item) ?? {}),
+};
+const graph = buildGraph({ site, page, primary, faq });
+---
+<KitLayout page={page} index={index} graph={graph}>
+  <div class="sk-container sk-narrow">
+    <Breadcrumbs items={page.breadcrumbs} lang={page.lang} />
+    <header class="sk-pagehead">
+      <span class="sk-eyebrow">{me.group?.name ?? cfg.label.singular}</span>
+      <h1>{page.h1}</h1>
+    </header>
+    {def.display && <div class="sk-display" aria-hidden="true">{def.display(item)}</div>}
+    <div class="sk-answer" role="note"><p set:html={inlineMarkdown(def.answer(item))} /></div>
+    {resource && (
+      <p class="sk-geo-resource"><a class="sk-btn sk-btn--primary" href={resource.url}>{resource.label}</a></p>
+    )}
+    <Section title={site.t.directory.details} id="details">
+      <FactTable facts={def.facts(item)} lang={page.lang} />
+    </Section>
+    <Faq items={faq} id="questions" lang={page.lang} />
+    {alternatives.length > 0 && (
+      <Section title="Other ways to do it" id="alternatives">
+        <ul class="sk-geo-alternatives">
+          {alternatives.map((x) => (
+            <li>
+              {x.url ? <a href={x.url}>{x.name}</a> : <strong>{x.name}</strong>}
+              {x.note && <span set:html={` — ${inlineMarkdown(x.note)}`} />}
+            </li>
+          ))}
+        </ul>
+      </Section>
+    )}
+    {related.length > 0 && (
+      <Section title={fill(site.t.directory.related, { plural: cfg.label.plural })} id="related">
+        <ItemList items={related.map((p) => ({ name: p.h1, href: p.url }))} />
+      </Section>
+    )}
+  </div>
+</KitLayout>

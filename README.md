@@ -24,15 +24,17 @@
 | [chatgpt-pro-engineering-loop](./chatgpt-pro-engineering-loop) | Codex Desktop 通过已登录的 ChatGPT Pro 委派复杂仓库任务：优先用独立 GitHub 任务分支 + Draft PR 交换代码，以持久 conversation ID 恢复中断任务，并在本地隔离验收；GitHub 不可用或源码不能发布时回退到安全源码包。 |
 | [project-truth](./project-truth) | 让 AI 从经过校验的 Capability、Receipt 和 Git 状态驱动实现：只读获取紧凑真相上下文，通过固定版本 CLI 记录真实证据，重建离线 Dashboard，并停在人工验收和外部动作边界。 |
 | [site](./site) | site-* 系列的总入口：读项目里的 `seo/`、`.sitekit.json`、`umami.config.json` 判断建站阶段（找词 → 定页 → 建站 → 验收 → 统计 → GSC 回看），说明下一步该用哪个 skill、跑哪条命令；页面 SEO 验收按 kit 站和非 kit 站分别给出检查方式。只读不写。 |
-| [keyword-radar](./keyword-radar) | 新站选词：从新词抢先、新站反推、弱 SERP 长尾三个入口收集，用意图、需求、可排名三关快筛并打分（新站反推按词找站、站找词滚动，同类站记进 `seo/radar/sites.md`），输出一个新域名 1–2 个月内能排上去的页面短名单，附上线卡和 GSC 第 7/14/28 天回收规则；阈值靠回收日志校准。 |
-| [backlink-outreach](./backlink-outreach) | 新站外链：先定目标（加权重 / 加快收录 / 带引荐流量）再按 T1–T4 分层选渠道，从竞品外链缺口、目录与发布平台、专题资源页找入口；要大量外链时用 Common Crawl 域名级链接图挖几十个同类站的全部引荐域名，规则排除、抓首页探测投稿入口，输出可投清单（`scripts/cc_*`）；用一份素材包投稿，只在授权范围内提交，独立核验公开链接并维护台账，第 28 天按渠道层回收效果；默认不做付费买链和博客评论。 |
+| [site-idea](./site-idea) | 新想法验证（批量页面之前）：把想法拆成任务空间（只保留会改变答案的维度），分层抽样写成真实对话，在 ChatGPT 等助手上看答案缺口（笼统、过时、不满足条件、没有资源），找外部真实提问，由站长决定做、缩小范围还是放弃；之后用 `extend` 给已验证维度补长尾取值。状态在项目的 `geo/`（`scripts/geo_idea.py`）。 |
+| [site-radar](./site-radar) | 新站选词：从新词抢先、新站反推、弱 SERP 长尾三个入口收集，用意图、需求、可排名三关快筛并打分（新站反推按词找站、站找词滚动，同类站记进 `seo/radar/sites.md`），输出一个新域名 1–2 个月内能排上去的页面短名单，附上线卡和 GSC 第 7/14/28 天回收规则；阈值靠回收日志校准。 |
+| [site-backlinks](./site-backlinks) | 新站外链：先定目标（加权重 / 加快收录 / 带引荐流量）再按 T1–T4 分层选渠道，从竞品外链缺口、目录与发布平台、专题资源页找入口；要大量外链时用 Common Crawl 域名级链接图挖几十个同类站的全部引荐域名，规则排除、抓首页探测投稿入口，输出可投清单（`scripts/cc_*`）；用一份素材包投稿，只在授权范围内提交，独立核验公开链接并维护台账，第 28 天按渠道层回收效果；默认不做付费买链和博客评论。 |
+| [site-batch](./site-batch) | 批量页面（程序化 GEO / 长尾页）：盘点资产、写有来源的事实库、设计 2–5 个页面模板（站长批准）、填组合数据，过质量门槛（必填字段、数字必须来自事实、不重复度）后输出 site-kit directory 数据或通用 JSON；分波次发布，按模板看抓取、收录、AI 抓取、引用漏斗，扩量、暂停或修剪（`scripts/geo_engine.py`）。 |
 | [site-research](./site-research) | 从免费来源（自动补全、Keyword Planner、Trends、Search Console、SERP 相关搜索、竞品 sitemap）构建有证据的关键词观测池：先自动调研再一次性选择题确认边界，种子递归扩展经 triage 把关，按轮次 yield 判断何时停止；关键词只来自外部观测，不编造需求。 |
 | [site-plan](./site-plan) | 把关键词池变成需求簇和页面决策：模型分批做语义归簇（稳定 ID、定义版本、合并/拆分谱系），修饰词默认是属性，按证据门槛决定 keep / improve / filter / create / defer，变更集经批准才写入页面注册表；建页或改版前为每页生成需求单（细分需求对照库存和页面已写到的内容），并用 GSC 窗口复盘互抢排名、属性升级与下线。 |
 | [site-check](./site-check) | SEO 验收，分两层：先按 sitemap 全站扫描机械问题（状态码、noindex、canonical、JS 才出现的内容、FAQ 答案不在 HTML、title 与 H1 偏离、标签式 H2、图片缺 alt、面包屑层级不一致、过期日期和停用说法、链向 noindex 页），并汇总全站视图（模板化标题和 FAQ、近似重复页、内链最弱的页面与死胡同、结构化数据类型、Organization 的 sameAs）；再挑页面深查：文案是否围绕目标关键词、FAQ 是否答了用户会问的问题、内容是否在服务端 HTML 里、能否被索引、结构化数据/图片/面包屑是否说清页面是什么。首页和聚合页每次必查。只读，结果分 pass / fix / unknown / MANUAL。AI 搜索相关交给 site-geo。 |
 | [site-geo](./site-geo) | AI 搜索可见度检查：robots.txt 对各 AI 爬虫（搜索、用户触发、训练三类）的规则，用 AI user-agent 实测访问，llms.txt 是否与站点一致（死链、noindex、漏页、停用说法）；再经用户同意用固定提问模板去 ChatGPT 验证能否打开页面、是否愿意推荐以及要改什么。事实与抽样分开报告。只读。 |
-| [adsense-check](./adsense-check) | AdSense 过审预检：只读脚本核对广告代码、ads.txt、完整 sitemap、信任页、隐私政策、CMP、抽样页字数和带参数 URL，再拿哥飞 `adsense_audit` 或用户贴来的报告逐条查证（属实 / 部分属实 / 误报 / 现在不适用 / 无法查证），并核对页面承诺与实际行为；默认只评估不改文件。 |
+| [site-adsense](./site-adsense) | AdSense 过审预检：只读脚本核对广告代码、ads.txt、完整 sitemap、信任页、隐私政策、CMP、抽样页字数和带参数 URL，再拿哥飞 `adsense_audit` 或用户贴来的报告逐条查证（属实 / 部分属实 / 误报 / 现在不适用 / 无法查证），并核对页面承诺与实际行为；默认只评估不改文件。 |
 | [site-measure](./site-measure) | 把已有网站从 Google Analytics 迁到自建 Umami：先只读盘点（加载代码、事件、排除规则、CSP、隐私文字、测试、GA4 报表脚本），再分两次发布：先和 GA 并行、事件两边都发并补等待队列，对完数再删 GA；另带只读的 Umami 报表脚本；按网站类型（tool / landing / directory / app / 内容站）给出埋点方案和标准漏斗，用只读审计脚本对照项目里的 `track(` 调用（缺失事件、命名、字段白名单、隐私说明覆盖），用漏斗脚本按会话算转化率和事件字段分布，并排除站长自测会话。开发完成后，把埋点方案里的漏斗和目标写成项目里的 `umami-reports.json`，同步成 Umami 后台保存的漏斗和目标（默认只预览，`--apply` 才写入，不删除），作为站点的衡量体系。依赖本机 `~/Projects/umami` 的 umami-connect 和自建 Umami 服务；迁移不用于 site-kit 建的站；报表脚本能读任何站点，包括 site-kit 站点。 |
-| [stripe-launch](./stripe-launch) | Stripe 从沙盒切到正式收款（site-kit app 站为主，也兼容非 kit 站）：分阶段清单覆盖沙盒价格和 webhook、正式账户激活（AI 只填非敏感项）、美元收款和结算币种、欧盟/英国增值税方案（Stripe Tax 自报或 Managed Payments）、kit 的 `taxBehavior` / `managedPayments` 配置及部署顺序；附带一个站长在自己终端运行的通用脚本，用来建价格、转移 lookup key、重建 webhook 和写入密钥，密钥不经过 AI。 |
+| [site-stripe](./site-stripe) | Stripe 从沙盒切到正式收款（site-kit app 站为主，也兼容非 kit 站）：分阶段清单覆盖沙盒价格和 webhook、正式账户激活（AI 只填非敏感项）、美元收款和结算币种、欧盟/英国增值税方案（Stripe Tax 自报或 Managed Payments）、kit 的 `taxBehavior` / `managedPayments` 配置及部署顺序；附带一个站长在自己终端运行的通用脚本，用来建价格、转移 lookup key、重建 webhook 和写入密钥，密钥不经过 AI。 |
 | [family-story-kit-design](./family-story-kit-design) | 设计和审查交付给家庭的可打印亲子场景游戏（寻宝、生日冒险、跨日节庆故事套装）：先写体验承诺，把剧情转成孩子真正要做的动作，闭合线索链与谜题唯一解，从玩法推导材料，再按家长布置与孩子游玩两条视角走查；纸面模拟、PDF 渲染与真实试玩分开记录。不负责生成器代码、网站或支付。 |
 
 ## 📋 一键安装（直接复制粘贴）
@@ -61,7 +63,7 @@
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/site-geo
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/site-measure
 帮我装这个 skill：https://github.com/flreey/myskills/tree/main/family-story-kit-design
-帮我装这个 skill：https://github.com/flreey/myskills/tree/main/stripe-launch
+帮我装这个 skill：https://github.com/flreey/myskills/tree/main/site-stripe
 ```
 
 > **就这一行。** 现代 coding agent 已经原生理解 GitHub `tree/main/<subdir>` 这种子目录 URL + `SKILL.md` 标准 + skills 目录约定，不需要手把手写步骤。
@@ -92,7 +94,7 @@ https://github.com/flreey/myskills/tree/main/prompt-builder
 
 `site-research`（找词）和 `site-plan`（定页面）是一组，按顺序配合使用，共用项目根目录下的 `seo/`：site-research 写关键词池，site-plan 读它并写需求簇和页面注册表。平时只用两个斜杠命令或自然语言，引擎子命令由 agent 按流程调用。
 
-site-* skill 的分工：每个事实只有一个主人。site-research 管外部需求证据（关键词池）；site-plan 管需求簇、页面归属、页面已覆盖的细分需求（`covered_attributes`）和 GSC 数据（唯一入口）；site-kit 的构建产物管页面实际状态（标题、可索引）；site-measure 管 Umami 报表；site-check 只做页面验收，不持有数据。同类站名单 `seo/radar/sites.md` 和 `site_keywords` 原始结果归 keyword-radar；site-research 导入这些结果、backlink-outreach 从名单挑对照站，两者只读。交接都落成文件：词池 → 注册表和需求单 → 建页 → `sync-check` 回读构建产物 → GSC 回看，未归类查询经 `seo/work/unmapped-queries.json` 回到词池。节奏、队列和授权留在各项目里。
+site-* skill 的分工：每个事实只有一个主人。site-idea 管想法、答案缺口和做不做的决定，site-batch 管模板、组合数据和发布波次（两者共用项目根目录下的 `geo/`）；site-research 管外部需求证据（关键词池）；site-plan 管需求簇、页面归属、页面已覆盖的细分需求（`covered_attributes`）和 GSC 数据（唯一入口）；site-kit 的构建产物管页面实际状态（标题、可索引）；site-measure 管 Umami 报表；site-check 只做页面验收，不持有数据。同类站名单 `seo/radar/sites.md` 和 `site_keywords` 原始结果归 site-radar；site-research 导入这些结果、site-backlinks 从名单挑对照站，两者只读。交接都落成文件：词池 → 注册表和需求单 → 建页 → `sync-check` 回读构建产物 → GSC 回看，未归类查询经 `seo/work/unmapped-queries.json` 回到词池。节奏、队列和授权留在各项目里。
 
 ```text
 /site-research   给 ~/Projects/xxx 做关键词挖掘

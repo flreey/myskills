@@ -1,5 +1,5 @@
 ---
-name: adsense-check
+name: site-adsense
 description: 一键评估网站能不能过 Google AdSense 审核、上广告前还差什么：运行只读事实核对，调用哥飞 adsense_audit（或读取用户贴来的报告），逐条查证后只留下真问题。用于 AdSense 检查、过审预检、广告合规、能不能申请 AdSense、上广告前检查、核对 seo.web.cafe/adsense 报告，即使用户只说“看看这个站能不能挂广告”也要用。不用于广告收益估算、普通 SEO 验收（site-check）或 AI 搜索可见度（site-geo）。
 ---
 

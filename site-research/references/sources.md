@@ -13,7 +13,7 @@
 | Site search and request logs | project data | `onsite_request` | Product demand (not search volume) | — |
 | Paid exports (Ahrefs, Semrush) | user files | `external_reference` / `historical_volume` | Volume, parent topics | High |
 | Semrush in the browser (owner's 3ue.co shared account) | browser, read the page | `external_reference` | Keyword Magic expansion, competitor ranking keywords | Medium |
-| Competitor ranking keywords from keyword-radar | files in `seo/radar/site-keywords/` | `external_reference` | Words a recently grown competitor already ranks for | Medium |
+| Competitor ranking keywords from site-radar | files in `seo/radar/site-keywords/` | `external_reference` | Words a recently grown competitor already ranks for | Medium |
 
 ## Autocomplete (script)
 
@@ -98,9 +98,9 @@ Triage a phrase as `seed` only when it fits the boundary; it gains keywords only
 source observes them. When there is no sitemap, read the competitor's category navigation in the
 browser and add the categories as `topdown` seeds.
 
-## Competitor ranking keywords (from keyword-radar)
+## Competitor ranking keywords (from site-radar)
 
-Finding competitor sites is keyword-radar's job. It keeps the list in `seo/radar/sites.md` and
+Finding competitor sites is site-radar's job. It keeps the list in `seo/radar/sites.md` and
 saves every paid `site_keywords` result as JSON in `seo/radar/site-keywords/`. Reuse both here;
 do not pay for the same lookup again.
 
@@ -121,7 +121,7 @@ do not pay for the same lookup again.
 The owner has a shared Semrush GURU account at sem.3ue.co (and Similarweb at sim.3ue.co),
 first tested on 2026-11-08 with a subscription that ends 2026-12-07. Check that it is still
 valid on the dash.3ue.co home page. The platform forbids automated access. The owner accepted
-that risk for browser use. Follow the rules in keyword-radar's
+that risk for browser use. Follow the rules in site-radar's
 `references/semrush-similarweb.md`:
 
 - at most 15 Semrush report pages per round;
@@ -134,7 +134,7 @@ That file also lists the URLs and the table-reading snippet.
 - **Keyword Magic** (`/analytics/keywordmagic/?q=<seed>&db=us`) expands one seed into a topic
   list. Read the first page (100 rows sorted by volume) for the seeds that matter most. Do not
   page through tens of thousands of rows: use `suggest` for breadth.
-- **Competitor ranking keywords**: if keyword-radar already saved the competitor as
+- **Competitor ranking keywords**: if site-radar already saved the competitor as
   `seo/radar/site-keywords/<domain>-<date>-semrush.json`, import that file. Look a site up
   yourself only when it is not in that folder.
 - Save what you read as JSON in the format under "Structured JSON" below, then import it with

@@ -1,0 +1,694 @@
+#!/usr/bin/env python3
+"""Page engine for site-batch: gate combinations, write site-kit data, run waves.
+
+    python3 geo_engine.py --root <site> <command> [options]
+
+Commands
+  lint                         validate facts, templates and combos (no writes)
+  build [--target kit|json]    gate every combination, write geo/instances.jsonl and the site data:
+                               kit: data/<template>.jsonl; json: geo/out/<template>.json, index.json, urls.txt
+  scaffold --template ID       write src/site/collections/<ID>.ts, the geo item template override,
+                               and print the site.config.ts collection entry
+  status                       counts per template: rows, gated, failed by reason, waves
+  wave-plan --per-template N   put the next N gated, unreleased combinations of each template in a new wave
+  wave-release --wave K        mark wave K released (then build, check and deploy through site-kit)
+  funnel                       crawl / index / AI fetch / citation rates by template, wave and arm
+  prune --min-days 28          released pages still not indexed after N days: merge or noindex candidates
+
+State contract: site-idea/references/state.md. Writes only geo/instances.jsonl, geo/waves.json,
+data/<template>.jsonl or the json output directory and, on scaffold, src/site/collections/<id>.ts and
+src/site/overrides/templates/DirectoryItem.astro. Never edits site.config.ts, combos or facts.
+Python stdlib only.
+"""
+import argparse
+from collections import Counter, defaultdict
+from datetime import date
+import hashlib
+import json
+from pathlib import Path
+import re
+import sys
+
+STATUSES = {"met": "Yes", "conditional": "With conditions", "unmet": "No"}
+TEXT_FIELDS = ("core_answer", "headline")
+SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+NUM = re.compile(r"(?<![\w.])\d+(?:[.,]\d+)*(?![\w])")
+TOKEN = re.compile(r"[A-Za-z0-9]+|[぀-ヿ㐀-鿿가-힯]")
+PLACE = re.compile(r"\{([a-z0-9_]+)(?:\.(label))?\}")
+ITEM_TYPES = {"Thing", "CreativeWork", "Product", "Place", "Dataset", "SoftwareApplication", "DefinedTerm"}
+HERE = Path(__file__).resolve().parent
+
+
+def die(msg):
+    print(f"error: {msg}", file=sys.stderr)
+    sys.exit(2)
+
+
+def read_json(p, default=None):
+    if not p.exists():
+        if default is not None:
+            return default
+        die(f"missing {p}")
+    return json.loads(p.read_text())
+
+
+def write_json(p, data):
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+
+
+def read_jsonl(p):
+    if not p.exists():
+        return []
+    out = []
+    for i, line in enumerate(p.read_text().splitlines(), 1):
+        if line.strip():
+            try:
+                out.append(json.loads(line))
+            except json.JSONDecodeError as e:
+                die(f"{p}:{i}: {e}")
+    return out
+
+
+def write_jsonl(p, rows):
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows))
+
+
+class State:
+    def __init__(self, root):
+        self.root = Path(root).resolve()
+        self.geo = self.root / "geo"
+        self.project = self.geo / "project.json"
+        self.dimensions = self.geo / "dimensions.json"
+        self.facts = self.geo / "facts.jsonl"
+        self.templates = self.geo / "templates"
+        self.combos = self.geo / "combos"
+        self.instances = self.geo / "instances.jsonl"
+        self.waves = self.geo / "waves.json"
+        self.snapshots = self.geo / "measure" / "snapshots.jsonl"
+        self.data = self.root / "data"
+
+    def load(self):
+        proj = read_json(self.project)
+        dims = read_json(self.dimensions)
+        facts = {f["id"]: f for f in read_jsonl(self.facts) if f.get("id")}
+        templates = {}
+        if self.templates.exists():
+            for p in sorted(self.templates.glob("*.json")):
+                t = json.loads(p.read_text())
+                templates[t.get("id") or p.stem] = t
+        combos = {tid: read_jsonl(self.combos / f"{tid}.jsonl") for tid in templates}
+        waves = read_json(self.waves, {"waves": []})
+        return proj, dims, facts, templates, combos, waves
+
+
+# ---------- helpers ----------
+
+STAGES = ["idea", "space", "gap", "decided", "blueprint", "pages"]
+
+
+def advance(st, stage, note):
+    proj = read_json(st.project)
+    cur = proj.get("stage", "idea")
+    if cur in STAGES and STAGES.index(stage) > STAGES.index(cur):
+        proj["stage"] = stage
+        proj.setdefault("log", []).append({"date": date.today().isoformat(), "stage": stage, "note": note})
+        write_json(st.project, proj)
+
+def labels(dims):
+    out = {}
+    for d in dims.get("dimensions", []):
+        out[d["id"]] = {v["id"]: v.get("label", v["id"]) for v in d.get("values", [])}
+    return out
+
+
+def render(pattern, row, lab):
+    def sub(m):
+        key, lab_flag = m.group(1), m.group(2)
+        combo = row.get("combo", {})
+        if key in combo:
+            return lab.get(key, {}).get(combo[key], combo[key]) if lab_flag else combo[key]
+        v = row.get(key)
+        return "" if v is None else str(v)
+    return PLACE.sub(sub, pattern).strip()
+
+
+def prose(row):
+    parts = [str(row.get(f, "") or "") for f in TEXT_FIELDS]
+    parts += [str(c.get("note", "")) for c in row.get("constraint_results", []) or []]
+    parts += [f"{q.get('q', '')} {q.get('a', '')}" for q in row.get("follow_ups", []) or []]
+    parts += [str(a.get("note", "")) for a in row.get("alternatives", []) or []]
+    return " ".join(parts)
+
+
+def tokens(text):
+    return [t.lower() for t in TOKEN.findall(text)]
+
+
+def shingles(text, n=3):
+    t = tokens(text)
+    return {" ".join(t[i:i + n]) for i in range(max(0, len(t) - n + 1))}
+
+
+def filled(v):
+    if v is None:
+        return False
+    if isinstance(v, str):
+        return bool(v.strip())
+    if isinstance(v, (list, dict)):
+        return bool(v)
+    return True
+
+
+def subspace_ok(combo, decision):
+    sub = (decision or {}).get("subspace") or {}
+    return all(combo.get(k) in vs for k, vs in sub.items())
+
+
+def arm_for(tid, combo_id, experiment):
+    if not experiment or not experiment.get("arms"):
+        return None
+    h = int(hashlib.sha256(f"{tid}:{experiment.get('name', '')}:{combo_id}".encode()).hexdigest(), 16)
+    arms = experiment["arms"]
+    return arms[h % len(arms)]
+
+
+def released_map(waves):
+    out = {}
+    for w in waves.get("waves", []):
+        for tid, ids in (w.get("combos") or {}).items():
+            for cid in ids:
+                out[(tid, cid)] = (w["id"], w.get("status") == "released", w.get("released"))
+    return out
+
+
+# ---------- lint ----------
+
+def lint_templates(templates, dims, errs, warns):
+    dim_ids = {d["id"] for d in dims.get("dimensions", [])}
+    paths = set()
+    for tid, t in templates.items():
+        w = f"templates/{tid}.json"
+        if not SLUG.match(tid):
+            errs.append(f"{w}: id must be a slug")
+        for d in t.get("dimensions", []):
+            if d not in dim_ids:
+                errs.append(f"{w}: unknown dimension {d!r}")
+        col = t.get("collection", {})
+        for k in ("basePath", "label", "hub"):
+            if not col.get(k):
+                errs.append(f"{w}: collection.{k} is required")
+        bp = col.get("basePath", "")
+        if bp in paths:
+            errs.append(f"{w}: basePath {bp} is used by another template")
+        paths.add(bp)
+        if col.get("itemType", "Thing") not in ITEM_TYPES:
+            errs.append(f"{w}: itemType must be one of {sorted(ITEM_TYPES)}")
+        g = col.get("groups")
+        if g and g.get("by") not in t.get("dimensions", []):
+            errs.append(f"{w}: groups.by must be one of the template's dimensions")
+        pats = t.get("patterns", {})
+        for k in ("slug", "name", "title", "h1", "description"):
+            if not pats.get(k):
+                errs.append(f"{w}: patterns.{k} is required")
+        if pats.get("slug") and not all(f"{{{d}}}" in pats["slug"] for d in t.get("dimensions", [])):
+            errs.append(f"{w}: patterns.slug must contain every dimension id so slugs stay unique")
+        if "core_answer" not in t.get("required", []):
+            errs.append(f"{w}: required must include core_answer (the answer-first paragraph)")
+        if not t.get("approved"):
+            warns.append(f"{w}: not approved by the owner yet (approved: {{by, date}})")
+
+
+def lint_facts(facts, errs, warns):
+    for fid, f in facts.items():
+        for k in ("value", "source", "checked"):
+            if not f.get(k):
+                errs.append(f"facts.jsonl: {fid}: {k} is required")
+
+
+def gate_row(row, t, lab, facts, decision):
+    """Return (failed reasons, rendered fields). Uniqueness is added by build()."""
+    failed = []
+    combo = row.get("combo") or {}
+    for d in t.get("dimensions", []):
+        if d not in combo:
+            failed.append(f"combo missing dimension {d}")
+        elif combo[d] not in lab.get(d, {}):
+            failed.append(f"unknown value {d}={combo[d]}")
+    if combo and not subspace_ok(combo, decision):
+        failed.append("outside the decided subspace")
+    for f in t.get("required", []):
+        if not filled(row.get(f)):
+            failed.append(f"missing {f}")
+    cited = row.get("fact_ids") or []
+    missing = [f for f in cited if f not in facts]
+    if missing:
+        failed.append(f"unknown fact ids {missing}")
+    for c in row.get("constraint_results", []) or []:
+        st = c.get("status")
+        if st == "unknown":
+            failed.append(f"constraint {c.get('constraint')!r} is unknown")
+        elif st not in STATUSES:
+            failed.append(f"constraint {c.get('constraint')!r} has status {st!r}")
+    for k in row.get("key_facts", []) or []:
+        if not (k.get("fact_id") in facts or k.get("source")):
+            failed.append(f"key fact {k.get('label')!r} has no fact_id or source")
+    sourced = " ".join(str(facts[f].get("value", "")) for f in cited if f in facts)
+    sourced += " " + " ".join(str(k.get("value", "")) for k in row.get("key_facts", []) or [])
+    sourced_nums = {n.replace(",", "") for n in NUM.findall(sourced)}
+    sourced_nums |= {str(n) for n in t.get("allow_numbers", [])}
+    unsourced = sorted({n for n in NUM.findall(prose(row)) if n.replace(",", "") not in sourced_nums})
+    if unsourced:
+        failed.append(f"numbers not in cited facts: {unsourced[:5]}")
+    r = row.get("resource")
+    if r and not str(r.get("url", "")).startswith(("/", "http")):
+        failed.append("resource.url must be a path or URL")
+    pats = t.get("patterns", {})
+    out = {k: render(pats.get(k, ""), row, lab) for k in ("slug", "name", "title", "h1", "description")}
+    if not SLUG.match(out["slug"]):
+        failed.append(f"slug {out['slug']!r} is not a slug")
+    if not 50 <= len(out["description"]) <= 155:
+        failed.append(f"description is {len(out['description'])} chars (50-155)")
+    return failed, out
+
+
+def to_facts(row, t):
+    facts = []
+    for c in row.get("constraint_results", []) or []:
+        if c.get("status") in STATUSES:
+            v = STATUSES[c["status"]] + (f" — {c['note']}" if c.get("note") else "")
+            facts.append({"label": str(c.get("constraint", "")), "value": v})
+    for k in row.get("key_facts", []) or []:
+        facts.append({"label": str(k.get("label", "")), "value": str(k.get("value", "")), **({"mono": True} if k.get("mono") else {})})
+    for spec in t.get("facts_fields", []) or []:
+        v = row.get(spec.get("field"))
+        if filled(v):
+            facts.append({"label": spec.get("label", spec["field"]), "value": str(v)})
+    return facts
+
+
+def related_slugs(rows_by_cid, me, dims_order, limit=6):
+    """Built siblings that differ from me in exactly one dimension, in dimension order."""
+    out = []
+    for d in dims_order:
+        for cid, r in rows_by_cid.items():
+            if cid == me["combo_id"]:
+                continue
+            diff = [k for k in dims_order if r["combo"].get(k) != me["combo"].get(k)]
+            if diff == [d]:
+                out.append(r["slug"])
+                if len(out) >= limit:
+                    return out
+    return out
+
+
+def evaluate(st):
+    proj, dims, facts, templates, combos, waves = st.load()
+    lab = labels(dims)
+    decision = proj.get("decision")
+    rel = released_map(waves)
+    result = {}
+    for tid, t in templates.items():
+        rows = combos.get(tid, [])
+        seen_cid, seen_slug = set(), set()
+        evald = []
+        for row in rows:
+            cid = row.get("combo_id") or "__".join(str(row.get("combo", {}).get(d, "")) for d in t.get("dimensions", []))
+            arm = arm_for(tid, cid, t.get("experiment"))
+            variant = (row.get("variants") or {}).get(arm) if arm else None
+            if variant:
+                row = {**row, **variant}
+            failed, out = gate_row(row, t, lab, facts, decision)
+            if cid in seen_cid:
+                failed.append("duplicate combo_id")
+            if out["slug"] in seen_slug:
+                failed.append("duplicate slug")
+            seen_cid.add(cid)
+            seen_slug.add(out["slug"])
+            evald.append({"row": row, "cid": cid, "arm": arm, "failed": failed, "out": out, "sh": shingles(prose(row))})
+        counts = Counter(s for e in evald for s in e["sh"])
+        minu = float(t.get("min_unique_ratio", 0.6))
+        for e in evald:
+            sh = e["sh"]
+            e["unique"] = round(sum(1 for s in sh if counts[s] == 1) / len(sh), 2) if sh else 0.0
+            if len(evald) > 1 and e["unique"] < minu:
+                e["failed"].append(f"unique ratio {e['unique']} < {minu}")
+            w = rel.get((tid, e["cid"]))
+            e["wave"], e["released"], e["released_on"] = (w if w else (None, False, None))
+        result[tid] = {"template": t, "items": evald}
+    return proj, dims, facts, templates, waves, result
+
+
+def cmd_lint(st, a):
+    proj, dims, facts, templates, combos, waves = st.load()
+    errs, warns = [], []
+    if (proj.get("decision") or {}).get("verdict") not in ("go", "narrow"):
+        errs.append("project.json: no go or narrow decision recorded (site-idea decide)")
+    if not templates:
+        errs.append("no templates in geo/templates/")
+    lint_templates(templates, dims, errs, warns)
+    validated = (proj.get("decision") or {}).get("dimensions")
+    if validated:
+        for tid, t in templates.items():
+            for d in t.get("dimensions", []):
+                if d not in validated:
+                    errs.append(f"templates/{tid}.json: dimension {d!r} was not part of the gap check (site-idea)")
+    lint_facts(facts, errs, warns)
+    _, _, _, _, _, result = evaluate(st)
+    for tid, r in result.items():
+        n = len(r["items"])
+        bad = sum(1 for e in r["items"] if e["failed"])
+        if n == 0:
+            warns.append(f"combos/{tid}.jsonl: no rows")
+        elif bad:
+            warns.append(f"combos/{tid}.jsonl: {n - bad}/{n} rows pass the gate (status shows why)")
+    for e in errs:
+        print(f"ERROR  {e}")
+    for w in warns:
+        print(f"WARN   {w}")
+    print(json.dumps({"errors": len(errs), "warnings": len(warns)}))
+    sys.exit(1 if errs else 0)
+
+
+# ---------- build ----------
+
+def cmd_build(st, a):
+    proj, dims, facts, templates, waves, result = evaluate(st)
+    errs, warns = [], []
+    lint_templates(templates, dims, errs, warns)
+    if errs:
+        die("templates have errors, run lint: " + "; ".join(errs[:3]))
+    target, out_dir = output_target(st, proj, a)
+    instances, summary, index, urls = [], {}, [], []
+    for tid, r in result.items():
+        t = r["template"]
+        base = t["collection"]["basePath"].rstrip("/")
+        gby = (t["collection"].get("groups") or {}).get("by")
+        lab = labels(dims)
+        built = {e["cid"]: {"combo_id": e["cid"], "combo": e["row"]["combo"], "slug": e["out"]["slug"]}
+                 for e in r["items"] if not e["failed"]}
+        data = []
+        for e in r["items"]:
+            row, out = e["row"], e["out"]
+            instances.append({
+                "template": tid, "combo_id": e["cid"], "slug": out["slug"], "url": f"{base}/{out['slug']}",
+                "gate": {"pass": not e["failed"], "failed": e["failed"]}, "unique_ratio": e["unique"],
+                "wave": e["wave"], "released": e["released"], "released_on": e["released_on"], "arm": e["arm"],
+            })
+            if e["failed"]:
+                continue
+            g = None
+            if gby:
+                v = row["combo"][gby]
+                g = {"key": v, "name": lab.get(gby, {}).get(v, v)}
+            data.append({
+                **out, "combo_id": e["cid"], "answer": row["core_answer"], "facts": to_facts(row, t),
+                "group": g, "related": related_slugs(built, built[e["cid"]], t["dimensions"]),
+                "updated": row.get("updated"), "released": e["released"], "arm": e["arm"],
+                "follow_ups": row.get("follow_ups") or [], "resource": row.get("resource"),
+                "alternatives": row.get("alternatives") or [],
+            })
+        if target == "kit":
+            out_file = st.data / f"{tid}.jsonl"
+            write_jsonl(out_file, data)
+        else:
+            out_file = write_json_target(out_dir, tid, t, data, base)
+            index.append({"id": tid, "file": out_file.name, "basePath": base,
+                          "items": sum(1 for d in data if d["released"]), "pending": sum(1 for d in data if not d["released"])})
+            urls += [f"{base}/{d['slug']}" for d in data if d["released"]]
+        summary[tid] = {"rows": len(r["items"]), "gated": len(data),
+                        "released": sum(1 for d in data if d["released"]), "output": str(out_file)}
+    if target == "json":
+        write_json(out_dir / "index.json", {"generated": date.today().isoformat(), "templates": index})
+        (out_dir / "urls.txt").write_text("".join(u + "\n" for u in sorted(urls)))
+    write_jsonl(st.instances, instances)
+    if any(v["gated"] for v in summary.values()):
+        advance(st, "blueprint", "first build with gated pages")
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+
+
+def output_target(st, proj, a):
+    """kit: data/<id>.jsonl for a site-kit directory site. json: plain files for any other stack."""
+    out = proj.get("output") or {}
+    target = getattr(a, "target", None) or out.get("target") or ("kit" if (st.root / ".sitekit.json").exists() else "json")
+    if target not in ("kit", "json"):
+        die("output target must be kit or json")
+    out_dir = st.root / (getattr(a, "out", None) or out.get("dir") or "geo/out")
+    return target, out_dir
+
+
+def write_json_target(out_dir, tid, t, data, base):
+    """One file per template: released items only, related links limited to released pages."""
+    released = [d for d in data if d["released"]]
+    live = {d["slug"] for d in released}
+    items = []
+    for d in released:
+        item = {k: v for k, v in d.items() if k != "released"}
+        item["url"] = f"{base}/{d['slug']}"
+        item["related"] = [x for x in d["related"] if x in live]
+        items.append(item)
+    col = t["collection"]
+    groups = defaultdict(lambda: {"count": 0})
+    for d in released:
+        if d["group"]:
+            g = groups[d["group"]["key"]]
+            g.update(d["group"])
+            g["count"] += 1
+    gcfg = col.get("groups") or {}
+    group_list = []
+    for key, g in sorted(groups.items()):
+        entry = {"key": key, "name": g["name"], "count": g["count"]}
+        if gcfg.get("basePath"):
+            entry["url"] = f"{gcfg['basePath'].rstrip('/')}/{key}"
+            entry["indexable"] = g["count"] >= gcfg.get("minItems", 3)
+        group_list.append(entry)
+    doc = {"template": tid, "version": t.get("version", 1), "generated": date.today().isoformat(),
+           "collection": {k: col[k] for k in ("basePath", "label", "hub", "itemType") if k in col},
+           "groups": group_list, "items": items, "pending": len(data) - len(released)}
+    if gcfg:
+        doc["collection"]["groups"] = {k: v for k, v in gcfg.items() if k != "by"}
+    path = out_dir / f"{tid}.json"
+    write_json(path, doc)
+    return path
+
+
+# ---------- scaffold ----------
+
+MODULE = """// Generated by geo_engine.py scaffold from geo/templates/{tid}.json (template v{version}).
+// Data: data/{tid}.jsonl, written by geo_engine.py build. Change the template and rebuild instead of
+// editing rows; wording patterns live in the template, answers in geo/combos/{tid}.jsonl.
+import {{ defineCollection, type Fact }} from '../../kit/directory/types.ts';
+
+interface Row {{
+  slug: string;
+  name: string;
+  title: string;
+  h1: string;
+  description: string;
+  answer: string;
+  facts: Fact[];
+  group: {{ key: string; name: string }} | null;
+  related: string[];
+  updated?: string | null;
+  released: boolean;
+}}
+
+export default defineCollection<Row>({{
+  slug: (r) => r.slug,
+  name: (r) => r.name,
+  title: (r) => r.title,
+  h1: (r) => r.h1,
+  description: (r) => r.description,
+  answer: (r) => r.answer,
+  facts: (r) => r.facts,
+  group: (r) => r.group,
+  related: (r) => r.related,
+  updated: (r) => r.updated ?? undefined,
+  // Waves: rows of unreleased waves fail the gate; with ungated: 'omit' they are not built at all.
+  gate: (r) => (r.released ? {{ indexable: true }} : {{ indexable: false, reason: 'not released yet (geo wave)' }}),
+{group_intro}}});
+"""
+
+
+def ts_str(s):
+    return json.dumps(s, ensure_ascii=False)
+
+
+def cmd_scaffold(st, a):
+    proj, dims, facts, templates, combos, waves = st.load()
+    t = templates.get(a.template)
+    if not t:
+        die(f"no template {a.template!r} in geo/templates/")
+    errs, warns = [], []
+    lint_templates({a.template: t}, dims, errs, warns)
+    if errs:
+        die("; ".join(errs))
+    col = t["collection"]
+    gi = ""
+    if col.get("groups") and col["groups"].get("intro"):
+        gi = f"  groupIntro: (_key, name, count) => {ts_str(col['groups']['intro'])}.replace('{{name}}', name).replace('{{count}}', String(count)),\n"
+    mod = st.root / "src/site/collections" / f"{a.template}.ts"
+    mod.parent.mkdir(parents=True, exist_ok=True)
+    mod.write_text(MODULE.format(tid=a.template, version=t.get("version", 1), group_intro=gi))
+    ov = st.root / "src/site/overrides/templates/DirectoryItem.astro"
+    wrote_override = False
+    if not ov.exists() or a.force_override:
+        ov.parent.mkdir(parents=True, exist_ok=True)
+        ov.write_text((HERE / "DirectoryItem.astro").read_text())
+        wrote_override = True
+    entry = {
+        "id": a.template, "label": col["label"], "basePath": col["basePath"], "hub": col["hub"],
+        "itemType": col.get("itemType", "Thing"), "pageSize": col.get("pageSize", 100), "ungated": "omit",
+    }
+    if col.get("groups"):
+        g = col["groups"]
+        entry["groups"] = {"basePath": g["basePath"], "label": g.get("label", g["by"]), "minItems": g.get("minItems", 3)}
+    print(json.dumps({"module": str(mod), "override": str(ov) if wrote_override else "kept existing",
+                      "site_config_entry": entry,
+                      "next": "add site_config_entry to modules.directory.collections in site.config.ts, "
+                              "set seo.registry.mode to 'advisory', then build and npm run check"},
+                     ensure_ascii=False, indent=2))
+
+
+# ---------- status and waves ----------
+
+def cmd_status(st, a):
+    proj, dims, facts, templates, waves, result = evaluate(st)
+    out = {}
+    for tid, r in result.items():
+        reasons = Counter(re.sub(r"[:\[(].*", "", f).strip() for e in r["items"] for f in e["failed"])
+        out[tid] = {
+            "rows": len(r["items"]), "gated": sum(1 for e in r["items"] if not e["failed"]),
+            "in_wave": sum(1 for e in r["items"] if e["wave"] is not None),
+            "released": sum(1 for e in r["items"] if e["released"] and not e["failed"]),
+            "failed_by_reason": dict(reasons.most_common()),
+        }
+    out["waves"] = [{"id": w["id"], "status": w["status"], "planned": w.get("planned"), "released": w.get("released"),
+                     "size": sum(len(v) for v in w.get("combos", {}).values())} for w in waves.get("waves", [])]
+    print(json.dumps(out, ensure_ascii=False, indent=2))
+
+
+def cmd_wave_plan(st, a):
+    proj, dims, facts, templates, waves, result = evaluate(st)
+    if any(w["status"] == "planned" for w in waves["waves"]):
+        die("a planned wave exists: release it or edit geo/waves.json first")
+    combos = {}
+    for tid, r in result.items():
+        if a.template and tid != a.template:
+            continue
+        ready = [e for e in r["items"] if not e["failed"] and e["wave"] is None]
+        ready.sort(key=lambda e: (-float(e["row"].get("priority", 0) or 0), e["cid"]))
+        pick = [e["cid"] for e in ready[: a.per_template]]
+        if pick:
+            combos[tid] = pick
+    if not combos:
+        die("nothing to plan: no gated combinations outside earlier waves")
+    wid = max([w["id"] for w in waves["waves"]] + [0]) + 1
+    waves["waves"].append({"id": wid, "status": "planned", "planned": date.today().isoformat(),
+                           "released": None, "combos": combos, "note": a.note or ""})
+    write_json(st.waves, waves)
+    print(json.dumps({"wave": wid, "sizes": {k: len(v) for k, v in combos.items()}}, ensure_ascii=False, indent=2))
+
+
+def cmd_wave_release(st, a):
+    waves = read_json(st.waves)
+    w = next((w for w in waves["waves"] if w["id"] == a.wave), None)
+    if not w:
+        die(f"no wave {a.wave}")
+    if w["status"] == "released":
+        die(f"wave {a.wave} is already released")
+    w["status"], w["released"] = "released", a.date or date.today().isoformat()
+    write_json(st.waves, waves)
+    advance(st, "pages", f"wave {a.wave} released")
+    print(json.dumps({"wave": a.wave, "released": w["released"],
+                      "next": "geo_engine.py build, then npm run check and the site-kit release steps"}, ensure_ascii=False))
+
+
+# ---------- measurement ----------
+
+def latest_snapshots(st):
+    latest = {}
+    for s in read_jsonl(st.snapshots):
+        u = s.get("url")
+        if u and (u not in latest or s.get("date", "") >= latest[u].get("date", "")):
+            latest[u] = s
+    return latest
+
+
+def rate(n, d):
+    return round(n / d, 2) if d else None
+
+
+def cmd_funnel(st, a):
+    inst = [i for i in read_jsonl(st.instances) if i["gate"]["pass"] and i["released"]]
+    if not inst:
+        die("no released pages in geo/instances.jsonl: release a wave and build first")
+    snaps = latest_snapshots(st)
+    groups = defaultdict(list)
+    for i in inst:
+        groups[(i["template"], "all", "all")].append(i)
+        groups[(i["template"], f"wave {i['wave']}", "all")].append(i)
+        if i.get("arm"):
+            groups[(i["template"], "all", f"arm {i['arm']}")].append(i)
+    rows = []
+    for (tid, wave, arm), items in sorted(groups.items()):
+        measured = [snaps[i["url"]] for i in items if i["url"] in snaps]
+        row = {"template": tid, "wave": wave, "arm": arm, "released": len(items), "measured": len(measured)}
+        for k in ("crawled", "indexed", "ai_fetch", "cited"):
+            known = [s for s in measured if s.get(k) is not None]
+            row[k] = rate(sum(1 for s in known if s[k]), len(known))
+        row["referrals"] = sum(int(s.get("referrals") or 0) for s in measured)
+        rows.append(row)
+    print(json.dumps(rows, ensure_ascii=False, indent=2))
+
+
+def cmd_prune(st, a):
+    snaps = latest_snapshots(st)
+    today = date.fromisoformat(a.today) if a.today else date.today()
+    out = []
+    for i in read_jsonl(st.instances):
+        if not (i["gate"]["pass"] and i["released"] and i.get("released_on")):
+            continue
+        age = (today - date.fromisoformat(i["released_on"])).days
+        s = snaps.get(i["url"])
+        if age < a.min_days or not s:
+            continue
+        if s.get("indexed") is False:
+            out.append({"url": i["url"], "template": i["template"], "wave": i["wave"], "days": age,
+                        "crawled": s.get("crawled"), "suggest": "check links and content first; then merge into a sibling or hub, or noindex"})
+    print(json.dumps({"candidates": out, "count": len(out)}, ensure_ascii=False, indent=2))
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--root", default=".")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("lint")
+    s = sub.add_parser("build")
+    s.add_argument("--target", choices=["kit", "json"], help="default: project.json output.target, else kit when .sitekit.json exists, else json")
+    s.add_argument("--out", help="json target directory (default geo/out)")
+    s = sub.add_parser("scaffold")
+    s.add_argument("--template", required=True)
+    s.add_argument("--force-override", action="store_true")
+    sub.add_parser("status")
+    s = sub.add_parser("wave-plan")
+    s.add_argument("--per-template", type=int, required=True)
+    s.add_argument("--template")
+    s.add_argument("--note")
+    s = sub.add_parser("wave-release")
+    s.add_argument("--wave", type=int, required=True)
+    s.add_argument("--date")
+    sub.add_parser("funnel")
+    s = sub.add_parser("prune")
+    s.add_argument("--min-days", type=int, default=28)
+    s.add_argument("--today")
+    a = p.parse_args(argv)
+    st = State(a.root)
+    {"lint": cmd_lint, "build": cmd_build, "scaffold": cmd_scaffold, "status": cmd_status,
+     "wave-plan": cmd_wave_plan, "wave-release": cmd_wave_release, "funnel": cmd_funnel,
+     "prune": cmd_prune}[a.cmd](st, a)
+
+
+if __name__ == "__main__":
+    main()

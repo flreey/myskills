@@ -1,0 +1,4 @@
+interface:
+  display_name: "Site Batch"
+  short_description: "批量页面：模板、组合数据、质量门槛、分波次发布、按模板复盘"
+  default_prompt: "Use $site-batch on this project: find the mode from geo/ (blueprint, release or review), do that step, and ask me before approving templates, releasing a wave or pruning pages."

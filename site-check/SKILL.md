@@ -1,6 +1,6 @@
 ---
 name: site-check
-description: Use when a site or a built or live page needs SEO acceptance before or after release — sweeping every sitemap URL for mechanical problems (status, noindex, canonical, JS-only content, FAQ answers missing from HTML, title/H1 drift, label headings, missing image alt text, breadcrumb mismatches, dated or retired copy, links to noindex pages), finding site-wide template problems (repeated headings and FAQs, near-duplicate pages, weak internal links to hub pages, missing sameAs), then checking on picked pages that the copy is written around its target keywords, that the FAQ answers what users ask, that the content is in the server-rendered HTML, and that structured data, images and breadcrumbs say what the page is. Works on site-kit and other sites. Also for 全站 SEO 检查、页面 SEO 验收、上线前检查、关键词文案检查、FAQ 检查、是否服务端渲染、内链和导航检查、模板页重复. NOT for AI search visibility — AI crawlers, llms.txt, ChatGPT probes (site-geo) — nor keyword discovery (site-research), deciding which pages to build (site-plan) or kit build gates (site-kit npm run check).
+description: 页面 SEO 验收：网站或某个页面上线前后要做 SEO 检查时用——全站扫 sitemap 找机械问题（状态码、noindex、canonical、只在 JS 里的内容、FAQ 答案不在 HTML、标题与 H1 不一致、缺 alt、面包屑不符、过时文案、链到 noindex 页），找模板级问题（重复标题和 FAQ、近似重复页、枢纽页内链弱、缺 sameAs），再抽页检查文案是否围绕目标词、FAQ 是否回答用户真实问题、内容是否服务端渲染、结构化数据和面包屑是否准确。site-kit 站和其他站都适用。Also for 全站 SEO 检查、页面 SEO 验收、上线前检查、关键词文案检查、FAQ 检查、服务端渲染、内链检查、模板页重复。不用于：AI 爬虫、llms.txt、ChatGPT 推荐（site-geo），找词（site-research），决定建哪些页（site-plan），kit 构建门槛（site-kit 的 npm run check）。
 ---
 
 # site-check: page and site SEO acceptance

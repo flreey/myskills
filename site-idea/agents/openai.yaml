@@ -1,0 +1,4 @@
+interface:
+  display_name: "Site Idea"
+  short_description: "新想法验证：任务空间、AI 答案缺口，决定做、缩小范围还是放弃"
+  default_prompt: "Use $site-idea on this idea: model the task space, sample conversations, prepare the probe sheet, judge the answers I paste back and report the gaps so I can decide go, narrow or stop."

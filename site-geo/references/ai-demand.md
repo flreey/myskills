@@ -44,7 +44,7 @@ Name the gap before choosing a fix. Probe answers supply the first two rows and 
 | Finding | Test | Hand off |
 |---|---|---|
 | **Improve an existing page** | A page matches the query but its citation share is low, or it is fetched often and rarely visited | Name the facts to change: put the user's own wording in the title or first lines, state the files, lengths and license above the fold, and remove hedging copy that lowers confidence. Each change goes to site-check or the project's copy workflow |
-| **New page** | The sources show demand and the site has no matching page | site-plan decides whether to build it. For new-domain Google keywords, use keyword-radar |
+| **New page** | The sources show demand and the site has no matching page | site-plan decides whether to build it. For new-domain Google keywords, use site-radar |
 | **Missing content** | Searches miss and the site has nothing of that kind | The project's content workflow; not a page decision |
 
 Often all three sources point at generic pages the site already has, and the new-page count is 0. Report that, and spend the effort on improving those pages. Do not go back to Google long-tail lists to fill a quota.

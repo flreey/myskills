@@ -14,7 +14,7 @@
   4. **外链能复制**：编辑型、社区型外链占比高的优先。靠强制署名攒外链的站（例如免费版要求署名的音效库）参考价值有限，但它们链到的资源页、图书馆指南仍然有用。
   5. 最好每组有一个近一两年起量的新站。
 - **找候选**：
-  - 先读 `seo/radar/sites.md`（keyword-radar 的名单，已带 DR、域龄、流量和发现路径），只挑同类的，不重查已有数据；本技能只读不写；
+  - 先读 `seo/radar/sites.md`（site-radar 的名单，已带 DR、域龄、流量和发现路径），只挑同类的，不重查已有数据；本技能只读不写；
   - 不够时，看目标词 SERP 里的同类小站、哥飞的新站批次和网站发现批次（不扣积分）、Semrush 竞争对手页（新站噪音大，要人工挑）、Similarweb 相似站。
 - **验证**：Semrush 订阅有效时，每个候选看 1 页外链概览 `https://sem.3ue.co/analytics/backlinks/overview/?q=<站>&searchType=domain`，记 AS、引荐域名数、近一年趋势。不可用时用哥飞 `domain_overview`（2 积分/次）。
 - **分组并记录**：按类型分 2–3 组（例如“免费音效库”“游戏音效”“音效生成器”），写进 `<项目>/seo/backlinks/competitors.md`：入选理由、引荐域名数、AS、已挖过的日期。下一轮直接复用，挖过的不重挖。
@@ -23,7 +23,7 @@
 
 | 来源 | 做法 | 限制 |
 |---|---|---|
-| Semrush 引荐域名（站长的 3ue.co 拼车账号，订阅有效时首选） | 按下面“引荐域名批量挖掘”读，每个对照站 1 页 | 平台禁止自动化，站长已接受风险。每轮 Semrush 最多打开 15 页，不点导出、不建项目，遇到验证码、额度或设备数量提示就停。详见 keyword-radar 的 `references/semrush-similarweb.md` |
+| Semrush 引荐域名（站长的 3ue.co 拼车账号，订阅有效时首选） | 按下面“引荐域名批量挖掘”读，每个对照站 1 页 | 平台禁止自动化，站长已接受风险。每轮 Semrush 最多打开 15 页，不点导出、不建项目，遇到验证码、额度或设备数量提示就停。详见 site-radar 的 `references/semrush-similarweb.md` |
 | Semrush 外链明细 | 要看某个对照站的逐条外链时用，默认排除 yahoo、bing；可以按标题或网址里的词筛（`ba_tau`） | 同上；比引荐域名噪音大，只作补充 |
 | Similarweb 引荐网站（同一账号） | 看哪些站真的在给同类站送访客，网址见 semrush-similarweb.md | 每轮最多 10 页；小站只有几个引荐网站，看同类里流量大的站更有用；只给域名，具体页面要另外找 |
 | Ahrefs 免费外链查询 | ahrefs.com/backlink-checker，输入对照站域名 | 只显示部分外链；有验证码时交给用户 |
@@ -33,7 +33,7 @@
 
 ### 引荐域名批量挖掘（Semrush 订阅有效时首选）
 
-新站批量模式从这里起步。用 Semrush 自带的筛选，直接拿到按域名去重、带 AS 和 Follow 状态的名单，不靠关键词抽样，也不自己写脚本去猜链接属性。网址、读表方法和页数规则见 keyword-radar 的 `references/semrush-similarweb.md`。
+新站批量模式从这里起步。用 Semrush 自带的筛选，直接拿到按域名去重、带 AS 和 Follow 状态的名单，不靠关键词抽样，也不自己写脚本去猜链接属性。网址、读表方法和页数规则见 site-radar 的 `references/semrush-similarweb.md`。
 
 1. **每个对照站读 1 页引荐域名**：`https://sem.3ue.co/analytics/refdomains/report/?q=<对照站>&searchType=domain&ba_rel=follow&sort_field=domain_ascore`
    - `ba_rel=follow` 只看 Follow，`sort_field=domain_ascore` 按 AS 从高到低，每页 100 个域名。

@@ -1,6 +1,6 @@
 ---
 name: site-geo
-description: Use when a site needs to be checked for AI search — whether ChatGPT, Claude, Perplexity and other AI crawlers can reach its pages, whether llms.txt matches the live site, whether ChatGPT can open a page and quote it, and whether ChatGPT recommends the site for its target queries and what would earn more recommendations, and — for sites whose traffic comes mostly from AI assistants — which pages the assistants fetch and cite and which existing pages have low citation share (AI user-agent logs, Bing Webmaster AI Performance, site search misses). Works on site-kit and other sites. Also for GEO 检查、AI 搜索可见度、ChatGPT 能不能访问、GPT 会不会推荐、llms.txt 检查、AI 爬虫放行. NOT for page SEO acceptance — keywords, FAQ, server rendering, structure, internal links (site-check) — nor for keyword discovery (site-research) or deciding pages (site-plan).
+description: 已上线站点的 AI 可见度：检查 ChatGPT、Claude、Perplexity 等 AI 爬虫能不能访问页面，llms.txt 是否和线上一致，ChatGPT 能否打开并引用页面、会不会为目标问题推荐这个站、怎样才能被更多推荐；对主要流量来自 AI 助手的站，看助手抓取和引用了哪些页、哪些现有页面引用占比低（AI 爬虫日志、Bing AI Performance、站内搜索落空）。site-kit 站和其他站都适用。Also for GEO 检查、AI 搜索可见度、ChatGPT 能不能访问、GPT 会不会推荐、llms.txt、AI 爬虫放行。不用于：页面 SEO 验收（site-check）、新想法的 AI 答案缺口验证（site-idea）、找词（site-research）、决定建哪些页（site-plan）。
 ---
 
 # site-geo: AI search visibility
