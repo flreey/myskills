@@ -7,6 +7,23 @@ the whole thread. On 2026-11-17 a 25-conversation ChatGPT run inside a long site
 took 170 calls at 250k–560k context (about half that session's cost), and its page snapshots added
 about 300k tokens that every later step paid for again.
 
+## Model and mode (every run)
+
+- **Instant (the default model) is the main baseline.** Most users never switch models, so the default
+  answer is what GEO has to win. Thinking searches deeper and cites more sites: on 2026-11-17 the
+  same SFXMint conversation gave 21 links from about 10 sites on Thinking, and 8 links from 5 sites on
+  the default model. A Thinking-only baseline overstates how often a small site is recommended.
+- **Thinking as a side sample.** Rerun 20–30% of the conversations on Thinking, high-intent ones first
+  (comparisons, commercial use, licences, paying). If Instant misses the site but Thinking finds it,
+  the site is findable but not prominent. If both miss it, it is absent.
+- **One model and effort per comparison.** A review reruns the baseline on the model and effort it used,
+  so mixed runs are never compared. The SFXMint family baseline of 2026-11-17 ran on Thinking (Medium
+  effort): rerun its reviews on Thinking, or rerun it on Instant as a new baseline.
+- **Choose the model per chat in the model switcher; do not change account settings.** If the choice
+  sticks as the account default, put it back after the run (site-geo
+  references/chatgpt-probes.md, thinking effort). Record the model and effort as shown for every run,
+  or `not displayed`.
+
 ## Preferred: hand the run to a Grok Bot (`gbot`)
 
 If `gbot` is installed (`gbot bots list`), the probes run on the Grok Bot's own browser and model.
@@ -16,23 +33,30 @@ Claude does not spend a call per step, only a few calls to hand the run over and
    with `gbot bots create --name AI答案探测`. Project bots stay on their own work.
 2. **Account and chat mode.** All bots share one browser cookie store, so whatever account is logged in
    to chatgpt.com is shared by every bot. The user chose to probe with that account. Use temporary
-   chats only, change no settings (memory included) and never log out: logging out would log out
-   every bot. If temporary chat is unavailable, stop and report; do not fall back to normal chats. If
-   no account is logged in, the user logs in on the bot's desktop (MANUAL). The model label may not
-   show in a temporary chat: ask the bot to read it from the model switcher, or to record
+   chats only, change no account settings (memory included) and never log out: logging out would log
+   out every bot. Per-chat choices are allowed: the model switcher, and setting a temporary chat to
+   "Unpersonalized". If temporary chat is unavailable, stop and report; do not fall back to normal
+   chats. If no account is logged in, the user logs in on the bot's desktop (MANUAL). The model label
+   may not show in a temporary chat: ask the bot to read it from the model switcher, or to record
    `not displayed`.
 3. **Send the whole sheet in one message** (`gbot send <bot> "$(cat …)"`, long sheets as a file the bot
    can read). Include: one new temporary chat per conversation; send the opening and then each
    follow-up, word for word; copy every answer **verbatim and in full**, with the model label, mode,
    date and sources; no summaries. Ask for each conversation as its own message, headed with its
-   `conversation_id`, and a final `DONE <count>` line.
+   `conversation_id`, and a final `DONE <count>` line. Also put in the message: the model for each
+   conversation (see "Model and mode"), and rules 6–9 of the next section. In short: before each
+   conversation, confirm "Unpersonalized" and that the account is still logged in; count the turns
+   yourself; and capture the search queries with the section D script of site-geo
+   references/chatgpt-probes.md. If the bot cannot run that script, it reports
+   `search_queries: null`, and the report says those runs cannot separate "not searched for" from
+   "searched, not chosen".
 4. **Wait without model calls.** Use one background shell loop that checks `gbot thread <bot> --json` for
    the `DONE` line, not repeated checks by the model.
 5. **File the results with a script.** Parse the thread JSON and write each conversation to
    `geo/gap/raw/` (or `geo/optimize/raw/`). Print only a status line per conversation: id, number of
-   turns, characters. Never print the answers into the thread. Rerun any conversation that is
-   missing, short, or looks paraphrased (no sources, no model label). Record
-   `platform: ChatGPT via Grok Bot` in the run rows.
+   turns, characters, model, and whether search queries came back. Never print the answers into the
+   thread. Rerun any conversation that is missing, short, has the wrong number of turns, or looks
+   paraphrased (no sources, no model label). Record `platform: ChatGPT via Grok Bot` in the run rows.
 
 Trial on 2026-11-17 (one SFXMint conversation, 3 turns): the bot returned 7.3k characters in the
 requested format. The links kept ChatGPT's `utm_source=chatgpt.com`, so they were copied rather than
