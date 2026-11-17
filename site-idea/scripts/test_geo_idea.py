@@ -411,9 +411,13 @@ class DemandAndBankTest(unittest.TestCase):
         code, out = run(self.root, "needs", "--quotes", "posts.jsonl")
         self.assertEqual(code, 1)
         self.assertIn("quote not found verbatim", out)
+        needs[0]["volume"] = {"licence_words": {"api": 1, "mcp": 13, "web": 9}, "pasted_lists": 186}
+        gi.write_jsonl(self.root / "geo/needs.jsonl", needs)
+        self.assertEqual(run(self.root, "needs")[0], 0)
+        self.assertIn("licence words 23 (api 1, mcp 13, web 9)", (self.root / "geo/needs.md").read_text())
         needs[0]["volume"] = [{"n": 3}]
         gi.write_jsonl(self.root / "geo/needs.jsonl", needs)
-        self.assertIn("volume 1 needs ref", run(self.root, "needs")[1])
+        self.assertIn("volume is a list of", run(self.root, "needs")[1])
 
     def test_geo_dir_keeps_two_projects_apart(self):
         code, _ = run(self.root, "--geo-dir", "geo-families", "init", "--name", "Families", "--idea", "x")

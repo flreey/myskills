@@ -210,10 +210,36 @@ def validate_needs(needs):
         cbs = n.get("count_by_source")
         if cbs is not None and not (isinstance(cbs, dict) and all(isinstance(v, int) for v in cbs.values())):
             errs.append(f"{where}: count_by_source maps a source to an integer count, e.g. {{\"forum\": 40}}")
-        for j, v in enumerate(n.get("volume") or [], 1):
-            if not (isinstance(v, dict) and v.get("ref") and isinstance(v.get("n"), (int, float))):
-                errs.append(f"{where}: volume {j} needs ref (table and window) and n (requests, not people)")
+        if n.get("volume") is not None and volume_rows(n["volume"]) is None:
+            errs.append(f"{where}: volume is a list of {{ref, what, n}} or a map of metric -> count "
+                        "(or metric -> {source: count}); counts are requests, not people")
     return errs, warns, ids
+
+
+def volume_rows(v):
+    """Normalise volume to [(what, total, {source: n})]; None when the shape is wrong.
+    Accepts [{"ref", "what", "n"}] or {"metric": n} or {"metric": {"api": n, "web": n}}."""
+    num = (int, float)
+    if isinstance(v, list):
+        out = []
+        for x in v:
+            if not (isinstance(x, dict) and x.get("ref") and isinstance(x.get("n"), num)):
+                return None
+            out.append((x.get("what") or x["ref"], x["n"], {}))
+        return out
+    if isinstance(v, dict):
+        out = []
+        for k, x in v.items():
+            if isinstance(x, num):
+                out.append((k, x, {}))
+            elif isinstance(x, str) and x.strip():
+                out.append((k, x.strip(), {}))   # a described figure, shown as written
+            elif isinstance(x, dict) and x and all(isinstance(y, num) for y in x.values()):
+                out.append((k, sum(x.values()), x))
+            else:
+                return None
+        return out
+    return None
 
 
 def quote_index(path):
@@ -251,7 +277,7 @@ def need_summary(needs):
         fp = sum(1 for e in ev if isinstance(e, dict) and e.get("source") in FIRST_PARTY_SOURCES)
         rows.append({"id": n.get("id"), "need": n.get("need", ""), "level": n.get("evidence_level"),
                      "personas": n.get("personas") or [], "count": n.get("count"),
-                     "count_by_source": n.get("count_by_source") or {}, "volume": n.get("volume") or [],
+                     "count_by_source": n.get("count_by_source") or {}, "volume": volume_rows(n.get("volume") or []) or [],
                      "first_party": fp, "offsite": len(ev) - fp, "where_asked": n.get("where_asked") or []})
     rows.sort(key=lambda r: (-(r["count"] or 0), r["id"] or ""))
     return rows
@@ -270,7 +296,9 @@ def needs_md(rows, proj):
         cnt = "—" if r["count"] is None else str(r["count"])
         if r["count_by_source"]:
             cnt += " (" + ", ".join(f"{k} {v}" for k, v in sorted(r["count_by_source"].items(), key=lambda kv: -kv[1])) + ")"
-        vol = "; ".join(f"{v.get('what', v['ref'])} {v['n']:,}" for v in r["volume"]) or "—"
+        vol = "; ".join(f"{what.replace('_', ' ')} " + (f"{total:,}" if not isinstance(total, str) else total) +
+                        (" (" + ", ".join(f"{k} {n:,}" for k, n in by.items()) + ")" if by else "")
+                        for what, total, by in r["volume"]) or "—"
         L.append(f"| {r['id']}: {r['need']} | {', '.join(r['personas']) or '—'} | {r['level']} | {cnt} | {vol} | "
                  f"{r['first_party']} / {r['offsite']} | {', '.join(r['where_asked']) or '—'} |")
     return "\n".join(L) + "\n"
