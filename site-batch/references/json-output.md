@@ -18,7 +18,9 @@
   "collection": {"basePath": "/convert", "label": {"singular": "Conversion", "plural": "Conversions"},
                  "hub": {"title": "...", "description": "..."}, "itemType": "Thing",
                  "groups": {"basePath": "/convert/from", "label": "Source", "minItems": 3}},
-  "groups": [{"key": "heic", "name": "HEIC", "count": 12, "url": "/convert/from/heic", "indexable": true}],
+  "groups": [{"key": "heic", "name": "HEIC", "count": 12, "url": "/convert/from/heic", "indexable": true,
+              "content": {"answer": "...", "chooser": [{"when": "...", "why": "...", "slug": "heic-to-jpg", "name": "...", "url": "/convert/heic-to-jpg"}],
+                          "follow_ups": [{"q": "...", "a": "..."}]}}],
   "items": [{
     "slug": "heic-to-jpg", "url": "/convert/heic-to-jpg", "combo_id": "heic__jpg",
     "name": "HEIC to JPG", "title": "...", "h1": "...", "description": "...",
@@ -47,6 +49,13 @@ Render in this order, all in the server HTML (no client-only content):
 4. `follow_ups` as visible questions and answers, plus a `FAQPage` JSON-LD with the same text.
 5. `alternatives` as a list when present.
 6. `related` as links to `<basePath>/<slug>`.
+
+Section headings for the chooser and alternatives are in `collection.labels` (the template's `labels`,
+English defaults otherwise).
+
+Group pages: `content.answer` under the H1, then `content.chooser` as a two-column table (condition →
+link), then the item list, then `content.follow_ups` as visible Q&A with a FAQPage JSON-LD. Groups
+without `content` are plain lists.
 
 Page meta: `<title>` from `title`, meta description from `description`, a self canonical, indexable.
 Hub at `collection.basePath` listing items; group pages at `groups[].url`, `noindex` when `indexable`

@@ -11,7 +11,8 @@ hands to an assistant, not a keyword. Full method: `~/Projects/GEO/geo-methodolo
 | O1 Tasks | Find the tasks people bring, from real sources first | `clusters.jsonl` |
 | O2 Constraints | Every hard condition people state, and the product's status on each | `constraints.jsonl` |
 | O3 Conversations | 3–5 conversation paths per cluster: opening with context, follow-ups, end | `conversations.jsonl` |
-| O4 Route | Query type → lever; page status for on-site clusters | `clusters.jsonl` (`query_type`, `lever`, `page_status`) |
+| O4 Route | Query type → lever; page status and primary page for on-site clusters | `clusters.jsonl` (`query_type`, `lever`, `page_status`, `primary_page`) |
+| O4b Brief | Per primary page: which clusters it owns, which turns it answers where, which conditions it states | `briefs/<page>.json` |
 | O5 Baseline | Probe before changing anything; classify cited sources | `runs.jsonl` |
 | O6 Change | One batch at a time, with control clusters | `experiments.jsonl` |
 | O7 Measure | After the window: holdout set for results, experiment for the change | report output |
@@ -69,6 +70,31 @@ For `onsite` clusters set `page_status`: `COVERED` (the main page answers the ta
 follow-ups, every condition stated), `OPTIMIZE`, `NEW_PAGE` (no page can take it and the answer is
 different, not just reworded), `MERGE`, `NOT_FIT` (a hard condition is unmet). Many template-shaped
 `NEW_PAGE` clusters are a site-batch job; a few are the project's own page workflow.
+
+### O4b Page brief
+
+Many conversations, few pages: route them with the same rules as site-batch
+`references/question-mapping.md`. A cluster's opening scope picks the page (`primary_page`; a broad
+opening goes to a hub or category page, a recommendation opening mostly off-site); each turn's `kind`
+picks the section. Conversations follow site-idea's format, follow-ups as
+`{"q": "...", "kind": "constraint|howto|why|compare|resource|other"}`.
+
+`geo_optimize.py brief --page /sounds/ui-click` writes the skeleton `briefs/sounds--ui-click.json`:
+
+| Section | Filled from | On the page |
+| --- | --- | --- |
+| `answer_first` | the openings of the owned clusters | the first paragraph answers them all, in their words |
+| `conditions` | `constraint` turns and the clusters' constraints with status | one sentence or table row each, including unmet |
+| `faq`, `faq_or_resource` | `why` and `howto` turns | visible Q&A; a tool, file or steps where one does the job |
+| `alternatives` | `compare` turns | honest comparison, when the other option is better too |
+| `resource` | `resource` turns | the link or button |
+| `review` | `other` and unlabelled turns | decide by hand; may belong to another page |
+| `unknown_constraints` | conditions still `unknown` | find out before writing; never guess on the page |
+| `not_this_page` | owned clusters with a non-onsite lever | the page states facts; the work is off-site, docs or tools |
+
+Edit the brief (merge near-duplicate questions, drop what belongs elsewhere), then hand it to the
+project's page workflow. The brief is also what site-check GEO mode checks the page against. One
+question lives in one section; target wordings are not pasted in as FAQ variants.
 
 ### O5 Baseline
 

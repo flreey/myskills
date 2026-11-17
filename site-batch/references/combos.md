@@ -24,11 +24,11 @@ out, not filled with guesses.
  "headline": "batch convert, dates kept",
  "core_answer": "HEIC photos convert to JPG in the browser, up to 500 at a time, without uploading them; at quality 92 a photo goes from about 2.4 MB to 1.8 MB and keeps its EXIF date.",
  "constraint_results": [
-   {"constraint": "No upload", "status": "met", "note": "files are converted on your device"},
-   {"constraint": "Keeps photo dates", "status": "met", "note": "EXIF date and orientation are kept"},
+   {"constraint": "No upload", "status": "met", "note": "files are converted on your device", "slot": "offline"},
+   {"constraint": "Keeps photo dates", "status": "met", "note": "EXIF date and orientation are kept", "slot": "keeps-dates"},
    {"constraint": "Keeps Live Photo motion", "status": "unmet", "note": "only the still image is converted"}],
  "key_facts": [{"label": "Typical size", "value": "2.4 MB → 1.8 MB", "fact_id": "f7"}],
- "follow_ups": [{"q": "Will I lose quality?", "a": "At quality 92 the difference is hard to see; size drops about a quarter."}],
+ "follow_ups": [{"slot": "quality", "q": "Will I lose quality?", "a": "At quality 92 the difference is hard to see; size drops about a quarter."}],
  "resource": {"label": "Convert HEIC to JPG", "url": "/tools/heic-to-jpg"},
  "alternatives": [{"name": "Photos app export", "note": "works on a Mac one album at a time"}],
  "fact_ids": ["f1", "f7"], "priority": 3, "updated": "2026-11-17"}
@@ -38,13 +38,19 @@ out, not filled with guesses.
 | --- | --- |
 | `combo_id`, `combo` | Value ids joined with `__` in the template's dimension order. |
 | `core_answer` | The first paragraph: yes/no or how, the key number, the main limit. One to three sentences, inline markdown, stands alone. |
-| `constraint_results` | `status` is `met`, `conditional` or `unmet`. `unknown` fails the gate: find out or drop the constraint. |
+| `constraint_results` | `status` is `met`, `conditional` or `unmet`. `unknown` fails the gate: find out or drop the constraint. A row may carry `slot` to answer a `constraint` question slot here instead of in the FAQ. |
 | `key_facts` | Each has `fact_id` (from facts.jsonl) or `source` (e.g. `"computed from test run 12"`). |
-| `follow_ups` | From the follow-ups in `geo/gap/samples.jsonl` and real signals; answers follow the same fact rule. |
+| `follow_ups` | One entry per required question slot (`slot`), plus row-specific questions without a slot. Answers are specific to the combination and follow the same fact rule. |
 | `resource` | `url` is a site path or URL that exists when the wave ships (kit:check reports broken links). |
 | `fact_ids` | Every fact the prose relies on. Numbers in prose that appear in no cited fact or key fact fail the gate. |
 | `priority` | Higher ships in an earlier wave. Start from the gap level of the nearest sampled combination. |
 | `variants` | Only with a template experiment: `{"b": {"core_answer": "..."}}` replaces those fields for arm b. |
+
+## `geo/combos/<template>.groups.jsonl`
+
+Group pages for templates with `collection.groups`: answer, chooser and follow-ups per group value.
+Format and rules: [question-mapping.md](question-mapping.md) §5. Failures show in `build` as
+`group_failures`; a failing group renders without the extra content.
 
 ## Writing rows at scale
 

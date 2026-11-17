@@ -109,6 +109,38 @@ class OptimizeTest(unittest.TestCase):
         self.assertTrue(rep["verdict"].startswith("improved"))
         self.assertAlmostEqual(rep["sentinel_drift_in_answer"], 0.02, places=2)
 
+    def test_brief_routes_turns_to_sections(self):
+        go.write_jsonl(self.st.clusters, [
+            cluster(1, primary_page="/sounds/ui-click", constraints=["c-free", "c-loop"]),
+            cluster(2, primary_page="/sounds/ui-click/", query_type="recommend", lever="offsite"),
+            cluster(3, primary_page="/other")])
+        go.write_jsonl(self.st.constraints, [
+            {"id": "c-free", "constraint": "free for commercial use", "status": "met", "source": "/license"},
+            {"id": "c-loop", "constraint": "seamless loop", "status": "unknown"}])
+        go.write_jsonl(self.st.conversations, [
+            {"id": "v1", "cluster": "k1", "opening": "subtle tap sounds for my app",
+             "follow_ups": [{"q": "Can I use them commercially?", "kind": "constraint"},
+                            {"q": "How do I add them in Unity?", "kind": "howto"},
+                            {"q": "Better than Kenney?", "kind": "compare"}]},
+            {"id": "v2", "cluster": "k1", "opening": "click sounds that don't annoy",
+             "follow_ups": [{"q": "can I use them commercially?", "kind": "constraint"}, "plain follow-up"]},
+            {"id": "v3", "cluster": "k2", "opening": "best free UI sound packs?"}])
+        code, out = run(self.root, "brief", "--page", "/sounds/ui-click")
+        self.assertEqual(code, 0)
+        b = json.loads((self.st.briefs / "sounds--ui-click.json").read_text())
+        self.assertEqual(len(b["clusters"]), 2)
+        self.assertEqual(len(b["answer_first"]), 3)
+        # constraint questions (deduplicated) and the constraint facts both land in the conditions section
+        self.assertEqual([x["q"] for x in b["conditions"] if "q" in x], ["Can I use them commercially?"])
+        self.assertEqual([x["id"] for x in b["conditions"] if "id" in x], ["c-free"])
+        self.assertEqual(b["unknown_constraints"][0]["id"], "c-loop")
+        self.assertEqual(len(b["faq_or_resource"]), 1)
+        self.assertEqual(len(b["alternatives"]), 1)
+        self.assertEqual(len(b["review"]), 1)                                  # unlabelled follow-up
+        self.assertEqual(b["not_this_page"][0]["cluster"], "k2")
+        code, _ = run(self.root, "brief", "--page", "/sounds/ui-click")
+        self.assertEqual(code, 2)                                              # no silent overwrite
+
     def test_experiment_thin_and_drift(self):
         go.write_jsonl(self.st.clusters, [cluster(1, set="optimize"), cluster(2, set="optimize"), cluster(3, set="sentinel")])
         go.write_jsonl(self.st.conversations, [{"id": f"c{i}", "cluster": f"k{i}", "opening": "x"} for i in (1, 2, 3)])

@@ -151,6 +151,18 @@ class GeoIdeaTest(unittest.TestCase):
         self.assertEqual(proj["decision"]["subspace"], {"source": ["heic", "png"]})
         self.assertEqual(proj["decision"]["dimensions"], ["source", "target", "need"])
 
+    def test_check_flags_bad_turn_kind_and_scope(self):
+        run(self.root, "sample", "--n", "2")
+        p = self.root / "geo/gap/samples.jsonl"
+        rows = gi.read_jsonl(p)
+        rows[0]["opening_scope"] = ["colour"]
+        rows[0]["follow_ups"] = [{"q": "Is it free?", "kind": "price"}, "plain strings still allowed"]
+        gi.write_jsonl(p, rows)
+        code, out = run(self.root, "check")
+        self.assertEqual(code, 1)
+        self.assertIn("opening_scope names unknown dimension", out)
+        self.assertIn("follow-up kind must be one of", out)
+
     def test_check_flags_bad_runs(self):
         run(self.root, "sample", "--n", "3")
         cid = gi.read_jsonl(self.root / "geo/gap/samples.jsonl")[0]["combo_id"]
@@ -171,7 +183,8 @@ class GeoIdeaTest(unittest.TestCase):
         rows = gi.read_jsonl(p)
         for r in rows:
             r["opening"] = "I have 300 HEIC photos..."
-            r["follow_ups"] = ["Can it run offline?"]
+            r["opening_scope"] = ["source"]
+            r["follow_ups"] = [{"q": "Can it run offline?", "kind": "constraint", "adds": ["need"]}]
         gi.write_jsonl(p, rows)
         code, _ = run(self.root, "probes")
         self.assertEqual(code, 0)

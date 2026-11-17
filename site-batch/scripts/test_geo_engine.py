@@ -214,6 +214,87 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("'target' was not part of the gap check", out)
 
+    def test_question_slots_gate(self):
+        t = dict(TEMPLATE, question_slots=[
+            {"id": "keeps-dates", "question": "Does it keep photo dates?", "kind": "constraint"},
+            {"id": "offline", "question": "Does it work offline?", "kind": "constraint", "required": False}])
+        ge.write_json(self.root / "geo/templates/convert.json", t)
+        rows = [row("heic", "jpg", "HEIC to JPG in the browser, up to 500 files, dates kept."),
+                row("heic", "png", "HEIC to PNG keeps every pixel but the files grow larger."),
+                row("webp", "jpg", "WebP flattens to JPG and loses transparency on the way.")]
+        rows[0]["follow_ups"][0]["slot"] = "keeps-dates"                       # answered as a follow-up
+        rows[1]["constraint_results"][0]["slot"] = "keeps-dates"               # answered in the table
+        rows[2]["follow_ups"][0]["slot"] = "battery"                           # unknown slot
+        ge.write_jsonl(self.root / "geo/combos/convert.jsonl", rows)
+        g = self.gates()
+        self.assertTrue(g["heic__jpg"]["gate"]["pass"], g["heic__jpg"]["gate"])
+        self.assertTrue(g["heic__png"]["gate"]["pass"], g["heic__png"]["gate"])
+        failed = g["webp__jpg"]["gate"]["failed"]
+        self.assertTrue(any("unknown question slots" in f for f in failed))
+        self.assertTrue(any("unanswered question slots ['keeps-dates']" in f for f in failed))
+
+    def test_group_content_kit_and_json(self):
+        ge.write_jsonl(self.root / "geo/combos/convert.groups.jsonl", [
+            {"key": "heic", "answer": "iPhone photos are HEIC; convert them in the browser, up to 500 at a time.",
+             "fact_ids": ["f1"],
+             "chooser": [{"when": "a site only takes JPG", "slug": "heic-to-jpg", "why": "smallest files"},
+                         {"when": "you need lossless", "slug": "heic-to-png"}],
+             "follow_ups": [{"q": "Why are my photos HEIC?", "a": "iPhones save HEIC by default."}]},
+            {"key": "webp", "answer": "WebP converts in 3 seconds.", "chooser": []},     # unsourced number
+            {"key": "heic-x", "answer": "x"},                                           # unknown value
+        ])
+        run(self.root, "build", "--target", "kit")
+        run(self.root, "wave-plan", "--per-template", "1")                          # releases heic-to-jpg only
+        run(self.root, "wave-release", "--wave", "1")
+        code, out = run(self.root, "build", "--target", "kit")
+        summary = json.loads(out)["convert"]
+        self.assertIn("webp", summary["group_failures"])
+        self.assertIn("heic-x", summary["group_failures"])
+        groups = json.loads((self.root / "data/convert.groups.json").read_text())
+        self.assertEqual(list(groups), ["heic"])
+        self.assertEqual([c["slug"] for c in groups["heic"]["chooser"]], ["heic-to-jpg"])  # unreleased choice dropped
+        self.assertEqual(groups["heic"]["chooser"][0]["url"], "/convert/heic-to-jpg")
+        run(self.root, "build", "--target", "json")
+        doc = json.loads((self.root / "geo/out/convert.json").read_text())
+        self.assertEqual(doc["groups"][0]["content"]["follow_ups"][0]["q"], "Why are my photos HEIC?")
+
+    def test_questions_routes_openings_by_scope(self):
+        ge.write_jsonl(self.root / "geo/gap/samples.jsonl", [
+            {"combo_id": "heic__jpg", "combo": {"source": "heic", "target": "jpg"}, "opening": "upload fails with iPhone photos",
+             "opening_scope": ["source"], "follow_ups": [{"q": "does it keep dates?", "kind": "constraint", "adds": []},
+                                                         {"q": "how do I do it on Windows?", "kind": "howto"}]},
+            {"combo_id": "webp__png", "combo": {"source": "webp", "target": "png"}, "opening": "turn webp into png",
+             "opening_scope": ["source", "target"], "follow_ups": ["is it free?"]},
+            {"combo_id": "pdf__jpg", "combo": {"source": "pdf", "target": "jpg"}, "opening": "best converter?",
+             "opening_scope": [], "follow_ups": []},
+        ])
+        code, out = run(self.root, "questions", "--template", "convert")
+        self.assertEqual(code, 0)
+        rep = json.loads(out)
+        self.assertEqual(rep["levels"], {"group": 1, "item": 1, "hub": 1})
+        self.assertEqual(len(rep["follow_ups_by_kind"]["constraint"]), 1)
+        self.assertIn("unlabelled", rep["follow_ups_by_kind"])
+        self.assertEqual(ge.route_level([], TEMPLATE), "hub")
+
+    def test_section_labels(self):
+        run(self.root, "build", "--target", "kit")
+        self.assertEqual(json.loads((self.root / "data/convert.labels.json").read_text())["chooser"], "Which one fits")
+        ge.write_json(self.root / "geo/templates/convert.json", dict(TEMPLATE, labels={"chooser": "怎么选", "alternatives": "其他做法"}))
+        run(self.root, "build", "--target", "kit")
+        self.assertEqual(json.loads((self.root / "data/convert.labels.json").read_text()),
+                         {"chooser": "怎么选", "alternatives": "其他做法"})
+        run(self.root, "build", "--target", "json")
+        self.assertEqual(json.loads((self.root / "geo/out/convert.json").read_text())["collection"]["labels"]["alternatives"], "其他做法")
+        ge.write_json(self.root / "geo/templates/convert.json", dict(TEMPLATE, labels={"faq": "问题", "chooser": " "}))
+        code, out = run(self.root, "lint")
+        self.assertIn("labels.faq is not a label", out)
+        self.assertIn("labels.chooser must be non-empty", out)
+
+    def test_scaffold_writes_both_overrides(self):
+        code, out = run(self.root, "scaffold", "--template", "convert")
+        self.assertEqual(len(json.loads(out)["overrides_written"]), 2)
+        self.assertTrue((self.root / "src/site/overrides/templates/DirectoryGroup.astro").exists())
+
     def test_lint_requires_decision_and_valid_template(self):
         bad = dict(TEMPLATE, patterns=dict(TEMPLATE["patterns"], slug="{source}"))
         ge.write_json(self.root / "geo/templates/convert.json", bad)

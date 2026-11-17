@@ -19,7 +19,7 @@ Engine (Python stdlib, read-only), `python3 <skill-dir>/scripts/geo_check.py`:
   lists names the site no longer uses. `--format json` for the full record.
 
 Optimize engine (Python stdlib), `python3 <skill-dir>/scripts/geo_optimize.py --root <project>` with
-`init`, `check`, `sets`, `report`, `experiment`; data in `<project>/geo/optimize/`, contract and loop in
+`init`, `check`, `sets`, `report`, `experiment`, `brief`; data in `<project>/geo/optimize/`, contract and loop in
 [references/optimize.md](references/optimize.md).
 
 ## Modes

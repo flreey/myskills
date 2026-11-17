@@ -4,6 +4,8 @@
 // link under the answer, follow-up questions (visible FAQ + FAQPage) and alternatives. Rows without
 // those fields render exactly like the kit page, so non-geo collections are unaffected.
 // After a kit upgrade, diff this file against the kit original and carry over its changes.
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { siteFor } from '../../../kit/site.ts';
 import type { PageEntry, PageIndex, QA } from '../../../kit/core/page-index.ts';
 import { buildGraph } from '../../../kit/core/jsonld.ts';
@@ -53,6 +55,8 @@ const primary = {
   url: absoluteUrl(site.origin, page.url),
   ...(def.schema?.(item) ?? {}),
 };
+const labelFile = join(process.cwd(), `data/${id}.labels.json`);
+const labels = existsSync(labelFile) ? (JSON.parse(readFileSync(labelFile, 'utf8')) as Record<string, string>) : {};
 const graph = buildGraph({ site, page, primary, faq });
 ---
 <KitLayout page={page} index={index} graph={graph}>
@@ -72,7 +76,7 @@ const graph = buildGraph({ site, page, primary, faq });
     </Section>
     <Faq items={faq} id="questions" lang={page.lang} />
     {alternatives.length > 0 && (
-      <Section title="Other ways to do it" id="alternatives">
+      <Section title={labels.alternatives ?? 'Other ways to do it'} id="alternatives">
         <ul class="sk-geo-alternatives">
           {alternatives.map((x) => (
             <li>

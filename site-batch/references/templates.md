@@ -33,6 +33,12 @@ never answer the same task.
     "resource": "the tool page for this pair",
     "follow_ups": "follow-ups from geo/gap/samples.jsonl and signals"
   },
+  "title_source": "item openings c003, c017, c021 and two Reddit threads say 'convert … to JPG without uploading'",
+  "labels": {"chooser": "Which one fits", "alternatives": "Other ways to do it"},
+  "question_slots": [
+    {"id": "keeps-dates", "question": "Will my photos keep their dates?", "kind": "constraint"},
+    {"id": "quality", "question": "Will I lose quality?", "kind": "why"}
+  ],
   "required": ["core_answer", "constraint_results", "resource"],
   "optional": ["key_facts", "follow_ups", "alternatives"],
   "facts_fields": [],
@@ -50,6 +56,9 @@ never answer the same task.
 | `collection.*` | Goes into `site.config.ts` through `geo_engine.py scaffold`. `itemType` is one of the kit's: `Thing`, `CreativeWork`, `Product`, `Place`, `Dataset`, `SoftwareApplication`, `DefinedTerm`. `groups.by` is one of the template's dimensions; `groups.intro` may use `{count}` and `{name}`. |
 | `patterns` | `{dim}` = value id, `{dim.label}` = value label, `{field}` = a row field (e.g. `{headline}`). `slug` must contain every dimension. The rendered description must be 50–155 characters or the row fails. |
 | `field_sources` | Where each answer field comes from. A field with no real source is a field the template cannot require. |
+| `title_source` | One line: which real openings and signals the title and H1 patterns follow (`questions` lists them). |
+| `labels` | Optional headings for the two sections the geo overrides add: `chooser` (group page) and `alternatives` (item page). Write them in the site's language (`{"chooser": "怎么选", "alternatives": "其他做法"}`); the English defaults apply otherwise. The kit's own headings follow its i18n messages. |
+| `question_slots` | 5–8 follow-ups every row answers, generalised from the sampled conversations ([question-mapping.md](question-mapping.md) §3). Rows tag answers with `slot`; unanswered required slots fail the gate. |
 | `required` | Must include `core_answer`. A row missing any required field never becomes a page. |
 | `facts_fields` | Extra row fields shown as fact rows: `[{"label": "Quality loss", "field": "loss_note"}]`. |
 | `min_unique_ratio` | Share of a row's 3-word shingles found in no other row of the template. Start at 0.6. |
@@ -72,8 +81,15 @@ The gaps the assistants left are what the page must fill:
 
 ## Kit page layout (what the template feeds)
 
+Which page a question lands on (item, group, hub) and which section each turn fills:
+[question-mapping.md](question-mapping.md).
+
 The geo override of the kit's item page shows, top to bottom: eyebrow (group), h1, the answer
 paragraph (`core_answer`, inline markdown), the resource button, the details table (constraint
 results, key facts, `facts_fields`), the follow-up questions (visible FAQ + FAQPage), alternatives
 and related pages (siblings that differ in one dimension, then group neighbours). Write fields for
 that order: the answer must stand alone, because it is what assistants quote.
+
+The geo group page (override `DirectoryGroup.astro`) shows the group intro, the group answer, a "Which
+one fits" chooser to item pages, the item list and the group's FAQ, from
+`geo/combos/<template>.groups.jsonl` (format in question-mapping.md §5).

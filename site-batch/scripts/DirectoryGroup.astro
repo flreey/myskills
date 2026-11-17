@@ -1,0 +1,85 @@
+---
+// geo override of the kit's directory group page (src/kit/templates/DirectoryGroup.astro, kit 2.15).
+// Written by geo_engine.py scaffold. Same page as the kit's, plus the group content geo_engine.py
+// build writes to data/<collection>.groups.json: an answer for questions that fix only the group
+// (say "my iPhone photos"), a chooser that sends each condition to one item page, and the group's
+// own follow-up questions (visible FAQ + FAQPage). Groups without content render like the kit page.
+// After a kit upgrade, diff this file against the kit original and carry over its changes.
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { siteFor } from '../../../kit/site.ts';
+import type { PageEntry, PageIndex, QA } from '../../../kit/core/page-index.ts';
+import { buildGraph } from '../../../kit/core/jsonld.ts';
+import { inlineMarkdown } from '../../../kit/core/text.ts';
+import { getCollectionData } from '../../../kit/astro/page-data.ts';
+import KitLayout from '../../../kit/ui/KitLayout.astro';
+import Breadcrumbs from '../../../kit/ui/Breadcrumbs.astro';
+import Section from '../../../kit/ui/Section.astro';
+import ItemList from '../../../kit/ui/ItemList.astro';
+import Pagination from '../../../kit/ui/Pagination.astro';
+import Faq from '../../../kit/ui/Faq.astro';
+import { fill } from '../../../kit/core/messages.ts';
+
+interface Props { page: PageEntry; index: PageIndex }
+interface GroupContent {
+  answer: string;
+  chooser: { when: string; why?: string; slug: string; name: string; url: string }[];
+  follow_ups: QA[];
+}
+const { page, index } = Astro.props;
+const site = siteFor(page);
+const id = String(page.data.collection);
+const key = String(page.data.group);
+const cfg = site.modules.directory!.collections.find((c) => c.id === id)!;
+const { def, views } = getCollectionData(id);
+const n = Number(page.data.page);
+const items = views
+  .filter((v) => v.group?.key === key)
+  .map((v) => index.byUrl.get(`${cfg.basePath}/${v.slug}`))
+  .filter((p): p is PageEntry => !!p && p.indexable);
+const slice = items.slice((n - 1) * cfg.pageSize, n * cfg.pageSize);
+const intro = n === 1 ? def.groupIntro?.(key, String(page.data.groupName), items.length) : undefined;
+const file = join(process.cwd(), `data/${id}.groups.json`);
+const all = existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as Record<string, GroupContent>) : {};
+const content = n === 1 ? all[key] : undefined;
+const live = (url: string) => !!index.byUrl.get(url)?.indexable;
+const chooser = (content?.chooser ?? []).filter((c) => live(c.url));
+const faq: QA[] = (content?.follow_ups ?? []).filter((f) => f && f.q && f.a);
+const labelFile = join(process.cwd(), `data/${id}.labels.json`);
+const labels = existsSync(labelFile) ? (JSON.parse(readFileSync(labelFile, 'utf8')) as Record<string, string>) : {};
+const graph = buildGraph({ site, page, faq, items: slice.map((p) => ({ name: p.h1, url: p.url })) });
+const base = cfg.groups ? `${cfg.groups.basePath}/${key}` : cfg.basePath;
+---
+<KitLayout page={page} index={index} graph={graph}>
+  <div class="sk-container">
+    <Breadcrumbs items={page.breadcrumbs} lang={page.lang} />
+    <header class="sk-pagehead">
+      <span class="sk-eyebrow">{cfg.groups ? cfg.groups.label : cfg.label.plural}</span>
+      <h1>{page.h1}</h1>
+      {intro && <p class="sk-pagehead__deck" set:html={inlineMarkdown(intro)} />}
+    </header>
+    {content?.answer && <div class="sk-answer" role="note"><p set:html={inlineMarkdown(content.answer)} /></div>}
+    {chooser.length > 0 && (
+      <Section title={labels.chooser ?? 'Which one fits'} id="choose">
+        <div class="sk-table-wrap">
+        <table class="sk-table sk-geo-chooser">
+          <tbody>
+            {chooser.map((c) => (
+              <tr>
+                <th scope="row" style="width: 38%">{c.when}</th>
+                <td><a href={c.url}>{c.name}</a>{c.why && <span set:html={` — ${inlineMarkdown(c.why)}`} />}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        </div>
+      </Section>
+    )}
+    <Section>
+      <ItemList items={slice.map((p) => ({ name: p.h1, href: p.url }))} />
+      <Pagination base={base} page={n} pages={Number(page.data.pages)} lang={page.lang} />
+    </Section>
+    <Faq items={faq} id="questions" lang={page.lang} />
+    <p class="sk-muted"><a href={cfg.basePath}>{fill(site.t.directory.all, { plural: cfg.label.plural })}</a></p>
+  </div>
+</KitLayout>

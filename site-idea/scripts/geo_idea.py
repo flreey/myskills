@@ -33,6 +33,8 @@ GAPS = {
     "weak_sources": "medium", "good": "low",
 }
 VERDICTS = {"go", "narrow", "stop"}
+# What a follow-up asks decides where a page answers it (site-batch references/question-mapping.md).
+TURN_KINDS = {"constraint", "howto", "why", "compare", "resource", "other"}
 STAGES = ["idea", "space", "gap", "decided"]
 ENUM_LIMIT = 200_000
 SPACE_WARN = 50_000
@@ -252,7 +254,7 @@ def cmd_sample(st, a):
         for k, v in combo.items():
             use[k][v] += 1
         rows.append({"combo_id": cid, "combo": combo, "persona": "", "opening": "",
-                     "follow_ups": [], "signals": []})
+                     "opening_scope": None, "follow_ups": [], "signals": []})
     write_jsonl(st.samples, rows)
     uncovered = [f"{d['id']}={v['id']}" for d in gen for v in d["values"] if use[d["id"]][v["id"]] == 0]
     out = {"samples": len(rows), "file": str(st.samples), "uncovered_values": uncovered}
@@ -280,6 +282,7 @@ def cmd_probes(st, a):
         lines += [f"## {r['combo_id']}", "", f"Persona: {r.get('persona', '')}", "", "Opening:", "",
                   "> " + r["opening"].replace("\n", "\n> "), ""]
         for i, f in enumerate(r.get("follow_ups", []), 1):
+            f = f.get("q", "") if isinstance(f, dict) else f
             lines += [f"Follow-up {i}: {f}", ""]
         files = ", ".join(f"`geo/gap/raw/{r['combo_id']}--{p.lower().replace(' ', '-')}--1.md`" for p in platforms)
         lines += [f"Save as: {files}", ""]
@@ -470,6 +473,15 @@ def cmd_check(st, a):
         for k, v in s.get("combo", {}).items():
             if v not in values.get(k, set()):
                 errs.append(f"samples: {s.get('combo_id')}: unknown {k}={v}")
+        for k in s.get("opening_scope", []) or []:
+            if k not in values:
+                errs.append(f"samples: {s.get('combo_id')}: opening_scope names unknown dimension {k!r}")
+        for f in s.get("follow_ups", []) or []:
+            if isinstance(f, dict):
+                if not f.get("q"):
+                    errs.append(f"samples: {s.get('combo_id')}: follow-up without q")
+                if f.get("kind") not in TURN_KINDS:
+                    errs.append(f"samples: {s.get('combo_id')}: follow-up kind must be one of {sorted(TURN_KINDS)}")
         for sig in s.get("signals", []):
             if not str(sig.get("url", "")).startswith("http"):
                 errs.append(f"samples: {s.get('combo_id')}: signal without a URL")

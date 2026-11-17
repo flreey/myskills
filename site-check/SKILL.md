@@ -33,7 +33,7 @@ Both take `--format json`. `--retired` lists product names and positioning the s
 | Mode | Pages | Target | Check 1 | 2a sources | S1, S5 |
 | --- | --- | --- | --- | --- | --- |
 | SEO (default) | hand-made pages planned by keyword | primary phrase from the site-plan brief or registry | 1. Copy is written around the keyword | brief, GSC, keyword pool, PAA | registry and brief |
-| GEO | pages from site-batch (`geo/`), or any page meant to be quoted by AI assistants | the task: the row in `geo/combos/<template>.jsonl` (combo, constraints, follow-ups) or the task the owner names | 1G. The answer serves the task | follow-ups in `geo/gap/samples.jsonl`, real signals, site search misses | `geo/instances.jsonl` gate and the template |
+| GEO | pages from site-batch (`geo/`), or any page meant to be quoted by AI assistants | the task: the row in `geo/combos/<template>.jsonl` (combo, constraints, question slots), or on a live site the page brief `geo/optimize/briefs/<page>.json` (site-geo O4b), or the task the owner names | 1G. The answer serves the task | follow-ups in `geo/gap/samples.jsonl`, real signals, site search misses | `geo/instances.jsonl` gate and the template |
 
 Pick GEO when the project has `geo/` and the page belongs to a template (its URL is under a template
 `basePath`), or the owner says the page is for AI assistants. A site can have both: check each page in
@@ -106,8 +106,13 @@ Assistants quote passages, not pages, and filter options by the conditions the p
   (another value of one dimension). If swapping the nouns makes it fit a sibling, the row lacks
   combination data: a fix in site-batch, not in copy.
 - **Constraints stated.** Each condition people state for this task (from the row's
-  `constraint_results` and the gap samples) has its own sentence or table row with met, with
-  conditions, or not met, including the unmet ones. A missing or vague condition is a fix.
+  `constraint_results`, the gap samples or the brief's `conditions`) has its own sentence or table row
+  with met, with conditions, or not met, including the unmet ones. A missing or vague condition is a fix.
+- **Questions in their place.** Every required question slot (batch pages) or brief question (live
+  pages) is answered once, in the section the mapping gives it (site-batch
+  `references/question-mapping.md`): conditions in the table, how and why in the visible FAQ, comparisons
+  under alternatives. The same question answered in three places, or FAQ entries that only reword the
+  target, is a fix. Group pages: the answer, the chooser to item pages and the group FAQ are present.
 - **Facts match.** Every number and capability on the page matches `geo/facts.jsonl` (or the row's
   key facts) and the live product. Check the main ones in the product or the browser.
 - **Usable next step.** The resource the template requires (tool, file, steps) is on the page and

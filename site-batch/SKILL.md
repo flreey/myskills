@@ -11,9 +11,9 @@ data, so each one must hold an answer the assistants cannot give on their own; n
 slowly and punish thin bulk, so pages ship in waves and each template earns the next one.
 
 Engine (Python stdlib): `python3 <skill-dir>/scripts/geo_engine.py --root <project> <command>` with
-`lint`, `build`, `status`, `scaffold`, `wave-plan`, `wave-release`, `funnel`, `prune`. State
+`lint`, `build`, `status`, `questions`, `scaffold`, `wave-plan`, `wave-release`, `funnel`, `prune`. State
 contract: [../site-idea/references/state.md](../site-idea/references/state.md). References:
-[templates](references/templates.md), [facts and rows](references/combos.md),
+[templates](references/templates.md), [questions to pages](references/question-mapping.md), [facts and rows](references/combos.md),
 [non-kit output](references/json-output.md), [measuring waves](references/measure.md).
 
 ## Iron rules
@@ -55,13 +55,19 @@ contract: [../site-idea/references/state.md](../site-idea/references/state.md). 
    under `geo/assets/`. Show which combinations have assets; the rest are out until they do.
 3. **Facts.** Write `geo/facts.jsonl` ([references/combos.md](references/combos.md)).
 4. **Templates.** One per task type, 2–5 in all, each `geo/templates/<id>.json`
-   ([references/templates.md](references/templates.md)); `required` follows the dominant gaps. Fill two
-   or three rows, `build`, show the owner the spec and one rendered row, record `approved`.
-5. **Rows.** Fill `geo/combos/<id>.jsonl` for at least the seed wave, computing what can be computed;
-   `lint`, `status`, fix data until the failure reasons are understood.
+   ([references/templates.md](references/templates.md)); `required` follows the dominant gaps. Then
+   `questions --template <id>` and map the questions
+   ([references/question-mapping.md](references/question-mapping.md)): openings routed to item, group
+   or hub by scope; follow-ups merged into 5–8 `question_slots`; `title_source` from item-level
+   openings; group-level openings into group content. Fill two or three rows (and one group), `build`,
+   show the owner the spec, one rendered item page and one group page, record `approved`.
+5. **Rows.** Fill `geo/combos/<id>.jsonl` for at least the seed wave, every required question slot
+   answered for that combination, and `geo/combos/<id>.groups.jsonl` for the groups the wave touches;
+   `lint`, `status`, fix data until the failure reasons (and `group_failures`) are understood.
 6. **Wire the site.**
    - Kit site (`.sitekit.json` present; or create one with site-kit `new --type directory` in a new
-     directory and move `geo/` into it): `scaffold --template <id>` per template, paste the printed
+     directory and move `geo/` into it): `scaffold --template <id>` per template (writes the module and
+     the item and group page overrides), paste the printed
      `site_config_entry` into `modules.directory.collections` (remove the starter `items` collection,
      module and data, point home and nav at the new collections), set `seo.registry.mode` to
      `'advisory'`, `build`, `npm run check`, look at the screenshots.
@@ -104,7 +110,7 @@ Written 2026-11-17 against site-kit 2.15 (directory collections from `data/<id>.
 that day on a scratch directory site: scaffold output built with `astro build`; released rows became
 pages with answer, resource button, details, FAQ and FAQPage; unreleased rows were neither built nor
 in the sitemap. After a kit upgrade, compare `src/site/overrides/templates/DirectoryItem.astro` with
-the kit original. The JSON target was tested by unit tests only. Seed size, window and the 28-day prune
+the kit original; the same for `DirectoryGroup.astro`. The JSON target was tested by unit tests only. Seed size, window and the 28-day prune
 age are starting values: recalibrate after the first two waves. AI crawler fetches on kit sites are not
 in Worker logs (static assets); Cloudflare's AI crawler reporting is the assumed source, not verified
 on a live zone.

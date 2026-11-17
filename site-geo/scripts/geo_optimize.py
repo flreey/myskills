@@ -12,6 +12,8 @@ Commands
                                 rates per set and per cluster with 95% Wilson intervals
   experiment --id ID            treatment vs control, before vs after: difference in differences,
                                 with the sentinel set's drift over the same dates
+  brief --page PATH [--force]   page brief skeleton for one page: the clusters it owns, their
+                                conversation turns routed to sections, the constraints it must state
 
 Data (contract in references/optimize.md): geo/optimize/clusters.jsonl, conversations.jsonl,
 constraints.jsonl, runs.jsonl, experiments.jsonl. The model writes clusters, conversations,
@@ -35,6 +37,9 @@ STATUS = ["absent", "mentioned", "listed", "first", "excluded"]
 ROLES = {"tool", "evidence", "step", "called", None}
 CONSTRAINT = {"met", "conditional", "unmet", "unknown"}
 SETS = ("optimize", "holdout", "sentinel")
+# Where a turn is answered on the page (same table as site-batch references/question-mapping.md).
+SECTION_BY_KIND = {"constraint": "conditions", "howto": "faq_or_resource", "why": "faq",
+                   "compare": "alternatives", "resource": "resource", "other": "review"}
 MIN_N = 30
 
 
@@ -69,6 +74,7 @@ class State:
         self.constraints = self.dir / "constraints.jsonl"
         self.runs = self.dir / "runs.jsonl"
         self.experiments = self.dir / "experiments.jsonl"
+        self.briefs = self.dir / "briefs"
 
 
 def wilson(k, n, z=1.96):
@@ -303,6 +309,55 @@ def cmd_experiment(st, a):
     print(json.dumps(out, ensure_ascii=False, indent=2))
 
 
+def cmd_brief(st, a):
+    clusters, convs, runs, exps, cons = load(st)
+    page = a.page.rstrip("/") or "/"
+    own = [c for c in clusters.values() if (c.get("primary_page") or "").rstrip("/") == page]
+    if not own:
+        die(f"no cluster has primary_page {page!r}: set it in clusters.jsonl (O4) first")
+    con_by_id = {c.get("id"): c for c in cons}
+    brief = {"page": page, "date": date.today().isoformat(), "clusters": [], "answer_first": [],
+             "conditions": [], "faq": [], "faq_or_resource": [], "alternatives": [], "resource": [], "review": [],
+             "unknown_constraints": [], "not_this_page": []}
+    seen = set()
+    for c in own:
+        brief["clusters"].append({"id": c["id"], "task": c.get("task"), "query_type": c.get("query_type"),
+                                  "lever": c.get("lever"), "page_status": c.get("page_status"), "set": c.get("set")})
+        for v in convs.values():
+            if v.get("cluster") != c["id"]:
+                continue
+            brief["answer_first"].append({"cluster": c["id"], "opening": v.get("opening")})
+            for f in v.get("follow_ups", []) or []:
+                q, kind = (f.get("q"), f.get("kind", "other")) if isinstance(f, dict) else (f, "other")
+                key = (q or "").strip().lower()
+                if not key or key in seen:
+                    continue
+                seen.add(key)
+                brief[SECTION_BY_KIND.get(kind, "review")].append({"cluster": c["id"], "q": q, "kind": kind})
+        for cid in c.get("constraints", []) or []:
+            k = con_by_id.get(cid)
+            if not k:
+                continue
+            item = {"id": cid, "constraint": k.get("constraint"), "status": k.get("status"), "note": k.get("note", "")}
+            if k.get("status") == "unknown":
+                brief["unknown_constraints"].append(item)
+            elif item not in brief["conditions"]:
+                brief["conditions"].append(item)
+        if c.get("lever") != "onsite":
+            brief["not_this_page"].append({"cluster": c["id"], "lever": c.get("lever"),
+                                           "note": "won mainly off the page; the page states facts, the work is elsewhere"})
+    slug = page.strip("/").replace("/", "--") or "home"
+    path = st.briefs / f"{slug}.json"
+    if path.exists() and not a.force:
+        die(f"{path} exists; edit it, or --force to rebuild the skeleton (edits are lost)")
+    st.briefs.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(brief, ensure_ascii=False, indent=2) + "\n")
+    print(json.dumps({"brief": str(path), "clusters": len(own),
+                      "sections": {k: len(brief[k]) for k in ("answer_first", "conditions", "faq", "faq_or_resource",
+                                                              "alternatives", "resource", "review", "unknown_constraints")}},
+                     ensure_ascii=False, indent=2))
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--root", default=".")
@@ -320,10 +375,13 @@ def main(argv=None):
     s.add_argument("--format", choices=["md", "json"], default="md")
     s = sub.add_parser("experiment")
     s.add_argument("--id", required=True)
+    s = sub.add_parser("brief")
+    s.add_argument("--page", required=True)
+    s.add_argument("--force", action="store_true")
     a = p.parse_args(argv)
     st = State(a.root)
     {"init": cmd_init, "check": cmd_check, "sets": cmd_sets, "report": cmd_report,
-     "experiment": cmd_experiment}[a.cmd](st, a)
+     "experiment": cmd_experiment, "brief": cmd_brief}[a.cmd](st, a)
 
 
 if __name__ == "__main__":

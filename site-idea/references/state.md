@@ -28,10 +28,12 @@ Schema version: 1 (`project.json.schema`). All files below are implemented: site
 | `assets/` | site-batch | implemented | test outputs and data the facts cite |
 | `templates/<id>.json` | site-batch | implemented | template spec = one site-kit directory collection |
 | `combos/<template>.jsonl` | site-batch | implemented | one row per combination: the page's answer data (the engine never writes it) |
+| `combos/<template>.groups.jsonl` | site-batch | implemented | group page content: answer, chooser to item pages, group follow-ups |
 | `instances.jsonl` | geo_engine.py build (generated) | implemented | per row: template, combo, URL, gate result, unique ratio, wave, released, arm |
 | `waves.json` | geo_engine.py wave-plan / wave-release | implemented | waves, dates, which combinations each holds |
 | `measure/snapshots.jsonl` | site-batch | implemented | crawl, index, AI fetch, citation and referral snapshots by URL and date |
 | `<site>/data/<template>.jsonl` | geo_engine.py build, kit target (generated) | implemented | kit collection data: gated rows rendered for the page |
+| `<site>/data/<template>.groups.json` | geo_engine.py build, kit target (generated) | implemented | group content read by the group page override |
 | `out/` (`<template>.json`, `index.json`, `urls.txt`) | geo_engine.py build, json target (generated) | implemented | released pages for sites that are not site-kit (site-batch `references/json-output.md`) |
 
 ## Stages
@@ -103,7 +105,9 @@ Schema version: 1 (`project.json.schema`). All files below are implemented: site
 {"combo_id": "heic__jpg__batch", "combo": {"source": "heic", "target": "jpg", "need": "batch"},
  "persona": "parent with 400 iPhone photos for a school yearbook",
  "opening": "I have about 400 photos from my iPhone and the yearbook site only takes JPG...",
- "follow_ups": ["Can I do it without uploading them anywhere?", "Will I lose quality?"],
+ "opening_scope": ["source", "target"],
+ "follow_ups": [{"q": "Can I do it without uploading them anywhere?", "kind": "constraint", "adds": ["need"]},
+                {"q": "Will I lose quality?", "kind": "why", "adds": []}],
  "signals": [{"url": "https://www.reddit.com/r/...", "quote": "is there any way to batch convert heic", "date": "2026-10-02"}]}
 ```
 

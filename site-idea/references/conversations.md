@@ -9,7 +9,13 @@ have with an assistant, then look for evidence that people actually ask it.
 | --- | --- |
 | `persona` | Who, in what situation, in one line: "parent with 400 iPhone photos for a school yearbook" |
 | `opening` | What they type first, in the market's language, 1–3 sentences, with their situation |
-| `follow_ups` | 1–3 later turns that bring in the remaining conditions or push back on the answer |
+| `opening_scope` | The dimension ids the opening already fixes. Often fewer than the combination: "my iPhone photos won't upload" fixes only the source |
+| `follow_ups` | 1–3 later turns, each `{"q": "...", "kind": "...", "adds": ["need"]}`: the question, what it asks, and the dimensions it brings in |
+
+`kind` is one of `constraint` (can it, does it, is it allowed), `howto` (steps), `why` (reason,
+explanation), `compare` (versus another option), `resource` (where to get it, a file, a tool),
+`other`. Kinds and scope decide later where a page answers the turn: site-batch
+`references/question-mapping.md`.
 
 Rules:
 

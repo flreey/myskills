@@ -10,6 +10,9 @@ Commands
   scaffold --template ID       write src/site/collections/<ID>.ts, the geo item template override,
                                and print the site.config.ts collection entry
   status                       counts per template: rows, gated, failed by reason, waves
+  questions --template ID      the gap samples seen through one template: openings with the page level
+                               they route to (item, group, hub) and follow-ups grouped by kind, to set
+                               question_slots, title patterns and group content
   wave-plan --per-template N   put the next N gated, unreleased combinations of each template in a new wave
   wave-release --wave K        mark wave K released (then build, check and deploy through site-kit)
   funnel                       crawl / index / AI fetch / citation rates by template, wave and arm
@@ -30,6 +33,10 @@ import re
 import sys
 
 STATUSES = {"met": "Yes", "conditional": "With conditions", "unmet": "No"}
+# Follow-up kinds from site-idea samples; they decide the page section (references/question-mapping.md).
+TURN_KINDS = {"constraint", "howto", "why", "compare", "resource", "other"}
+# Section headings the geo overrides add; the kit's own headings come from its i18n messages.
+LABELS = {"chooser": "Which one fits", "alternatives": "Other ways to do it"}
 TEXT_FIELDS = ("core_answer", "headline")
 SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 NUM = re.compile(r"(?<![\w.])\d+(?:[.,]\d+)*(?![\w])")
@@ -87,6 +94,7 @@ class State:
         self.instances = self.geo / "instances.jsonl"
         self.waves = self.geo / "waves.json"
         self.snapshots = self.geo / "measure" / "snapshots.jsonl"
+        self.samples = self.geo / "gap" / "samples.jsonl"
         self.data = self.root / "data"
 
     def load(self):
@@ -101,6 +109,9 @@ class State:
         combos = {tid: read_jsonl(self.combos / f"{tid}.jsonl") for tid in templates}
         waves = read_json(self.waves, {"waves": []})
         return proj, dims, facts, templates, combos, waves
+
+    def group_rows(self, tid):
+        return read_jsonl(self.combos / f"{tid}.groups.jsonl")
 
 
 # ---------- helpers ----------
@@ -218,6 +229,24 @@ def lint_templates(templates, dims, errs, warns):
             errs.append(f"{w}: required must include core_answer (the answer-first paragraph)")
         if not t.get("approved"):
             warns.append(f"{w}: not approved by the owner yet (approved: {{by, date}})")
+        sids = set()
+        for q in t.get("question_slots", []) or []:
+            if not q.get("id") or not SLUG.match(q["id"]) or q["id"] in sids:
+                errs.append(f"{w}: question_slots ids must be unique slugs ({q.get('id')!r})")
+            sids.add(q.get("id"))
+            if not q.get("question"):
+                errs.append(f"{w}: question slot {q.get('id')!r} needs the question text")
+            if q.get("kind") not in TURN_KINDS:
+                errs.append(f"{w}: question slot {q.get('id')!r} kind must be one of {sorted(TURN_KINDS)}")
+        if not t.get("question_slots"):
+            warns.append(f"{w}: no question_slots: rows outside the sample get no shared follow-ups (run questions)")
+        for k, v in (t.get("labels") or {}).items():
+            if k not in LABELS:
+                errs.append(f"{w}: labels.{k} is not a label (use {sorted(LABELS)})")
+            elif not isinstance(v, str) or not v.strip():
+                errs.append(f"{w}: labels.{k} must be non-empty text")
+        if not t.get("title_source"):
+            warns.append(f"{w}: no title_source: say which real openings the title pattern follows")
 
 
 def lint_facts(facts, errs, warns):
@@ -225,6 +254,33 @@ def lint_facts(facts, errs, warns):
         for k in ("value", "source", "checked"):
             if not f.get(k):
                 errs.append(f"facts.jsonl: {fid}: {k} is required")
+
+
+def unsourced_numbers(text, cited, extra_values, facts, t):
+    sourced = " ".join(str(facts[f].get("value", "")) for f in cited if f in facts) + " " + " ".join(extra_values)
+    ok = {n.replace(",", "") for n in NUM.findall(sourced)} | {str(n) for n in t.get("allow_numbers", [])}
+    return sorted({n for n in NUM.findall(text) if n.replace(",", "") not in ok})
+
+
+def gate_slots(row, t):
+    failed = []
+    slots = {q["id"]: q for q in t.get("question_slots", []) or [] if q.get("id")}
+    answered = set()
+    for f in row.get("follow_ups", []) or []:
+        if not (f.get("q") and f.get("a")):
+            failed.append("follow-up needs q and a")
+        if f.get("slot"):
+            answered.add(f["slot"])
+    for c in row.get("constraint_results", []) or []:
+        if c.get("slot"):
+            answered.add(c["slot"])
+    unknown = sorted(answered - set(slots))
+    if unknown:
+        failed.append(f"unknown question slots {unknown}")
+    missing = [sid for sid, q in slots.items() if q.get("required", True) and sid not in answered]
+    if missing:
+        failed.append(f"unanswered question slots {missing}")
+    return failed
 
 
 def gate_row(row, t, lab, facts, decision):
@@ -254,13 +310,10 @@ def gate_row(row, t, lab, facts, decision):
     for k in row.get("key_facts", []) or []:
         if not (k.get("fact_id") in facts or k.get("source")):
             failed.append(f"key fact {k.get('label')!r} has no fact_id or source")
-    sourced = " ".join(str(facts[f].get("value", "")) for f in cited if f in facts)
-    sourced += " " + " ".join(str(k.get("value", "")) for k in row.get("key_facts", []) or [])
-    sourced_nums = {n.replace(",", "") for n in NUM.findall(sourced)}
-    sourced_nums |= {str(n) for n in t.get("allow_numbers", [])}
-    unsourced = sorted({n for n in NUM.findall(prose(row)) if n.replace(",", "") not in sourced_nums})
+    unsourced = unsourced_numbers(prose(row), cited, [str(k.get("value", "")) for k in row.get("key_facts", []) or []], facts, t)
     if unsourced:
         failed.append(f"numbers not in cited facts: {unsourced[:5]}")
+    failed += gate_slots(row, t)
     r = row.get("resource")
     if r and not str(r.get("url", "")).startswith(("/", "http")):
         failed.append("resource.url must be a path or URL")
@@ -409,16 +462,23 @@ def cmd_build(st, a):
                 "follow_ups": row.get("follow_ups") or [], "resource": row.get("resource"),
                 "alternatives": row.get("alternatives") or [],
             })
+        gcontent, gfail = group_content(st.group_rows(tid), t, data, facts, lab, base)
+        labels_out = {**LABELS, **(t.get("labels") or {})}
         if target == "kit":
             out_file = st.data / f"{tid}.jsonl"
             write_jsonl(out_file, data)
+            write_json(st.data / f"{tid}.labels.json", labels_out)
+            if gby:
+                write_json(st.data / f"{tid}.groups.json", gcontent)
         else:
-            out_file = write_json_target(out_dir, tid, t, data, base)
+            out_file = write_json_target(out_dir, tid, t, data, base, gcontent)
             index.append({"id": tid, "file": out_file.name, "basePath": base,
                           "items": sum(1 for d in data if d["released"]), "pending": sum(1 for d in data if not d["released"])})
             urls += [f"{base}/{d['slug']}" for d in data if d["released"]]
         summary[tid] = {"rows": len(r["items"]), "gated": len(data),
                         "released": sum(1 for d in data if d["released"]), "output": str(out_file)}
+        if gfail:
+            summary[tid]["group_failures"] = gfail
     if target == "json":
         write_json(out_dir / "index.json", {"generated": date.today().isoformat(), "templates": index})
         (out_dir / "urls.txt").write_text("".join(u + "\n" for u in sorted(urls)))
@@ -426,6 +486,46 @@ def cmd_build(st, a):
     if any(v["gated"] for v in summary.values()):
         advance(st, "blueprint", "first build with gated pages")
     print(json.dumps(summary, ensure_ascii=False, indent=2))
+
+
+def group_content(rows, t, data, facts, lab, base):
+    """Group pages answer questions that fix only the group dimension: an overview answer, a chooser
+    that sends each condition to one released item page, and the group's own follow-ups."""
+    gby = (t["collection"].get("groups") or {}).get("by")
+    out, failed = {}, {}
+    if not gby:
+        return out, failed
+    released = {d["slug"]: d for d in data if d["released"]}
+    in_group = defaultdict(set)
+    for d in data:
+        if d["group"]:
+            in_group[d["group"]["key"]].add(d["slug"])
+    for g in rows:
+        key, why = g.get("key"), []
+        if key not in lab.get(gby, {}):
+            failed[str(key)] = [f"unknown {gby} value"]
+            continue
+        if not filled(g.get("answer")):
+            why.append("missing answer")
+        cited = g.get("fact_ids") or []
+        if [f for f in cited if f not in facts]:
+            why.append("unknown fact ids")
+        text = " ".join([str(g.get("answer", ""))] + [f"{c.get('when', '')} {c.get('why', '')}" for c in g.get("chooser", []) or []]
+                        + [f"{q.get('q', '')} {q.get('a', '')}" for q in g.get("follow_ups", []) or []])
+        nums = unsourced_numbers(text, cited, [], facts, t)
+        if nums:
+            why.append(f"numbers not in cited facts: {nums[:5]}")
+        for c in g.get("chooser", []) or []:
+            if c.get("slug") not in in_group[key]:
+                why.append(f"chooser slug {c.get('slug')!r} is not a gated page of this group")
+        if why:
+            failed[key] = why
+            continue
+        chooser = [{"when": c["when"], "why": c.get("why", ""), "slug": c["slug"], "name": released[c["slug"]]["name"],
+                    "url": f"{base}/{c['slug']}"} for c in g.get("chooser", []) or [] if c.get("slug") in released]
+        out[key] = {"answer": g["answer"], "chooser": chooser,
+                    "follow_ups": [q for q in g.get("follow_ups", []) or [] if q.get("q") and q.get("a")]}
+    return out, failed
 
 
 def output_target(st, proj, a):
@@ -438,7 +538,7 @@ def output_target(st, proj, a):
     return target, out_dir
 
 
-def write_json_target(out_dir, tid, t, data, base):
+def write_json_target(out_dir, tid, t, data, base, gcontent=None):
     """One file per template: released items only, related links limited to released pages."""
     released = [d for d in data if d["released"]]
     live = {d["slug"] for d in released}
@@ -462,9 +562,12 @@ def write_json_target(out_dir, tid, t, data, base):
         if gcfg.get("basePath"):
             entry["url"] = f"{gcfg['basePath'].rstrip('/')}/{key}"
             entry["indexable"] = g["count"] >= gcfg.get("minItems", 3)
+        if gcontent and key in gcontent:
+            entry["content"] = gcontent[key]
         group_list.append(entry)
     doc = {"template": tid, "version": t.get("version", 1), "generated": date.today().isoformat(),
-           "collection": {k: col[k] for k in ("basePath", "label", "hub", "itemType") if k in col},
+           "collection": {**{k: col[k] for k in ("basePath", "label", "hub", "itemType") if k in col},
+                          "labels": {**LABELS, **(t.get("labels") or {})}},
            "groups": group_list, "items": items, "pending": len(data) - len(released)}
     if gcfg:
         doc["collection"]["groups"] = {k: v for k, v in gcfg.items() if k != "by"}
@@ -531,12 +634,13 @@ def cmd_scaffold(st, a):
     mod = st.root / "src/site/collections" / f"{a.template}.ts"
     mod.parent.mkdir(parents=True, exist_ok=True)
     mod.write_text(MODULE.format(tid=a.template, version=t.get("version", 1), group_intro=gi))
-    ov = st.root / "src/site/overrides/templates/DirectoryItem.astro"
-    wrote_override = False
-    if not ov.exists() or a.force_override:
-        ov.parent.mkdir(parents=True, exist_ok=True)
-        ov.write_text((HERE / "DirectoryItem.astro").read_text())
-        wrote_override = True
+    written = []
+    for name in ("DirectoryItem.astro", "DirectoryGroup.astro"):
+        ov = st.root / "src/site/overrides/templates" / name
+        if not ov.exists() or a.force_override:
+            ov.parent.mkdir(parents=True, exist_ok=True)
+            ov.write_text((HERE / name).read_text())
+            written.append(str(ov))
     entry = {
         "id": a.template, "label": col["label"], "basePath": col["basePath"], "hub": col["hub"],
         "itemType": col.get("itemType", "Thing"), "pageSize": col.get("pageSize", 100), "ungated": "omit",
@@ -544,11 +648,53 @@ def cmd_scaffold(st, a):
     if col.get("groups"):
         g = col["groups"]
         entry["groups"] = {"basePath": g["basePath"], "label": g.get("label", g["by"]), "minItems": g.get("minItems", 3)}
-    print(json.dumps({"module": str(mod), "override": str(ov) if wrote_override else "kept existing",
+    print(json.dumps({"module": str(mod), "overrides_written": written or "kept existing",
                       "site_config_entry": entry,
                       "next": "add site_config_entry to modules.directory.collections in site.config.ts, "
                               "set seo.registry.mode to 'advisory', then build and npm run check"},
                      ensure_ascii=False, indent=2))
+
+
+# ---------- questions ----------
+
+def route_level(scope, t):
+    dims = set(t.get("dimensions", []))
+    gby = (t["collection"].get("groups") or {}).get("by")
+    scope = set(scope or [])
+    if dims and dims <= scope:
+        return "item"
+    if gby and gby in scope:
+        return "group"
+    return "hub"
+
+
+def cmd_questions(st, a):
+    proj, dims, facts, templates, combos, waves = st.load()
+    t = templates.get(a.template)
+    if not t:
+        die(f"no template {a.template!r}")
+    samples = [s for s in read_jsonl(st.samples) if all(d in (s.get("combo") or {}) for d in t.get("dimensions", []))]
+    if not samples:
+        die("no gap samples cover this template's dimensions (geo/gap/samples.jsonl)")
+    openings, levels = [], defaultdict(int)
+    turns = defaultdict(list)
+    for s in samples:
+        scope = s.get("opening_scope")
+        lvl = route_level(scope, t) if scope is not None else "unknown"   # [] = fixes nothing = hub
+        levels[lvl] += 1
+        if s.get("opening"):
+            openings.append({"combo_id": s["combo_id"], "level": lvl, "scope": scope, "opening": s["opening"]})
+        for f in s.get("follow_ups", []) or []:
+            if isinstance(f, dict):
+                turns[f.get("kind", "other")].append({"q": f.get("q", ""), "combo_id": s["combo_id"], "adds": f.get("adds", [])})
+            else:
+                turns["unlabelled"].append({"q": f, "combo_id": s["combo_id"]})
+    out = {"template": a.template, "samples": len(samples), "levels": dict(levels), "openings": openings,
+           "follow_ups_by_kind": {k: v for k, v in sorted(turns.items(), key=lambda kv: -len(kv[1]))},
+           "slots": [q.get("id") for q in t.get("question_slots", []) or []],
+           "next": "cluster follow-ups by meaning into 5-8 question_slots; item-level openings shape title_source; "
+                   "group-level openings become group content (combos/<id>.groups.jsonl); hub-level ones go to the hub intro or off-site"}
+    print(json.dumps(out, ensure_ascii=False, indent=2))
 
 
 # ---------- status and waves ----------
@@ -672,6 +818,8 @@ def main(argv=None):
     s.add_argument("--template", required=True)
     s.add_argument("--force-override", action="store_true")
     sub.add_parser("status")
+    s = sub.add_parser("questions")
+    s.add_argument("--template", required=True)
     s = sub.add_parser("wave-plan")
     s.add_argument("--per-template", type=int, required=True)
     s.add_argument("--template")
@@ -685,7 +833,7 @@ def main(argv=None):
     s.add_argument("--today")
     a = p.parse_args(argv)
     st = State(a.root)
-    {"lint": cmd_lint, "build": cmd_build, "scaffold": cmd_scaffold, "status": cmd_status,
+    {"lint": cmd_lint, "build": cmd_build, "scaffold": cmd_scaffold, "status": cmd_status, "questions": cmd_questions,
      "wave-plan": cmd_wave_plan, "wave-release": cmd_wave_release, "funnel": cmd_funnel,
      "prune": cmd_prune}[a.cmd](st, a)
 
