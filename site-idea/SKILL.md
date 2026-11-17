@@ -69,7 +69,8 @@ with the later geo stages, is [references/state.md](references/state.md).
    short table, and adjust with the owner before sampling: a wrong dimension multiplies into every
    later page.
 3. **Sample.** One of: `sample --n 40` (combinations, at least the widest dimension's value count),
-   `sample --from-questions --n 40` (bank questions spread over needs and angles, real wording first),
+   `sample --from-questions --n 40` (bank questions spread over needs and angles, real wording first;
+   `--weight`, `--origin`, `--ids`, `--append` in [references/question-bank.md](references/question-bank.md)),
    or `sample --pool <file> --n 40` (existing pages as candidates, spread over strata such as traffic
    tiers). Fill `persona`, `opening`, `follow_ups` and `signals` where empty, following
    [references/conversations.md](references/conversations.md). Then `probes` renders the sheet.

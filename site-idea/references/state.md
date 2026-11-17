@@ -72,6 +72,8 @@ under that folder.
   "platforms": ["ChatGPT", "Perplexity", "Google AI Mode"],
   "north_star": "AI-referred visits that finish a conversion",
   "site": {"live": false, "origin": ""},
+  "brands": ["file convert"],
+  "allowed_names": ["iPhone", "Windows"],
   "output": {"target": "kit", "dir": "geo/out"},
   "stage": "decided",
   "decision": {"verdict": "narrow", "date": "2026-11-20", "by": "user",
@@ -81,6 +83,11 @@ under that folder.
   "log": [{"date": "2026-11-17", "stage": "idea", "note": "initialised"}]
 }
 ```
+
+`brands` (optional): other spellings of our name that probe questions must not carry; the project
+name and the site domain's name part count already. `allowed_names` (optional): platforms or
+products whose name changes the answer (Steam, YouTube, Godot, itch.io), so the brand check lets them
+through.
 
 ## dimensions.json
 

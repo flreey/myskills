@@ -277,6 +277,61 @@ class DemandAndBankTest(unittest.TestCase):
         code, _ = run(self.root, "probes")
         self.assertEqual(code, 0)
 
+    def test_bank_checks_evidence_refs_and_brand_sources(self):
+        gi.write_jsonl(self.root / "geo/needs.jsonl", NEEDS)
+        gi.write_jsonl(self.root / "geo/competitors.jsonl", [
+            {"id": "cinevva", "name": "Cinevva guide", "domain": "app.cinevva.com", "kind": "list"},
+            {"id": "itch", "name": "itch.io assets", "domain": "itch.io", "kind": "marketplace"}])
+        bank = BANK + [q("q6", "n-safe", "alternative", "Can I use these for a paid itch.io release?", evidence=["n-safe#e2"]),
+                       q("q7", "n-safe", "compare", "What does the cinevva list say?", evidence=["n-safe#e3"]),
+                       q("q8", "n-safe", "howto", "Is example good for trailers?", evidence=["n-nope#e1"]),
+                       q("q9", "n-fit", "recommend", "Where do I find drop-in door sounds?", "hypothesis", evidence=["n-safe#e1"])]
+        gi.write_jsonl(self.root / "geo/questions.jsonl", bank)
+        code, out = run(self.root, "bank")
+        self.assertEqual(code, 1)
+        self.assertIn("'n-safe#e3' is out of range (n-safe has 2 evidence rows)", out)
+        self.assertIn("names need 'n-nope'", out)
+        self.assertIn("names ['cinevva']", out)          # registrable part of a subdomain
+        self.assertIn("(q8): names ['example']", out)  # our own site domain
+        self.assertIn("(q6): names ['itch']", out)
+        self.assertIn("a hypothesis with evidence", out)
+        proj = gi.read_json(self.root / "geo/project.json")
+        proj["allowed_names"] = ["itch.io"]
+        gi.write_json(self.root / "geo/project.json", proj)
+        code, out = run(self.root, "bank")
+        self.assertNotIn("(q6): names", out)
+        code, out = run(self.root, "check")
+        self.assertEqual(code, 1)
+        self.assertIn("out of range", out)
+
+    def test_sample_weights_origin_ids_and_append(self):
+        gi.write_jsonl(self.root / "geo/needs.jsonl", NEEDS)
+        bank = BANK + [q(f"f{i}", "n-fit", a, f"Fit question number {i} about {a} with its own words {i}")
+                       for i, a in enumerate(["recommend", "howto", "problem", "compare", "constraint", "alternative"])]
+        bank += [q("c1", "n-safe", "problem", "Cancelled a subscription, are old videos still safe?", origin="competitor",
+                   competitor="pixabay"),
+                 q("c2", "n-fit", "howto", "Their loops click in Godot, why?", "hypothesis", evidence=[],
+                   origin="competitor", competitor="pixabay")]
+        gi.write_jsonl(self.root / "geo/questions.jsonl", bank)
+        code, out = run(self.root, "sample", "--n", "6", "--from-questions", "--weight", "n-safe=2")
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out)["by_need"], {"n-safe": 4, "n-fit": 2})
+        code, out = run(self.root, "sample", "--from-questions", "--ids", "c2,c1", "--force")
+        rows = gi.read_jsonl(self.root / "geo/gap/samples.jsonl")
+        self.assertEqual([r["question_id"] for r in rows], ["c2", "c1"])  # hand-picked hypotheses are kept
+        self.assertEqual(rows[0]["origin"], "competitor")
+        code, out = run(self.root, "sample", "--n", "3", "--from-questions", "--origin", "model")
+        self.assertNotEqual(code, 0)  # rows exist: needs --append or --force
+        code, out = run(self.root, "sample", "--n", "3", "--from-questions", "--origin", "model", "--append")
+        self.assertEqual(code, 0)
+        rows = gi.read_jsonl(self.root / "geo/gap/samples.jsonl")
+        self.assertEqual(len(rows), 5)
+        self.assertEqual({r["origin"] for r in rows[2:]}, {"model"})
+        code, out = run(self.root, "sample", "--from-questions", "--ids", "c1", "--append")
+        self.assertEqual(json.loads(out)["added"], 0)  # already sampled
+        code, out = run(self.root, "sample", "--n", "3", "--ids", "c1")
+        self.assertNotEqual(code, 0)  # --ids needs --from-questions
+
     def test_report_presence_lever_and_notes(self):
         gi.write_jsonl(self.root / "geo/needs.jsonl", NEEDS)
         gi.write_jsonl(self.root / "geo/questions.jsonl", BANK)

@@ -335,10 +335,42 @@ def qtokens(text):
     return set(TOKEN.findall(str(text).lower()))
 
 
+def registrable(domain):
+    """The name part of a domain: app.cinevva.com -> cinevva, itch.io -> itch."""
+    host = re.sub(r"^[a-z]+://", "", str(domain or "").lower()).split("/")[0]
+    parts = [p for p in host.split(".") if p]
+    return parts[-2] if len(parts) >= 2 else (parts[0] if parts else "")
+
+
 def brand_terms(proj, competitors):
-    terms = [proj.get("name", "")] + [c.get("name", "") for c in competitors] + \
-            [str(c.get("domain", "")).split(".")[0] for c in competitors]
-    return sorted({t.lower() for t in terms if t and len(t) > 2})
+    """Names a probe question must not carry: ours (project name, site domain, `brands`) and each competitor's
+    (name, domain, `aliases`), minus project `allowed_names` (platforms whose name changes the answer)."""
+    terms = [proj.get("name", ""), registrable((proj.get("site") or {}).get("origin", ""))]
+    terms += list(proj.get("brands") or [])
+    for c in competitors:
+        terms += [c.get("name", ""), registrable(c.get("domain", ""))] + list(c.get("aliases") or [])
+    allowed = set()
+    for t in proj.get("allowed_names") or []:
+        allowed |= {str(t).lower(), registrable(t)} if "." in str(t) else {str(t).lower()}
+    return sorted({str(t).lower() for t in terms if t and len(str(t)) > 2} - allowed)
+
+
+EVIDENCE_REF = re.compile(r"([a-z0-9][\w-]*)#e(\d+)")
+
+
+def evidence_ref_errors(refs, evidence_counts, where):
+    """`<need_id>#e<N>` points at the Nth (1-based) evidence row of that need in needs.jsonl."""
+    errs = []
+    for e in refs or []:
+        m = EVIDENCE_REF.fullmatch(str(e).strip())
+        if not m:
+            continue
+        nid, i = m.group(1), int(m.group(2))
+        if nid not in evidence_counts:
+            errs.append(f"{where}: evidence {e!r} names need {nid!r}, which is not in needs.jsonl")
+        elif not 1 <= i <= evidence_counts[nid]:
+            errs.append(f"{where}: evidence {e!r} is out of range ({nid} has {evidence_counts[nid]} evidence rows)")
+    return errs
 
 
 def validate_competitors(rows):
@@ -355,8 +387,10 @@ def validate_competitors(rows):
     return errs, ids
 
 
-def validate_bank(bank, need_ids, comp_ids, dims, proj, competitors):
+def validate_bank(bank, needs, comp_ids, dims, proj, competitors):
     errs, warns, ids = [], [], set()
+    need_ids = {n.get("id") for n in needs}
+    ev_counts = {n.get("id"): len(n.get("evidence") or []) for n in needs}
     values = {d["id"]: {v["id"] for v in d.get("values", [])} for d in (dims or {}).get("dimensions", [])}
     brands = brand_terms(proj, competitors)
     for i, q in enumerate(bank, 1):
@@ -381,6 +415,10 @@ def validate_bank(bank, need_ids, comp_ids, dims, proj, competitors):
             errs.append(f"{where}: evidence_level must be one of {sorted(QUESTION_LEVELS)}")
         if lvl in ("quoted", "derived") and not q.get("evidence"):
             errs.append(f"{where}: {lvl} needs evidence (ids or URLs of what it rests on); with none it is a hypothesis")
+        if lvl == "hypothesis" and q.get("evidence"):
+            warns.append(f"{where}: a hypothesis with evidence: raise it to derived, or drop the evidence")
+        if needs:
+            errs += evidence_ref_errors(q.get("evidence"), ev_counts, where)
         origin = q.get("origin", "model")
         if origin not in ORIGINS:
             errs.append(f"{where}: origin must be one of {sorted(ORIGINS)}")
@@ -450,7 +488,7 @@ def cmd_bank(st, a):
     competitors = read_jsonl(st.competitors)
     cerrs, comp_ids = validate_competitors(competitors)
     dims = read_json(st.dimensions, {"dimensions": []})
-    errs, warns = validate_bank(bank, {n.get("id") for n in needs}, comp_ids, dims, proj, competitors)
+    errs, warns = validate_bank(bank, needs, comp_ids, dims, proj, competitors)
     errs = cerrs + errs
     for e in errs:
         print(f"ERROR  {e}")
@@ -614,26 +652,89 @@ def sample_from_questions(st, a, dims):
     if not bank:
         die(f"no questions in {st.bank}: write the question bank first")
     order = {"quoted": 0, "derived": 1, "hypothesis": 2}
-    pool = [q for q in bank if a.include_hypothesis or q.get("evidence_level") != "hypothesis"]
-    if not pool:
-        die("every question is a hypothesis: add evidence, or pass --include-hypothesis")
+    existing = read_jsonl(st.samples) if a.append and st.samples.exists() else []
+    taken = {r.get("question_id") or r.get("combo_id") for r in existing}
     rng = random.Random(a.seed)
-    groups = defaultdict(list)
-    for q in sorted(pool, key=lambda q: (order.get(q.get("evidence_level"), 3), rng.random())):
-        groups[(q.get("need_id"), q.get("angle"))].append(q)
+    if a.ids:
+        # Hand-picked questions (a pilot): taken as named, hypotheses included, in the order given.
+        by_id = {q.get("id"): q for q in bank}
+        wanted = [i.strip() for i in a.ids.split(",") if i.strip()]
+        missing = [i for i in wanted if i not in by_id]
+        if missing:
+            die(f"--ids not in the question bank: {', '.join(missing)}")
+        picked = [by_id[i] for i in wanted if i not in taken]
+    else:
+        pool = [q for q in bank if a.include_hypothesis or q.get("evidence_level") != "hypothesis"]
+        if a.origin:
+            pool = [q for q in pool if q.get("origin", "model") == a.origin]
+        pool = [q for q in pool if q.get("id") not in taken]
+        if not pool:
+            die("no questions left to sample: every one is a hypothesis, filtered out, or already sampled "
+                "(--include-hypothesis, a different --origin, or no --append)")
+        ordered = sorted(pool, key=lambda q: (order.get(q.get("evidence_level"), 3), rng.random()))
+        weights = parse_weights(a.weight)
+        if weights:
+            picked = weighted_pick(ordered, a.n, weights, rng)
+        else:
+            groups = defaultdict(list)
+            for q in ordered:
+                groups[(q.get("need_id"), q.get("angle"))].append(q)
+            picked = spread(groups, a.n, rng)
     rows = []
-    for q in spread(groups, a.n, rng):
+    for q in picked:
         rows.append({"combo_id": q["id"], "combo": q.get("combo") or {}, "question_id": q["id"],
                      "need_id": q.get("need_id"), "angle": q.get("angle"), "persona": q.get("persona", ""),
                      "opening": q.get("question", ""), "opening_scope": q.get("scope"),
                      "follow_ups": q.get("follow_ups") or [], "conditions": q.get("conditions") or [],
                      "evidence_level": q.get("evidence_level"), "signals": []})
-    write_jsonl(st.samples, rows)
-    covered = {r["need_id"] for r in rows}
-    out = {"samples": len(rows), "file": str(st.samples), "from": "questions",
+    for r, q in zip(rows, picked):
+        r["origin"] = q.get("origin", "model")
+        if q.get("competitor"):
+            r["competitor"] = q["competitor"]
+    allrows = existing + rows
+    write_jsonl(st.samples, allrows)
+    covered = {r.get("need_id") for r in allrows}
+    out = {"samples": len(allrows), "added": len(rows), "file": str(st.samples), "from": "questions",
            "needs_uncovered": sorted({str(q.get("need_id")) for q in bank} - {str(c) for c in covered}),
-           "levels": dict(Counter(r["evidence_level"] for r in rows))}
+           "levels": dict(Counter(r.get("evidence_level") for r in rows)),
+           "by_need": dict(Counter(r.get("need_id") for r in rows)),
+           "origins": dict(Counter(r.get("origin") for r in rows))}
     print(json.dumps(out, ensure_ascii=False, indent=2))
+
+
+def parse_weights(items):
+    """--weight NEED=W (repeatable); needs not named weigh 1."""
+    out = {}
+    for item in items or []:
+        nid, _, w = str(item).partition("=")
+        try:
+            out[nid.strip()] = float(w)
+        except ValueError:
+            die(f"--weight takes NEED=NUMBER, not {item!r}")
+        if out[nid.strip()] < 0:
+            die(f"--weight {item!r}: weights are 0 or more")
+    return out
+
+
+def weighted_pick(ordered, n, weights, rng):
+    """Seats per need by weight (highest averages, capped by what each need has), then angles spread within."""
+    by_need = defaultdict(list)
+    for q in ordered:
+        by_need[q.get("need_id")].append(q)
+    seats = Counter()
+    for _ in range(n):
+        open_ = [k for k in by_need if seats[k] < len(by_need[k]) and weights.get(k, 1.0) > 0]
+        if not open_:
+            break
+        best = max(open_, key=lambda k: (weights.get(k, 1.0) / (seats[k] + 1), str(k)))
+        seats[best] += 1
+    picked = []
+    for k in sorted(by_need, key=str):
+        groups = defaultdict(list)
+        for q in by_need[k]:
+            groups[q.get("angle")].append(q)
+        picked += spread(groups, seats[k], rng)
+    return picked
 
 
 def sample_from_pool(st, a, dims):
@@ -673,8 +774,12 @@ def sample_from_pool(st, a, dims):
 
 def cmd_sample(st, a):
     dims = read_json(st.dimensions, {"dimensions": []} if a.from_questions else None)
-    if st.samples.exists() and read_jsonl(st.samples) and not a.force:
-        die(f"{st.samples} has rows; --force replaces it (filled conversations are lost)")
+    if (a.append or a.ids or a.origin or a.weight) and not a.from_questions:
+        die("--append, --ids, --origin and --weight work with --from-questions")
+    if a.append and a.force:
+        die("--append adds to samples.jsonl, --force replaces it: pick one")
+    if st.samples.exists() and read_jsonl(st.samples) and not a.force and not a.append:
+        die(f"{st.samples} has rows; --force replaces it (filled conversations are lost), --append adds to it")
     if a.from_questions:
         return sample_from_questions(st, a, dims)
     errs, _ = validate_dimensions(dims)
@@ -1117,7 +1222,8 @@ def cmd_check(st, a):
     cerr, comp_ids = validate_competitors(competitors)
     errs += cerr
     if st.bank.exists():
-        berr, _ = validate_bank(read_jsonl(st.bank), need_ids, comp_ids, dims, proj, competitors)
+        berr, _ = validate_bank(read_jsonl(st.bank), read_jsonl(st.needs) if st.needs.exists() else [],
+                                comp_ids, dims, proj, competitors)
         errs += berr
     for s in samples:
         if need_ids and s.get("need_id") is not None and s["need_id"] not in need_ids:
@@ -1169,6 +1275,11 @@ def main(argv=None):
     s.add_argument("--force", action="store_true")
     s.add_argument("--from-questions", action="store_true", help="sample question-bank rows instead of combinations")
     s.add_argument("--include-hypothesis", action="store_true", help="with --from-questions: allow hypothesis questions")
+    s.add_argument("--origin", choices=sorted(ORIGINS), help="with --from-questions: only questions of this origin")
+    s.add_argument("--ids", help="with --from-questions: comma-separated question ids to take as they are (a pilot)")
+    s.add_argument("--weight", action="append", metavar="NEED=W",
+                   help="with --from-questions: share of seats per need (repeatable; unnamed needs weigh 1)")
+    s.add_argument("--append", action="store_true", help="add to samples.jsonl, skipping questions already in it")
     s.add_argument("--pool", help="JSONL of candidate rows {combo, url?, stratum?}: sample them, spread over strata")
     sub.add_parser("probes")
     s = sub.add_parser("report")

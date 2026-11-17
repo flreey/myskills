@@ -25,14 +25,17 @@ questions where the recommendation is decided, and why the winner wins.
    ```
 
    `kind`: `library`, `video`, `game`, `generator`, `list` (rankings and aggregators), `marketplace`,
-   `tool`, `other`.
+   `tool`, `other`. Add `aliases` for other spellings of its name; a competitor that is also a
+   platform people name in their conditions (itch.io) goes into the project's `allowed_names`.
 2. **Reverse-engineer candidate questions**, 5–10 per competitor, from two places: its own landing
    and use-case pages (which situations it targets), and an assistant asked who it suits and when.
    Write them into `geo/questions.jsonl` with `origin: "competitor"`, `competitor: "<id>"`, and no brand
    in the question text. Mark what came from the assistant's self-description as `hypothesis`.
 3. **Line them up with the demand map.** Attach each to a `need_id`; questions that match no need stay
    hypotheses and go last. Remove near-duplicates (`bank` warns).
-4. **Blind runs.** `sample --from-questions`, then probes as usual (probe-runs.md): fresh temporary
+4. **Blind runs.** A short pilot first (`sample --from-questions --ids …`, or `--origin competitor`)
+   to confirm the run records what this method needs, rewritten search queries above all; then the
+   main sample with `--append`. Then probes as usual (probe-runs.md): fresh temporary
    chat, web search on, no brand in the opening. Record per run `recommended`, `cited` with types,
    `own`, `search_queries` (site-geo references/chatgpt-probes.md, section D) and the condition check.
 5. **Classify** each run with `outcome`:
