@@ -377,6 +377,47 @@ class EngineTest(unittest.TestCase):
         code, _ = run(self.root, "snapshot", "--template", "nope", "--base", "http://x")
         self.assertEqual(code, 2)
 
+    def test_snapshot_keeps_index_when_interrupted_and_resumes(self):
+        self.adopt_setup()
+
+        class H(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_GET(self):
+                body = f"<html><head><title>Old {self.path}</title></head><body><h1>Old</h1></body></html>".encode()
+                self.send_response(200); self.send_header("Content-Type", "text/html"); self.end_headers(); self.wfile.write(body)
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        base = f"http://127.0.0.1:{srv.server_address[1]}"
+        idx_path = self.root / "geo/snapshots/families/index.jsonl"
+        real, calls = ge.page_summary, []
+
+        def stop_on_third(html):
+            calls.append(1)
+            if len(calls) == 3:
+                raise KeyboardInterrupt                      # e.g. a background time limit kills the run
+            return real(html)
+
+        ge.page_summary = stop_on_third
+        try:
+            with self.assertRaises(KeyboardInterrupt):
+                run(self.root, "snapshot", "--template", "families", "--base", base, "--delay", "0")
+            ge.page_summary = real
+            first = ge.read_jsonl(idx_path)
+            self.assertEqual(len(first), 2)                  # pages saved before the interruption stay indexed
+            rep = json.loads(run(self.root, "snapshot", "--template", "families", "--base", base, "--delay", "0")[1])
+        finally:
+            ge.page_summary = real
+            srv.shutdown()
+        saved_first = {r["url"] for r in first}
+        rows = [r for r in ge.read_jsonl(self.root / "geo/combos/families.jsonl") if r.get("url")]
+        self.assertEqual(rep["skipped"], sum(r["url"] in saved_first for r in rows))   # already saved today
+        self.assertEqual(rep["saved"] + rep["skipped"], len(rows))
+        urls = {r["url"] for r in ge.read_jsonl(idx_path)}
+        self.assertEqual(urls, {r["url"] for r in rows})     # every page ends up indexed
+
     def test_lint_requires_decision_and_valid_template(self):
         bad = dict(TEMPLATE, patterns=dict(TEMPLATE["patterns"], slug="{source}"))
         ge.write_json(self.root / "geo/templates/convert.json", bad)

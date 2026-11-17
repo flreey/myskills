@@ -717,8 +717,13 @@ def cmd_snapshot(st, a):
     day = date.today().isoformat()
     folder = st.geo / "snapshots" / a.template / day
     folder.mkdir(parents=True, exist_ok=True)
-    index_rows, failed = [], 0
-    for i, r in enumerate(rows):
+    idx = st.geo / "snapshots" / a.template / "index.jsonl"
+    # Rows are appended as each page is saved, so an interrupted run keeps its index; a rerun the
+    # same day skips pages already saved that day and fetches only the rest.
+    done = {s["url"] for s in read_jsonl(idx) if s.get("date") == day and s.get("file")}
+    todo = [r for r in rows if r["url"] not in done]
+    saved, failed = 0, 0
+    for i, r in enumerate(todo):
         url = a.base.rstrip("/") + r["url"]
         req = urllib.request.Request(url, headers={"User-Agent": "site-batch-snapshot/1.0 (+owner's own site)"})
         try:
@@ -734,14 +739,15 @@ def cmd_snapshot(st, a):
             (folder / f"{name}.html").write_text(html)
             row.update(page_summary(html), file=str((folder / f"{name}.html").relative_to(st.root)),
                        sha256=hashlib.sha256(html.encode()).hexdigest()[:16])
+            saved += 1
         else:
             failed += 1
-        index_rows.append(row)
-        if a.delay and i < len(rows) - 1:
+        with idx.open("a") as f:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        if a.delay and i < len(todo) - 1:
             time.sleep(a.delay)
-    idx = st.geo / "snapshots" / a.template / "index.jsonl"
-    write_jsonl(idx, read_jsonl(idx) + index_rows)
-    print(json.dumps({"saved": len(index_rows) - failed, "failed": failed, "folder": str(folder)}, ensure_ascii=False, indent=2))
+    print(json.dumps({"saved": saved, "failed": failed, "skipped": len(rows) - len(todo), "folder": str(folder)},
+                     ensure_ascii=False, indent=2))
 
 
 # ---------- questions ----------

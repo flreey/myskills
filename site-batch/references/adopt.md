@@ -37,7 +37,8 @@ without a URL fail the gate.
 2. Before anything ships: `snapshot --template <id> --base https://<site>` saves each page's live HTML
    with title, H1, word count and hash under `geo/snapshots/<id>/<date>/`, indexed in
    `geo/snapshots/<id>/index.jsonl`. It is the before state and the rollback reference. Record the GSC
-   baseline for the family too.
+   baseline for the family too. Each page is indexed as soon as it is saved. If a run is cut off,
+   run the same command again that day and it fetches only the missing pages.
 3. Questions, slots, facts and rows as in the blueprint, then `lint` and `status`.
 4. Plan with a control group: `wave-plan --per-template <n> --control-ratio 0.5`. Rows are taken in
    priority order and every second one is held back, so both groups look alike. Held-back rows keep
