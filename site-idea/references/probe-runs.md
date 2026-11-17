@@ -7,7 +7,31 @@ the whole thread. On 2026-11-17 a 25-conversation ChatGPT run inside a long site
 took 170 calls at 250k–560k context (about half that session's cost), and its page snapshots added
 about 300k tokens that every later step paid for again.
 
-## Rules
+## Preferred: hand the run to a Grok Bot (`gbot`)
+
+If `gbot` is installed (`gbot bots list`), the probes run on the Grok Bot's own browser and model.
+Claude does not spend a call per step, only a few calls to hand the run over and file the results.
+
+1. **Pick the bot.** Use the project's own bot if one exists (for example `sfxmint外链助手`). Otherwise ask
+   the user which bot to use.
+2. **Check once per bot before the first run.** Ask it to open chatgpt.com, confirm it is logged in
+   with memory off or a temporary chat, and report the model label. If it is not logged in, the user
+   logs in on the bot's desktop (MANUAL). If it refuses to automate the site, fall back to the rules
+   below.
+3. **Send the whole sheet in one message** (`gbot send <bot> "$(cat …)"`, long sheets as a file the bot
+   can read). Include: one new temporary chat per conversation; send the opening and then each
+   follow-up, word for word; copy every answer **verbatim and in full**, with the model label, mode,
+   date and sources; no summaries. Ask for each conversation as its own message, headed with its
+   `conversation_id`, and a final `DONE <count>` line.
+4. **Wait without model calls.** Use one background shell loop that checks `gbot thread <bot> --json` for
+   the `DONE` line, not repeated checks by the model.
+5. **File the results with a script.** Parse the thread JSON and write each conversation to
+   `geo/gap/raw/` (or `geo/optimize/raw/`). Print only a status line per conversation: id, number of
+   turns, characters. Never print the answers into the thread. Rerun any conversation that is
+   missing, short, or looks paraphrased (no sources, no model label). Record
+   `platform: ChatGPT via Grok Bot` in the run rows.
+
+## Without gbot
 
 1. **Run probes in a fresh, separate agent.** Use a subagent or a new thread, not the working thread.
    Pass it only the probe sheet path, the output directory, the platform and mode, and these rules.

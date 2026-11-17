@@ -45,8 +45,8 @@ contract, shared with the later geo stages, is [references/state.md](references/
    [references/conversations.md](references/conversations.md). Then `probes` renders the sheet.
 4. **Probe.** Per rule 3: give the user `geo/gap/probes.md` (one new chat per conversation, each
    target platform, paste the whole answer into the named file), or run it the way they approved.
-   Browser runs follow [references/probe-runs.md](references/probe-runs.md) (separate agent, one
-   call per conversation).
+   Browser runs follow [references/probe-runs.md](references/probe-runs.md): hand them to a Grok Bot
+   via `gbot` when available; otherwise use a separate agent with one call per conversation.
    Save every answer under `geo/gap/raw/` and add a row to `geo/gap/runs.jsonl` with `gap: null`.
 5. **Judge.** Label every run with [references/gap-rubric.md](references/gap-rubric.md): `gap`,
    `gap_note`, `cited`, `recommended`. Then `check`, then `report`.
