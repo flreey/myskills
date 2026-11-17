@@ -1,6 +1,6 @@
 ---
 name: site-idea
-description: 新想法验证（批量页面之前）：一个产品还只是想法、打算靠大量能被 AI 找到和推荐的页面增长时，先把想法拆成任务空间（只保留会改变答案的维度）、算组合数、抽样写成真实对话、看 ChatGPT 等助手现在答得好不好（答案缺口）、找外部真实提问，最后由站长决定做、缩小范围还是放弃；之后给已验证维度补长尾取值用 extend。Also for 新项目 GEO、想法验证、任务空间、AI 答案缺口、从 0 开始做 GEO、长尾取值扩展。不用于：已上线站点的 AI 可见度（site-geo）、找关键词（site-radar、site-research）、已有站点的页面规划（site-plan）、做页面（site-batch）。
+description: 新想法验证（批量页面之前）：一个产品还只是想法、打算靠大量能被 AI 找到和推荐的页面增长时，先把想法拆成任务空间（只保留会改变答案的维度）、算组合数、抽样写成真实对话、看 ChatGPT 等助手现在答得好不好（答案缺口）、找外部真实提问，最后由站长决定做、缩小范围还是放弃；之后给已验证维度补长尾取值用 extend。Also for 新项目 GEO、想法验证、任务空间、AI 答案缺口、从 0 开始做 GEO、长尾取值扩展。不用于：已上线站点的 AI 可见度（site-geo）、找关键词（site-research）、已有站点的页面规划（site-plan）、做页面（site-batch）。
 ---
 
 # site-idea: is there a gap worth hundreds of pages?

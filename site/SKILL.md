@@ -1,30 +1,54 @@
 ---
 name: site
-description: 建站和增长的总入口：不知道该用哪个 site-* skill、想知道一个网站项目进行到哪一步、下一步做什么时用它。它只读项目文件判断阶段，然后指向对应的 skill：新想法验证（site-idea）、新站选词（site-radar）、扩词（site-research）、词到页面（site-plan）、批量页面（site-batch）、建站发布（site-kit）、SEO 验收（site-check）、AI 可见度（site-geo）、统计（site-measure）、外链（site-backlinks）、AdSense（site-adsense）、Stripe 收款（site-stripe）。Also for 建站流程、下一步做什么、用哪个 site skill、页面 SEO 验收、上线前 SEO 检查。
+description: 建站和增长的总入口：不知道该用哪个 site-* skill、项目进行到哪一步、下一步做什么时用它。先分模式再分阶段——GEO（靠 AI 助手推荐和引用，任务驱动）：site-idea 想法验证 → site-batch 批量页面 → site-geo 已上线站点持续优化；SEO（靠搜索排名，关键词驱动）：site-research 选词扩词 → site-plan 词到页面；两边共用：site-kit 建站、site-check 验收、site-measure 统计、site-offsite 站外、site-adsense 广告、site-stripe 收款。它只读项目文件，然后指向对应的 skill。Also for 建站流程、下一步做什么、用哪个 site skill、GEO 还是 SEO、上线前检查。
 ---
 
 # site: stage router
 
-One name to remember. Find the project's stage from its files, say which skill and command come
-next, then load that skill. This skill never writes project files.
+One name to remember. First pick the mode, then the stage: find it from the project's files, say
+which skill and command come next, then load that skill. This skill never writes project files.
 
-| 阶段 | Skill | 做什么 | 典型说法 |
+## Pick the mode
+
+| 模式 | 出发点 | 什么时候选 |
+| --- | --- | --- |
+| **GEO** | 用户交给 AI 的任务（人群 × 任务 × 限制条件）、AI 答案缺口 | 靠 AI 助手推荐和引用获客；一个想法要批量做页面；已上线站点的流量主要来自 AI |
+| **SEO** | 关键词、搜索量、SERP | 靠 Google 搜索排名获客；按关键词决定建哪些页 |
+
+两种模式共用建站、验收的机械部分、统计和变现。一个站可以两者都做，但每个页面的规划只走一种：
+批量生成的页面走 GEO（geo/），手写的关键词页走 SEO（seo/）。
+
+## GEO route
+
+| 顺序 | Skill | 做什么 | 典型说法 |
 | --- | --- | --- | --- |
-| 0 想法 | `site-idea` | 新想法要批量做页面前：任务空间、AI 答案缺口，站长决定做不做（`geo/`）；已验证维度补长尾取值用 `extend` | 这个想法值不值得做、从 0 做 GEO |
-| 1 选词 | `site-radar` | 新站 1–2 个月能排上去的词和同类站（`seo/radar/`） | 新站做什么词、找同类站 |
-| 1 扩词 | `site-research` | 方向定了以后扩大关键词池（`seo/discovery/`） | 找关键词、扩词 |
-| 2 规划 | `site-plan` | 需求簇、页面归属、页面需求单（`seo/mapper/`） | 要不要建页、归簇、拆页合页 |
-| 2 批量页面 | `site-batch` | 模板、组合数据、质量门槛、分波次发布、按模板复盘（`geo/`） | 批量做页面、补长尾页、发下一波 |
-| 3 建站 | `site-kit`（kit 站）或项目自己的技术栈 | 页面、SEO 基础设施、检查、部署 | 建站、改页面、发布 |
-| 4 验收 | `site-check`，见 [Page SEO check](#page-seo-check) | 关键词文案、FAQ、服务端 HTML、结构、内链和模板 | 页面 SEO 验收 |
-| 4 验收（AI） | `site-geo` | AI 爬虫、llms.txt、ChatGPT 能否打开和推荐 | GPT 能不能访问、会不会推荐 |
-| 5 统计 | `site-measure` | Umami 接入、埋点方案和审计、流量和漏斗报表 | 接入 Umami、看流量、漏斗 |
-| 6 复盘 | `site-plan` review 模式 | GSC 回看 → 充实、拆、合、下线；未归类查询回到第 1 阶段 | 拆页合页、GSC 回看 |
-| 增长 | `site-backlinks` | 新站外链：目录、竞品外链缺口、投稿和核验 | 找外链、提交目录 |
-| 变现 | `site-adsense` | AdSense 过审预检 | 能不能挂广告 |
-| 变现 | `site-stripe` | Stripe 从沙盒切到正式收款 | Stripe 切正式、开始收钱 |
+| 1 想法 | `site-idea` | 任务空间、AI 答案缺口，站长决定做、缩小或放弃；已验证维度补长尾取值用 `extend`（`geo/`） | 这个想法值不值得做、从 0 做 GEO |
+| 2 页面 | `site-batch` | 事实、模板、组合数据、质量门槛、kit 或 JSON 输出、分波次发布（`geo/`） | 批量做页面、补长尾页、发下一波 |
+| 3 建站 | `site-kit` 或项目自己的技术栈 | 页面、基础设施、部署 | 建站、发布 |
+| 4 验收 | `site-check` GEO 模式 + `site-geo` 访问检查 | 收录、服务端渲染、答案在前和追问可见；AI 爬虫放行 | 上线前检查 |
+| 5 复盘 | `site-batch` review | 按模板看抓取、收录、AI 抓取、引用，扩量、暂停或修剪 | 这波效果怎么样 |
+| 6 持续优化 | `site-geo` optimize | 已上线站点：从真实日志找任务、限制条件矩阵、按问题类型选杠杆、来源诊断、对照实验 | AI 为什么推荐别人、改哪个页 |
+| 站外 | `site-offsite` GEO 模式 | 进入 AI 实际引用的来源（榜单、社区、目录、工具渠道） | 让 AI 引用我们 |
 
-两条路线：按关键词建页走 1 → 2 site-plan → 3；从想法批量建页走 0 site-idea → 2 site-batch → 3。
+## SEO route
+
+| 顺序 | Skill | 做什么 | 典型说法 |
+| --- | --- | --- | --- |
+| 1 选词 | `site-research` | 新站选词模式（能排上去的词、同类站，`seo/radar/`）；扩词模式（关键词池，`seo/discovery/`） | 新站做什么词、找关键词、扩词 |
+| 2 规划 | `site-plan` | 需求簇、页面归属、页面需求单（`seo/mapper/`） | 要不要建页、拆页合页 |
+| 3 建站 | `site-kit` 或项目自己的技术栈 | 页面、基础设施、部署 | 建站、发布 |
+| 4 验收 | `site-check`（完整，含关键词文案）+ `site-geo` 访问检查 | 页面 SEO 验收 | 页面 SEO 验收 |
+| 5 复盘 | `site-plan` review | GSC 回看 → 充实、拆、合、下线 | GSC 回看 |
+| 站外 | `site-offsite` SEO 模式 | 外链：目录、竞品外链缺口、投稿和核验 | 找外链 |
+
+## Shared
+
+| Skill | 做什么 |
+| --- | --- |
+| `site-kit` | 用 kit 建站、检查、发布、升级 |
+| `site-measure` | Umami 接入、埋点方案和审计、流量和漏斗报表 |
+| `site-adsense` | AdSense 过审预检 |
+| `site-stripe` | Stripe 从沙盒切到正式收款 |
 
 ## Find the stage
 
@@ -32,12 +56,13 @@ Read only what exists under the project root:
 
 | Evidence | Means |
 | --- | --- |
-| no `seo/boundary.json` | stage 1 has not started |
-| `seo/discovery/observations.jsonl`, but no `seo/mapper/pages.jsonl` | stage 2 next |
+| `geo/project.json` | GEO mode: its `stage` (`idea` → `space` → `gap` → `decided` → `blueprint` → `pages`) names the step; up to `decided` is site-idea, after it site-batch |
+| `geo/optimize/` | site-geo optimize has run on a live site |
+| no `seo/boundary.json` and no `geo/` | no mode started: ask which mode, or read the traffic sources (site-measure) |
+| `seo/discovery/observations.jsonl`, but no `seo/mapper/pages.jsonl` | SEO stage 2 next |
 | `seo/mapper/pages.jsonl` | registry exists; pages planned |
 | `.sitekit.json` | kit site: build, check and release go through `site-kit` |
-| `geo/project.json` | batch flow: its `stage` (`idea` → `space` → `gap` → `decided` → `blueprint` → `pages`) names the step; up to `decided` is site-idea, after it site-batch |
-| `seo/radar/` | site-radar has run; its similar-site list feeds site-research and site-backlinks |
+| `seo/radar/` | site-research new-site mode has run; its similar-site list feeds keyword expansion and site-offsite |
 | `seo/work/sync-check.json` older than the last deploy, or missing | stage 4 is due |
 | `umami.config.json` | Umami wired |
 | `seo/mapper/evidence/gsc/*.jsonl` | GSC windows imported; newest file name gives the window |
@@ -48,8 +73,8 @@ and follow it; its own rules and approvals apply.
 ## Page SEO check
 
 Every site: `site-check` — a sitemap sweep for mechanical and site-wide issues (templates, near
-duplicates, internal links, structured data) on every URL, then page checks on picked pages
-(keywords in the copy, FAQ coverage, server rendering, indexability, structure). AI search
+duplicates, internal links, structured data) on every URL, then page checks on picked pages. SEO mode
+checks keywords in the copy; GEO mode checks answer-first, constraints and visible follow-ups instead. AI search
 visibility (AI crawlers, llms.txt, ChatGPT probes) runs separately in `site-geo`. Then by site type:
 
 | Site | Technical gates | Registry |
@@ -62,6 +87,6 @@ indexability drift.
 
 ## Ownership
 
-Each fact has one owner: idea, gap check and decision → site-idea (`geo/project.json`, `geo/gap/`); templates, page data and waves → site-batch (`geo/`); similar sites → site-radar; keyword evidence → site-research; clusters, page ownership, briefs and GSC
+Each fact has one owner: idea, gap check and decision → site-idea (`geo/project.json`, `geo/gap/`); templates, page data and waves → site-batch (`geo/`); similar sites and keyword evidence → site-research; live-site GEO findings and experiments → site-geo (`geo/optimize/`); off-site ledger → site-offsite; clusters, page ownership, briefs and GSC
 data → site-plan; what the built pages actually say → the site build (site-kit reports for kit
-sites); traffic → site-measure. site-check and site-geo own no data: they report.
+sites); traffic → site-measure. site-check owns no data: it reports.

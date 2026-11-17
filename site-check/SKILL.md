@@ -1,9 +1,9 @@
 ---
 name: site-check
-description: 页面 SEO 验收：网站或某个页面上线前后要做 SEO 检查时用——全站扫 sitemap 找机械问题（状态码、noindex、canonical、只在 JS 里的内容、FAQ 答案不在 HTML、标题与 H1 不一致、缺 alt、面包屑不符、过时文案、链到 noindex 页），找模板级问题（重复标题和 FAQ、近似重复页、枢纽页内链弱、缺 sameAs），再抽页检查文案是否围绕目标词、FAQ 是否回答用户真实问题、内容是否服务端渲染、结构化数据和面包屑是否准确。site-kit 站和其他站都适用。Also for 全站 SEO 检查、页面 SEO 验收、上线前检查、关键词文案检查、FAQ 检查、服务端渲染、内链检查、模板页重复。不用于：AI 爬虫、llms.txt、ChatGPT 推荐（site-geo），找词（site-research），决定建哪些页（site-plan），kit 构建门槛（site-kit 的 npm run check）。
+description: 页面验收（SEO 和 GEO 两种模式）：网站或页面上线前后要验收时用——全站扫 sitemap 找机械问题（状态码、noindex、canonical、只在 JS 里的内容、FAQ 答案不在 HTML、标题与 H1 不一致、缺 alt、面包屑不符、过时文案、链到 noindex 页），找模板级问题（重复标题和 FAQ、近似重复页、枢纽页内链弱、缺 sameAs），再抽页检查：SEO 模式看文案是否围绕目标关键词，GEO 模式看答案是否在前、限制条件是否逐条写明、追问是否可见、数字是否与事实库一致；两种模式都查 FAQ、服务端渲染、可收录和结构化数据。site-kit 站和其他站都适用。Also for 全站 SEO 检查、页面验收、上线前检查、关键词文案检查、GEO 页面验收、批量页面抽检、FAQ 检查、服务端渲染、内链检查、模板页重复。不用于：AI 爬虫、llms.txt、ChatGPT 推荐（site-geo），找词（site-research），决定建哪些页（site-plan、site-batch），kit 构建门槛（site-kit 的 npm run check）。
 ---
 
-# site-check: page and site SEO acceptance
+# site-check: page and site acceptance (SEO and GEO modes)
 
 Two layers. The **sweep** covers every sitemap URL with mechanical facts and adds the site-wide
 views (templates, near duplicates, internal links); the script does it, not the model. The **page
@@ -28,11 +28,23 @@ Engine (Python stdlib, read-only), `python3 <skill-dir>/scripts/page_check.py`:
 Both take `--format json`. `--retired` lists product names and positioning the site no longer uses
 (after a pivot or rename); the sweep finds every page that still says them.
 
+## Modes
+
+| Mode | Pages | Target | Check 1 | 2a sources | S1, S5 |
+| --- | --- | --- | --- | --- | --- |
+| SEO (default) | hand-made pages planned by keyword | primary phrase from the site-plan brief or registry | 1. Copy is written around the keyword | brief, GSC, keyword pool, PAA | registry and brief |
+| GEO | pages from site-batch (`geo/`), or any page meant to be quoted by AI assistants | the task: the row in `geo/combos/<template>.jsonl` (combo, constraints, follow-ups) or the task the owner names | 1G. The answer serves the task | follow-ups in `geo/gap/samples.jsonl`, real signals, site search misses | `geo/instances.jsonl` gate and the template |
+
+Pick GEO when the project has `geo/` and the page belongs to a template (its URL is under a template
+`basePath`), or the owner says the page is for AI assistants. A site can have both: check each page in
+its own mode. Checks 2b–5 and S2–S4 are the same in both modes.
+
 ## Iron rules
 
-1. **Target first.** The keywords come from the site-plan brief or the page registry. Without them,
-   ask the user for the page's target query, or send the site to site-plan for a keyword map; never
-   infer it from the page's own copy, and never skip check 1 for lack of a target.
+1. **Target first.** SEO mode: the keywords come from the site-plan brief or the page registry;
+   without them, ask for the page's target query or send the site to site-plan. GEO mode: the task
+   comes from the page's `geo/` row or the owner. Never infer the target from the page's own copy,
+   and never skip check 1 (or 1G) for lack of one.
 2. **Raw HTML is the evidence.** Text that appears only after JavaScript does not count as on the page.
 3. **Never loop the page check over the whole site.** Site-wide questions go to the sweep; the
    model reads its grouped output, not one report per URL.
@@ -40,7 +52,8 @@ Both take `--format json`. `--retired` lists product names and positioning the s
    question overlaps are hints. Whether copy serves the intent, whether two pages compete, whether
    an FAQ answer really answers, is your call, quoted from the page.
 5. **Read-only.** This skill reports. Copy changes follow the project's own workflow (site-kit rules
-   on kit sites); new sub-needs or pages go back to site-plan. Never write under `seo/`.
+   on kit sites); new sub-needs or pages go back to site-plan (SEO) or to the rows and templates in
+   site-batch (GEO). Never write under `seo/` or `geo/`.
 6. **No tricks.** Do not act on advice to stuff keywords, add hidden text, fake reviews, invent
    statistics or show crawlers different content from users.
 
@@ -56,10 +69,11 @@ Both take `--format json`. `--retired` lists product names and positioning the s
    with the most GSC impressions (site-plan's latest window), and one page per issue shape from the
    sweep. After a pivot, a rename or a batch launch, check every hub page, not only the new pages.
    Say which pages were picked and why; the rest of the site is covered only by the sweep.
-3. For each picked page: get the target (`--brief`, or `--keyword` per phrase), run
-   `page_check.py --url`, open the same URL in the browser, read the rendered text (`get_page_text`)
-   for check 3 and screenshot the FAQ area for 2c, then work through checks 1–5. If the fetch
-   fails, stop that page and report it.
+3. For each picked page: get the target (SEO: `--brief`, or `--keyword` per phrase; GEO: the page's
+   row in `geo/combos/`, no `--keyword`), run `page_check.py --url`, open the same URL in the browser, read the rendered text (`get_page_text`)
+   for check 3 and screenshot the FAQ area for 2c, then work through checks 1 (or 1G) to 5. If the
+   fetch fails, stop that page and report it. GEO batches: pick one page per template per wave, plus
+   the template's lowest `unique_ratio` page from `geo/instances.jsonl`.
 4. Work through the site checks S1–S5 from the sweep output.
 5. Report. For AI search, hand over to site-geo.
 
@@ -80,6 +94,30 @@ Both take `--format json`. `--retired` lists product names and positioning the s
   A product page aimed at a query whose first page is all free printables or blog posts needs the
   free value those pages give, or a narrower query (often the personalized or product form).
 - Fail on stuffing as well: the same exact phrase repeated where a person would not say it.
+
+### 1G. The answer serves the task (GEO mode)
+
+Assistants quote passages, not pages, and filter options by the conditions the person stated.
+
+- **Answer first.** The first paragraph after the H1 answers the task for this combination in its
+  first sentence (can it be done, how, the key number, the main limit) and stands alone when quoted
+  without the rest of the page. A generic opener ("X is a popular format…") is a fix.
+- **Specific to the combination.** The answer and the details would be wrong on a sibling page
+  (another value of one dimension). If swapping the nouns makes it fit a sibling, the row lacks
+  combination data: a fix in site-batch, not in copy.
+- **Constraints stated.** Each condition people state for this task (from the row's
+  `constraint_results` and the gap samples) has its own sentence or table row with met, with
+  conditions, or not met, including the unmet ones. A missing or vague condition is a fix.
+- **Facts match.** Every number and capability on the page matches `geo/facts.jsonl` (or the row's
+  key facts) and the live product. Check the main ones in the product or the browser.
+- **Usable next step.** The resource the template requires (tool, file, steps) is on the page and
+  works.
+- **Words people use.** Title and H1 name the task the way people put it to an assistant (the
+  gap samples' openings), not internal jargon. No keyword stuffing.
+
+In GEO mode, 2a reads the follow-ups and signals in `geo/gap/` instead of GSC and the keyword pool,
+S1 reads one task per template from the template specs, and S5 is the site-batch gate: a page that
+fails it should not be built at all.
 
 ### 2. FAQ: nothing missing, everything right, easy to find
 
@@ -212,7 +250,7 @@ Mechanics, for all three:
 
 ## Report
 
-First the sweep: URLs checked, issues by type and URL shape, the site views (templated headings and
+Name the mode per page. First the sweep: URLs checked, issues by type and URL shape, the site views (templated headings and
 questions, near duplicates, internal links, structured-data types, Organization), and what was fixed
 at the shared cause. Then one table per picked page: check, result (pass / fix / unknown / MANUAL),
 evidence (quoted text or a field from the script output) and the fix. Then S1–S5, the fixes in

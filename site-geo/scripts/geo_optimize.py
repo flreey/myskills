@@ -1,0 +1,330 @@
+#!/usr/bin/env python3
+"""Continuous GEO optimisation for a live site: question sets, rates with intervals, experiments.
+
+    python3 geo_optimize.py --root <project> <command> [options]
+
+Commands
+  init                          create geo/optimize/ with empty files
+  check                         validate clusters, conversations, constraints, runs, experiments
+  sets [--holdout 0.3] [--sentinel 0.15] [--seed 1] [--force]
+                                assign every cluster to optimize / holdout / sentinel (stable once set)
+  report [--since DATE] [--until DATE] [--format md|json]
+                                rates per set and per cluster with 95% Wilson intervals
+  experiment --id ID            treatment vs control, before vs after: difference in differences,
+                                with the sentinel set's drift over the same dates
+
+Data (contract in references/optimize.md): geo/optimize/clusters.jsonl, conversations.jsonl,
+constraints.jsonl, runs.jsonl, experiments.jsonl. The model writes clusters, conversations,
+constraints, runs and experiments; this script assigns sets and counts. It never calls an AI service
+or the web. Python stdlib only.
+"""
+import argparse
+from collections import defaultdict
+from datetime import date
+import hashlib
+import json
+import math
+from pathlib import Path
+import sys
+
+QUERY_TYPES = {"recommend", "problem", "constraint", "compare", "howto", "integrate"}
+LEVERS = {"offsite", "onsite", "docs", "tools"}
+PAGE_STATUS = {"COVERED", "OPTIMIZE", "NEW_PAGE", "MERGE", "NOT_FIT"}
+EVIDENCE = {"hypothesis", "signal", "validated"}
+STATUS = ["absent", "mentioned", "listed", "first", "excluded"]
+ROLES = {"tool", "evidence", "step", "called", None}
+CONSTRAINT = {"met", "conditional", "unmet", "unknown"}
+SETS = ("optimize", "holdout", "sentinel")
+MIN_N = 30
+
+
+def die(msg):
+    print(f"error: {msg}", file=sys.stderr)
+    sys.exit(2)
+
+
+def read_jsonl(p):
+    if not p.exists():
+        return []
+    out = []
+    for i, line in enumerate(p.read_text().splitlines(), 1):
+        if line.strip():
+            try:
+                out.append(json.loads(line))
+            except json.JSONDecodeError as e:
+                die(f"{p}:{i}: {e}")
+    return out
+
+
+def write_jsonl(p, rows):
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows))
+
+
+class State:
+    def __init__(self, root):
+        self.dir = Path(root).resolve() / "geo" / "optimize"
+        self.clusters = self.dir / "clusters.jsonl"
+        self.conversations = self.dir / "conversations.jsonl"
+        self.constraints = self.dir / "constraints.jsonl"
+        self.runs = self.dir / "runs.jsonl"
+        self.experiments = self.dir / "experiments.jsonl"
+
+
+def wilson(k, n, z=1.96):
+    if n == 0:
+        return None
+    p = k / n
+    d = 1 + z * z / n
+    c = (p + z * z / (2 * n)) / d
+    h = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d
+    return [round(max(0.0, c - h), 3), round(min(1.0, c + h), 3)]
+
+
+def rates(runs):
+    n = len(runs)
+    inans = sum(1 for r in runs if r.get("status") in ("listed", "first"))
+    first = sum(1 for r in runs if r.get("status") == "first")
+    cited = sum(1 for r in runs if r.get("cited_own"))
+    acc_c = sum(int((r.get("accuracy") or {}).get("correct", 0)) for r in runs)
+    acc_t = acc_c + sum(int((r.get("accuracy") or {}).get(k, 0)) for r in runs for k in ("wrong", "stale"))
+    excl = [r for r in runs if r.get("status") == "excluded"]
+    wrong_excl = sum(1 for r in excl if (r.get("exclusion") or {}).get("true_reason") is False)
+    return {
+        "n": n,
+        "in_answer": round(inans / n, 3) if n else None, "in_answer_ci": wilson(inans, n),
+        "first": round(first / n, 3) if n else None, "first_ci": wilson(first, n),
+        "cited": round(cited / n, 3) if n else None, "cited_ci": wilson(cited, n),
+        "accuracy": round(acc_c / acc_t, 3) if acc_t else None, "facts_checked": acc_t,
+        "wrong_exclusions": wrong_excl, "exclusions": len(excl),
+        "thin": n < MIN_N,
+    }
+
+
+def in_window(r, since, until):
+    d = r.get("date", "")
+    return (not since or d >= since) and (not until or d < until)
+
+
+def load(st):
+    clusters = {c["id"]: c for c in read_jsonl(st.clusters) if c.get("id")}
+    convs = {c["id"]: c for c in read_jsonl(st.conversations) if c.get("id")}
+    return clusters, convs, read_jsonl(st.runs), read_jsonl(st.experiments), read_jsonl(st.constraints)
+
+
+def run_cluster(r, convs):
+    return r.get("cluster") or (convs.get(r.get("conversation_id")) or {}).get("cluster")
+
+
+# ---------- commands ----------
+
+def cmd_init(st, a):
+    st.dir.mkdir(parents=True, exist_ok=True)
+    for p in (st.clusters, st.conversations, st.constraints, st.runs, st.experiments):
+        if not p.exists():
+            p.write_text("")
+    print(json.dumps({"created": str(st.dir)}))
+
+
+def cmd_check(st, a):
+    clusters, convs, runs, exps, cons = load(st)
+    errs = []
+    for c in clusters.values():
+        w = f"clusters {c['id']}"
+        if not c.get("task"):
+            errs.append(f"{w}: task is required")
+        if c.get("query_type") not in QUERY_TYPES:
+            errs.append(f"{w}: query_type must be one of {sorted(QUERY_TYPES)}")
+        if c.get("lever") not in LEVERS:
+            errs.append(f"{w}: lever must be one of {sorted(LEVERS)}")
+        if c.get("evidence_level") not in EVIDENCE:
+            errs.append(f"{w}: evidence_level must be one of {sorted(EVIDENCE)}")
+        if c.get("page_status") and c["page_status"] not in PAGE_STATUS:
+            errs.append(f"{w}: page_status must be one of {sorted(PAGE_STATUS)}")
+        if c.get("set") and c["set"] not in SETS:
+            errs.append(f"{w}: set must be one of {SETS}")
+        if c.get("evidence_level") != "hypothesis" and not c.get("sources"):
+            errs.append(f"{w}: {c.get('evidence_level')} needs sources (where people ask this)")
+    for v in convs.values():
+        if v.get("cluster") not in clusters:
+            errs.append(f"conversations {v['id']}: unknown cluster {v.get('cluster')!r}")
+        if not v.get("opening"):
+            errs.append(f"conversations {v['id']}: opening is required")
+    for c in cons:
+        if c.get("status") not in CONSTRAINT:
+            errs.append(f"constraints {c.get('id')}: status must be one of {sorted(CONSTRAINT)}")
+        if c.get("status") in ("met", "conditional", "unmet") and not c.get("source"):
+            errs.append(f"constraints {c.get('id')}: {c['status']} needs a source")
+    for i, r in enumerate(runs, 1):
+        w = f"runs:{i}"
+        if r.get("conversation_id") not in convs:
+            errs.append(f"{w}: unknown conversation_id {r.get('conversation_id')!r}")
+        for k in ("platform", "mode", "date"):
+            if not r.get(k):
+                errs.append(f"{w}: {k} is required")
+        if r.get("status") not in STATUS:
+            errs.append(f"{w}: status must be one of {STATUS}")
+        if r.get("role", None) not in ROLES:
+            errs.append(f"{w}: role must be tool, evidence, step, called or null")
+        if r.get("status") == "excluded" and not (r.get("exclusion") or {}).get("reason"):
+            errs.append(f"{w}: excluded needs exclusion.reason (the assistant's words)")
+    for e in exps:
+        w = f"experiments {e.get('id')}"
+        for k in ("id", "change", "shipped", "treatment", "control"):
+            if not e.get(k):
+                errs.append(f"{w}: {k} is required")
+        for side in ("treatment", "control"):
+            for cid in e.get(side, []):
+                if cid not in clusters:
+                    errs.append(f"{w}: {side} names unknown cluster {cid!r}")
+                elif clusters[cid].get("set") == "holdout":
+                    errs.append(f"{w}: holdout cluster {cid} cannot be changed or used as control")
+        if set(e.get("treatment", [])) & set(e.get("control", [])):
+            errs.append(f"{w}: a cluster is both treatment and control")
+    for e in errs:
+        print(f"ERROR  {e}")
+    print(json.dumps({"errors": len(errs), "clusters": len(clusters), "conversations": len(convs), "runs": len(runs)}))
+    sys.exit(1 if errs else 0)
+
+
+def cmd_sets(st, a):
+    rows = read_jsonl(st.clusters)
+    if not rows:
+        die("no clusters")
+    have = [c for c in rows if c.get("set")]
+    if have and not a.force:
+        new = [c for c in rows if not c.get("set")]
+    else:
+        new = rows
+    for c in new:
+        h = int(hashlib.sha256(f"{a.seed}:{c['id']}".encode()).hexdigest(), 16) / 2 ** 256
+        if c.get("evidence_level") == "hypothesis":
+            c["set"] = "optimize"  # unvalidated tasks never measure results
+        elif h < a.holdout:
+            c["set"] = "holdout"
+        elif h < a.holdout + a.sentinel:
+            c["set"] = "sentinel"
+        else:
+            c["set"] = "optimize"
+        c["set_date"] = date.today().isoformat()
+    write_jsonl(st.clusters, rows)
+    counts = defaultdict(int)
+    for c in rows:
+        counts[c["set"]] += 1
+    print(json.dumps({"assigned": len(new), "sets": dict(counts)}, indent=2))
+
+
+def cmd_report(st, a):
+    clusters, convs, runs, exps, cons = load(st)
+    runs = [r for r in runs if in_window(r, a.since, a.until) and r.get("status") in STATUS]
+    by_set, by_cluster = defaultdict(list), defaultdict(list)
+    for r in runs:
+        cid = run_cluster(r, convs)
+        if cid in clusters:
+            by_set[clusters[cid].get("set", "unassigned")].append(r)
+            by_cluster[cid].append(r)
+    out = {"window": [a.since, a.until], "runs": len(runs),
+           "sets": {s: rates(v) for s, v in sorted(by_set.items())},
+           "clusters": []}
+    for cid, c in sorted(clusters.items()):
+        rr = rates(by_cluster.get(cid, []))
+        excl = [r["exclusion"]["reason"] for r in by_cluster.get(cid, []) if r.get("status") == "excluded" and r.get("exclusion")]
+        out["clusters"].append({"id": cid, "set": c.get("set"), "query_type": c.get("query_type"), "lever": c.get("lever"),
+                                "page_status": c.get("page_status"), **rr, "exclusion_reasons": excl[:3]})
+    unknown = [c["id"] for c in cons if c.get("status") == "unknown"]
+    out["unknown_constraints"] = unknown
+    if a.format == "json":
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return
+    pct = lambda v: "—" if v is None else f"{v:.0%}"
+    ci = lambda v: "" if not v else f" ({v[0]:.0%}–{v[1]:.0%})"
+    L = [f"Runs: {len(runs)}. Window: {a.since or 'start'} → {a.until or 'now'}. Report the holdout set as the result; "
+         "rates with n < 30 are marked thin.", "", "| Set | n | In answer | First | Cited | Accuracy |", "| --- | --- | --- | --- | --- | --- |"]
+    for s, r in out["sets"].items():
+        L.append(f"| {s}{' (thin)' if r['thin'] else ''} | {r['n']} | {pct(r['in_answer'])}{ci(r['in_answer_ci'])} | "
+                 f"{pct(r['first'])} | {pct(r['cited'])}{ci(r['cited_ci'])} | {pct(r['accuracy'])} |")
+    L += ["", "| Cluster | Set | Type | Lever | n | In answer | Cited | Wrong exclusions | Page |", "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+    for c in out["clusters"]:
+        L.append(f"| {c['id']} | {c['set']} | {c['query_type']} | {c['lever']} | {c['n']} | {pct(c['in_answer'])} | "
+                 f"{pct(c['cited'])} | {c['wrong_exclusions']}/{c['exclusions']} | {c['page_status'] or ''} |")
+    if unknown:
+        L += ["", f"Constraints still unknown: {', '.join(unknown)}"]
+    print("\n".join(L))
+
+
+def cmd_experiment(st, a):
+    clusters, convs, runs, exps, cons = load(st)
+    e = next((x for x in exps if x.get("id") == a.id), None)
+    if not e:
+        die(f"no experiment {a.id!r}")
+    start = e.get("recrawled") or e["shipped"]
+    sentinel = [cid for cid, c in clusters.items() if c.get("set") == "sentinel"]
+
+    def group(ids):
+        pre = [r for r in runs if run_cluster(r, convs) in ids and r.get("date", "") < e["shipped"]]
+        post = [r for r in runs if run_cluster(r, convs) in ids and r.get("date", "") >= start]
+        return rates(pre), rates(post)
+
+    out = {"id": a.id, "change": e["change"], "shipped": e["shipped"], "measured_from": start}
+    for name, ids in (("treatment", set(e["treatment"])), ("control", set(e["control"])), ("sentinel", set(sentinel))):
+        pre, post = group(ids)
+        out[name] = {"before": pre, "after": post}
+    for metric in ("in_answer", "cited"):
+        t, c = out["treatment"], out["control"]
+        vals = [t["before"][metric], t["after"][metric], c["before"][metric], c["after"][metric]]
+        if None in vals:
+            out[f"did_{metric}"] = None
+            continue
+        did = (vals[1] - vals[0]) - (vals[3] - vals[2])
+        var = 0.0
+        for g, k in ((t, "before"), (t, "after"), (c, "before"), (c, "after")):
+            p, n = g[k][metric], g[k]["n"]
+            var += p * (1 - p) / n if n else 0
+        h = 1.96 * math.sqrt(var)
+        out[f"did_{metric}"] = {"estimate": round(did, 3), "ci": [round(did - h, 3), round(did + h, 3)]}
+    s = out["sentinel"]
+    drift = None
+    if s["before"]["in_answer"] is not None and s["after"]["in_answer"] is not None:
+        drift = round(s["after"]["in_answer"] - s["before"]["in_answer"], 3)
+    out["sentinel_drift_in_answer"] = drift
+    thin = any(out[g][k]["thin"] for g in ("treatment", "control") for k in ("before", "after"))
+    d = out.get("did_in_answer")
+    if thin:
+        verdict = "insufficient: a group has fewer than 30 runs"
+    elif drift is not None and abs(drift) >= 0.15:
+        verdict = "no conclusion: the sentinel set moved as much as an effect would (platform or model change)"
+    elif d and d["ci"][0] > 0:
+        verdict = "improved: the interval is above zero"
+    elif d and d["ci"][1] < 0:
+        verdict = "worse: the interval is below zero"
+    else:
+        verdict = "no detectable effect at this sample size"
+    out["verdict"] = verdict
+    print(json.dumps(out, ensure_ascii=False, indent=2))
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--root", default=".")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("init")
+    sub.add_parser("check")
+    s = sub.add_parser("sets")
+    s.add_argument("--holdout", type=float, default=0.3)
+    s.add_argument("--sentinel", type=float, default=0.15)
+    s.add_argument("--seed", type=int, default=1)
+    s.add_argument("--force", action="store_true")
+    s = sub.add_parser("report")
+    s.add_argument("--since")
+    s.add_argument("--until")
+    s.add_argument("--format", choices=["md", "json"], default="md")
+    s = sub.add_parser("experiment")
+    s.add_argument("--id", required=True)
+    a = p.parse_args(argv)
+    st = State(a.root)
+    {"init": cmd_init, "check": cmd_check, "sets": cmd_sets, "report": cmd_report,
+     "experiment": cmd_experiment}[a.cmd](st, a)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,9 +1,9 @@
 ---
 name: site-geo
-description: 已上线站点的 AI 可见度：检查 ChatGPT、Claude、Perplexity 等 AI 爬虫能不能访问页面，llms.txt 是否和线上一致，ChatGPT 能否打开并引用页面、会不会为目标问题推荐这个站、怎样才能被更多推荐；对主要流量来自 AI 助手的站，看助手抓取和引用了哪些页、哪些现有页面引用占比低（AI 爬虫日志、Bing AI Performance、站内搜索落空）。site-kit 站和其他站都适用。Also for GEO 检查、AI 搜索可见度、ChatGPT 能不能访问、GPT 会不会推荐、llms.txt、AI 爬虫放行。不用于：页面 SEO 验收（site-check）、新想法的 AI 答案缺口验证（site-idea）、找词（site-research）、决定建哪些页（site-plan）。
+description: 已上线站点的 GEO（两种模式）：检查模式——AI 爬虫（ChatGPT、Claude、Perplexity 等）能不能访问页面、llms.txt 是否与线上一致、ChatGPT 能否打开并引用页面、会不会为目标问题推荐这个站；持续优化模式——从真实来源（AI 爬虫抓取、AI 引荐落地页、站内/API/MCP 搜索落空、客服和社区原话、Bing AI Performance）找用户交给 AI 的任务，建限制条件矩阵和多轮对话，按问题类型选杠杆（站内、站外、文档、工具渠道），先测基线、做来源诊断，再用留出集、哨兵集和对照组做实验，看提及、首推、引用、准确率和 AI 引荐转化。site-kit 站和其他站都适用。Also for GEO 检查、AI 搜索可见度、ChatGPT 能不能访问、GPT 会不会推荐、llms.txt、AI 爬虫放行、AI 为什么推荐别人、GEO 持续优化、AI 引用占比、改哪个页。不用于：页面验收（site-check）、新想法的答案缺口验证（site-idea）、批量生成页面（site-batch）、找关键词（site-research）。
 ---
 
-# site-geo: AI search visibility
+# site-geo: GEO for a live site (check and optimize)
 
 Two kinds of evidence, kept apart. **Facts** come from `geo_check.py`: robots.txt rules per AI
 crawler, what each AI user-agent gets back, and whether llms.txt matches the site. **Samples** come
@@ -18,6 +18,20 @@ Engine (Python stdlib, read-only), `python3 <skill-dir>/scripts/geo_check.py`:
   pages; `--base` reads a local build or preview while links keep the production host; `--retired`
   lists names the site no longer uses. `--format json` for the full record.
 
+Optimize engine (Python stdlib), `python3 <skill-dir>/scripts/geo_optimize.py --root <project>` with
+`init`, `check`, `sets`, `report`, `experiment`; data in `<project>/geo/optimize/`, contract and loop in
+[references/optimize.md](references/optimize.md).
+
+## Modes
+
+| Mode | When | Path |
+| --- | --- | --- |
+| **Check** | A site or page should be reachable, quotable and recommended by AI assistants; before and after a launch | G1–G4 below |
+| **Optimize** | A live site wants more AI recommendations and citations over time: which tasks, why assistants pick others, what to change, did it work | G5 below, then the loop in [references/optimize.md](references/optimize.md) (O1–O8) |
+
+Optimize starts from tasks, not keywords; Google keyword data is context only. New sites with no
+traffic start in site-idea instead.
+
 ## Iron rules
 
 1. **Facts and samples stay apart.** Script output is a fact about the server; a ChatGPT answer is a
@@ -29,9 +43,13 @@ Engine (Python stdlib, read-only), `python3 <skill-dir>/scripts/geo_check.py`:
 4. **Training is the owner's choice.** Blocking a training crawler (GPTBot, ClaudeBot,
    Google-Extended) is a decision, not a defect; blocking a search or user crawler is a fix unless
    the owner chose it.
-5. **Read-only.** This skill reports. Copy and llms.txt changes follow the project's own workflow
-   (site-kit rules on kit sites); never write under `seo/`.
-6. **No tricks.** Do not act on advice to stuff keywords, add hidden text, fake reviews, invent
+5. **Reports and its own data only.** Check mode writes nothing; optimize mode writes only
+   `geo/optimize/`. Copy, page and llms.txt changes follow the project's own workflow (site-kit rules on
+   kit sites); never write under `seo/`.
+6. **Results come from the holdout set and experiments.** Never report the optimize set's rise as
+   the effect, never change holdout or sentinel clusters, and never swap the question set between a
+   baseline and its review.
+7. **No tricks.** Do not act on advice to stuff keywords, add hidden text, fake reviews, invent
    statistics or show crawlers different content from users.
 
 ## Workflow
@@ -84,7 +102,7 @@ Engine (Python stdlib, read-only), `python3 <skill-dir>/scripts/geo_check.py`:
   "searched and not chosen" from "never searched for it".
 - Turn the advice into concrete page facts to change (a missing comparison, no price on the page, no
   author or contact, thin examples), each tied to a site-check check or to site-plan. Drop advice
-  that is generic or breaks rule 6.
+  that is generic or breaks rule 7.
 
 ### G5. Where AI demand is and which pages lose citations
 
@@ -92,6 +110,9 @@ Engine (Python stdlib, read-only), `python3 <skill-dir>/scripts/geo_check.py`:
 - Read the sources: search crawler and user crawler fetch logs, Bing Webmaster AI Performance, and site search misses.
 - Classify each gap (not mentioned, mentioned without a link, linked without visits, visits without action), then sort the findings into pages to improve, new pages and missing content.
 - Before a page changes, write down the baseline, the pages left unchanged, the review dates and the result that would show the idea was wrong. Sources, tests, hand-offs and follow-up are in [references/ai-demand.md](references/ai-demand.md).
+- G5 is the entry to optimize mode: its sources feed O1 (tasks), and the gap classes feed O5. Run the
+  full loop in [references/optimize.md](references/optimize.md) when the owner wants changes measured,
+  not only found.
 
 ## Report
 

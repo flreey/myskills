@@ -1,4 +1,4 @@
 interface:
   display_name: "Site Research"
-  short_description: "Build an evidence-backed keyword pool from free sources"
-  default_prompt: "Use $site-research to bootstrap or continue the keyword pool in this project's seo/ directory: research first, ask one batch of choices, expand seeds with autocomplete and browser sources, triage concepts, and stop on the round yield verdict."
+  short_description: "选词和扩词：新站能排上去的词和同类站，或从免费来源扩大关键词池"
+  default_prompt: "Use $site-research on this project: pick the mode (new-site picks or pool expansion) from the project's seo/ state, then follow that mode's workflow and stop on its verdict."

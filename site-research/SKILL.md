@@ -1,9 +1,20 @@
 ---
 name: site-research
-description: 扩词（关键词池）：方向已定、要为一个产品或站点收集大量真实搜索词时用——从免费来源（联想词、Keyword Planner、Google Trends、Search Console、SERP 相关搜索、竞品 sitemap）找词、导入关键词导出文件、定义产品的搜索边界和种子词、判断扩词是否已经饱和。Also for 找关键词、扩词、关键词挖掘、需求发现、keyword pool。不用于：新站先做哪些词（site-radar）、词分到哪个页面（site-plan）、AI 渠道的问法（site-idea、site-geo）。
+description: 选词和扩词（SEO 模式，两种用法）：新站选词——找一个新域名 1–2 个月内能排上去的关键词和页面，从新词/趋势、近期起量的新站、弱 SERP 长尾三个入口收集，用意图、需求、可排名三关快筛打分，词找站、站找词并把同类站记进 seo/radar/sites.md，输出排序短名单和上线回收规则；扩词——方向定了以后，从免费来源（联想词、Keyword Planner、Google Trends、Search Console、SERP 相关搜索、竞品 sitemap）收集大量真实搜索词、导入关键词导出文件、定义搜索边界和种子词、判断扩词是否饱和，写进 seo/discovery/。Also for 新站做什么词、找能排上去的词、找词雷达、新词抢先、词找站、站找词、找同类站、找关键词、扩词、关键词挖掘、keyword pool。不用于：词分到哪个页面（site-plan）、GEO 路线的任务和 AI 问法（site-idea、site-geo）、批量页面（site-batch）。
 ---
 
-# site-research: keyword discovery
+# site-research: keyword discovery (new-site picks and pool expansion)
+
+## Modes
+
+| Mode | When | Follow |
+| --- | --- | --- |
+| **新站选词** (new-site picks, formerly site-radar) | A new domain needs the few pages it can rank with in 1–2 months; find similar sites; review a launched batch at GSC day 7/14/28 | [references/new-site/workflow.md](references/new-site/workflow.md); state in `<project>/seo/radar/` |
+| **扩词** (pool expansion) | The direction is set and the keyword pool should grow from free sources | the rest of this file; state in `<project>/seo/discovery/` |
+
+The two share evidence one way: new-site picks write `seo/radar/sites.md` and `seo/radar/site-keywords/`;
+expansion imports them (`import --format json --source gefei_site_keywords`) and never writes there.
+Both are SEO-route skills: GEO projects start from tasks in site-idea or site-geo instead.
 
 Collect broadly without inventing demand. The output is an evidence-backed observation pool in
 `<project>/seo/`; `site-plan` turns it into clusters and page decisions.
@@ -50,7 +61,7 @@ bootstrap reference. Never expand raw item titles directly.
 | --- | --- | --- |
 | Expand | `suggest --level quick` then `--level standard` | `--dry-run` shows the query count. Use `deep` (alphabet) only after standard, and only for the most productive seeds |
 | Add browser sources | `import --format gkp\|gsc\|trends\|csv\|json\|lines` | Planner, GSC, Trends, SERP related searches, Bing WMT. See [references/sources.md](references/sources.md) |
-| Add competitor keywords | `import --format json --source gefei_site_keywords` | site-radar's saved `seo/radar/site-keywords/*.json`; this skill does not search for competitor sites itself |
+| Add competitor keywords | `import --format json --source gefei_site_keywords` | the new-site mode's saved `seo/radar/site-keywords/*.json`; this skill does not search for competitor sites itself |
 | Add top-down hypotheses | `sitemap --url <competitor>` | Competitors from `seo/radar/sites.md` when it exists. Slugs become `hypothesis` concepts, never keywords |
 | Alias hygiene | `seed aliases`, then `seed aliases --file` | Drop aliases other seeds' searches also produce; confirm synonyms |
 | Extract | `concepts` | Writes `seo/work/triage-input.json` |

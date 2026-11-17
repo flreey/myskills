@@ -1,0 +1,151 @@
+# Optimize mode: continuous GEO for a live site
+
+For a live site that wants AI assistants to recommend and quote it. The unit is the task a person
+hands to an assistant, not a keyword. Full method: `~/Projects/GEO/geo-methodology.md`. Data lives in
+`<project>/geo/optimize/`; `geo_optimize.py` assigns question sets and counts, the model does the rest.
+
+## The loop
+
+| Step | Does | Writes |
+| --- | --- | --- |
+| O1 Tasks | Find the tasks people bring, from real sources first | `clusters.jsonl` |
+| O2 Constraints | Every hard condition people state, and the product's status on each | `constraints.jsonl` |
+| O3 Conversations | 3–5 conversation paths per cluster: opening with context, follow-ups, end | `conversations.jsonl` |
+| O4 Route | Query type → lever; page status for on-site clusters | `clusters.jsonl` (`query_type`, `lever`, `page_status`) |
+| O5 Baseline | Probe before changing anything; classify cited sources | `runs.jsonl` |
+| O6 Change | One batch at a time, with control clusters | `experiments.jsonl` |
+| O7 Measure | After the window: holdout set for results, experiment for the change | report output |
+| O8 Feed back | Rules below; update priorities and evidence | `clusters.jsonl` |
+
+### O1 Tasks
+
+A cluster is "who × doing what × under which conditions × wanting what". Sources, in this order:
+
+1. User-crawler fetches by page (`ChatGPT-User`, `Claude-User`, `Perplexity-User`) and AI-referred
+   landing pages: tasks the assistants already route here.
+2. Site, API and MCP search misses and "not found" messages: tasks the site fails.
+3. Support mail, reviews, forum and community posts in the person's own words.
+4. Bing AI Performance grounding queries: topic-level, supporting evidence only.
+5. Model brainstorming: hypotheses, `evidence_level: hypothesis` until a real source shows the same task.
+
+Sources and windows as in [ai-demand.md](ai-demand.md). Keyword volume is not a source here.
+
+```json
+{"id": "k-ui-clicks-mobile", "task": "find subtle tap and click sounds for a mobile app that won't annoy users",
+ "persona": "indie app developer", "constraints": ["c-commercial", "c-short", "c-free"],
+ "decision_stage": "solution_research", "evidence_level": "validated",
+ "sources": ["site search misses 2026-11 (41)", "https://www.reddit.com/r/..."],
+ "query_type": "problem", "lever": "onsite", "page_status": "OPTIMIZE", "primary_page": "/sounds/ui-click",
+ "priority": 3, "set": "optimize"}
+```
+
+### O2 Constraints
+
+```json
+{"id": "c-commercial", "constraint": "can be used in a commercial app", "status": "met",
+ "note": "CC0, no attribution", "source": "/license", "checked": "2026-11-17"}
+```
+
+`unknown` is a to-do, never a page claim. `unmet` stays in the table: it decides `NOT_FIT` and
+whether an assistant's reason for excluding the product was true.
+
+### O3 Conversations
+
+Same rules as site-idea `references/conversations.md`: no brand in the opening, variation comes from
+persona, conditions and follow-up order, wording close to real quotes. 3–5 per cluster.
+
+### O4 Route
+
+| `query_type` | Typical opening | `lever` |
+| --- | --- | --- |
+| `recommend` | "what's a good …", "alternative to …" | `offsite` (site-offsite GEO mode), page facts second |
+| `problem` | "my players say … what should I do" | `onsite` |
+| `constraint` | "can I use … for …", "does … work offline" | `onsite` (fact pages: pricing, license, docs) |
+| `compare` | "A or B for …" | `onsite` comparison page + `offsite` reviews |
+| `howto` | "how do I … in …" | `docs` (guides, examples) |
+| `integrate` | "make my agent …" | `tools` (API, MCP, plugin listings) |
+
+For `onsite` clusters set `page_status`: `COVERED` (the main page answers the task and its
+follow-ups, every condition stated), `OPTIMIZE`, `NEW_PAGE` (no page can take it and the answer is
+different, not just reworded), `MERGE`, `NOT_FIT` (a hard condition is unmet). Many template-shaped
+`NEW_PAGE` clusters are a site-batch job; a few are the project's own page workflow.
+
+### O5 Baseline
+
+Before any change: run every conversation at least 3 times per target platform, in fresh chats, with
+the user's go-ahead for their accounts (iron rule 3). One row per run:
+
+```json
+{"conversation_id": "v12", "cluster": "k-ui-clicks-mobile", "platform": "ChatGPT", "mode": "manual",
+ "model": "as shown", "date": "2026-11-18", "web_search": true,
+ "status": "listed", "role": "tool", "cited_own": true, "own_urls": ["https://example.com/sounds/ui-click"],
+ "cited": [{"url": "https://...", "type": "list"}], "recommended": ["A", "B"],
+ "accuracy": {"correct": 3, "wrong": 1, "stale": 0}, "accuracy_note": "says downloads need signup",
+ "exclusion": null, "gap": "generic", "raw": "geo/optimize/raw/v12--chatgpt--1.md"}
+```
+
+- `status`: `absent`, `mentioned`, `listed` (offered as an option), `first` (the main recommendation),
+  `excluded` (named and ruled out; then `exclusion: {"reason": "<its words>", "true_reason": true|false|null}`
+  checked against `constraints.jsonl`).
+- `role`: `tool`, `evidence` (quoted as a source), `step` (part of a procedure), `called` (an agent
+  used the API or MCP), or null.
+- `accuracy`: product facts in the answer checked against `constraints.jsonl` and the live site.
+- `cited[].type`: `brand`, `competitor`, `list`, `forum`, `video`, `docs`, `news`, `other`.
+
+Then source diagnosis per cluster where competitors win:
+
+| Cited sources are mostly | Means | Move |
+| --- | --- | --- |
+| competitor sites | their page answers the task more directly | on-site: the cluster's page or a missing condition |
+| lists and reviews | the contest is in consensus | site-offsite GEO mode |
+| forums | word of mouth | site-offsite community work; check the product itself |
+| nothing, or no web search | the model answers from its own knowledge | long-term consensus; do not credit pages short term |
+| our page, yet another product recommended | facts used, a condition failed or unclear | read the exclusion reason: wording or product |
+
+`python3 <site-offsite>/scripts/cited_sources.py --root <project> --own <domain>` lists the cited
+domains across runs.
+
+### O6 Change
+
+`sets` assigns every cluster once: `holdout` (about 30%, never changed, used to report results),
+`sentinel` (about 15%, never changed, detects platform and model drift) and `optimize`. Hypothesis
+clusters always go to `optimize`. Then per batch:
+
+```json
+{"id": "e3", "change": "answer-first opening and conditions table on UI sound pages",
+ "treatment": ["k-ui-clicks-mobile", "k-menu-sounds"], "control": ["k-notification-sounds"],
+ "pages": ["/sounds/ui-click", "/sounds/menu"], "shipped": "2026-11-20", "recrawled": "2026-11-24",
+ "window_days": 28, "falsified_if": "in-answer rate on treatment does not beat control by the review"}
+```
+
+Control clusters are similar `optimize` clusters left unchanged for the window. One kind of change
+per batch; several kinds on one day cannot be told apart. Page and copy changes follow the project's
+own workflow and approvals; this skill writes only `geo/optimize/`.
+
+### O7 Measure
+
+- `report --since <date>`: rates per set and cluster with 95% intervals. The **holdout** set is the
+  result to report; the optimize set is biased by construction. Rates on fewer than 30 runs are thin.
+- `experiment --id <id>` after the window (from `recrawled`, else `shipped`): difference in
+  differences for in-answer and cited rates, with an interval, and the sentinel set's drift. A
+  sentinel move of 15 points or more means no conclusion this round.
+- Alongside: AI referrals and conversions per landing page (site-measure), Bing AI Performance
+  citations, user-crawler fetches of the changed pages. North star: AI-referred visits that finish
+  the site's core action.
+
+### O8 Feed back
+
+| Observed | Next |
+| --- | --- |
+| Page not crawled or not indexed | Technical fix first (site-check, G1); do not judge content this round |
+| Assistant states product facts wrongly | Fix the source of truth and every channel's wording (site-offsite for listings) |
+| Excluded for an untrue reason | State that condition plainly on the main page and fact pages |
+| Excluded for a true reason | `NOT_FIT`, or a product request to the owner |
+| Our page cited, another product recommended | Off-site: the consensus is lost (site-offsite GEO mode) |
+| Listed in the opening, dropped after a follow-up | Answer that follow-up on the page |
+| Never present in answers without web search | Long-term consensus work; not a page problem |
+| Recommended, few referrals | Brand landing and first screen; check referral tracking |
+| Referrals, no action | Landing page versus the task; next step on the page |
+| A hypothesis cluster now has a real source | Raise `evidence_level`; it can join the holdout or sentinel set at the next `sets --force` (owner's call) |
+
+Rotate at most 20% of the holdout clusters per quarter, and never between a baseline and its review.
