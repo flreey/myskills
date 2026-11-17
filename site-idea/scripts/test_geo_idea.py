@@ -387,6 +387,34 @@ class DemandAndBankTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(p.read_text())["stage"], "pages")
 
+    def test_needs_volume_sources_quotes_and_quiet_log(self):
+        needs = json.loads(json.dumps(NEEDS))
+        needs[0]["count_by_source"] = {"forum": 80, "feedback": 5}
+        needs[0]["volume"] = [{"ref": "search_log 60d", "what": "licence words", "n": 23}]
+        needs[0]["where_asked"] = ["assistant", "product"]
+        needs[0]["evidence"].append({"source": "survey", "ref": "purchase_source_feedback", "value": "ai_assistant", "n": 5})
+        gi.write_jsonl(self.root / "geo/needs.jsonl", needs)
+        code, out = run(self.root, "needs")
+        self.assertEqual(code, 0, out)
+        md = (self.root / "geo/needs.md").read_text()
+        self.assertIn("forum 80, feedback 5", md)
+        self.assertIn("licence words 23", md)
+        self.assertIn("indie game dev", md)
+        run(self.root, "needs")
+        log = json.loads((self.root / "geo/project.json").read_text())["log"]
+        self.assertEqual(sum(1 for x in log if x["stage"] == "needs"), 1)   # same result twice, logged once
+        gi.write_jsonl(self.root / "posts.jsonl", [{"url": "https://www.reddit.com/r/gamedev/x",
+                                                    "quote": "Looking for 100%  copyright free sounds to use"}])
+        code, _ = run(self.root, "needs", "--quotes", "posts.jsonl")
+        self.assertEqual(code, 0)
+        gi.write_jsonl(self.root / "posts.jsonl", [{"url": "https://www.reddit.com/r/gamedev/x", "quote": "something else"}])
+        code, out = run(self.root, "needs", "--quotes", "posts.jsonl")
+        self.assertEqual(code, 1)
+        self.assertIn("quote not found verbatim", out)
+        needs[0]["volume"] = [{"n": 3}]
+        gi.write_jsonl(self.root / "geo/needs.jsonl", needs)
+        self.assertIn("volume 1 needs ref", run(self.root, "needs")[1])
+
     def test_geo_dir_keeps_two_projects_apart(self):
         code, _ = run(self.root, "--geo-dir", "geo-families", "init", "--name", "Families", "--idea", "x")
         self.assertEqual(code, 0)

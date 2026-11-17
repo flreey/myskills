@@ -5,7 +5,8 @@
 
 Commands
   init     --name N --idea "one sentence" [--live --origin URL]   create geo/project.json and empty files
-  needs                                     validate geo/needs.jsonl (demand map) -> geo/needs.md
+  needs    [--quotes FILE]                  validate geo/needs.jsonl (demand map) -> geo/needs.md; with FILE
+                                            (CSV/JSONL of url, quote) every off-site quote must be verbatim
   bank                                      validate geo/questions.jsonl (question bank) -> geo/bank.md
   space    [--format text|json]             validate dimensions, count the page space
   sample   --n 40 [--seed 1] [--force]      stratified sample of combinations -> geo/gap/samples.jsonl
@@ -51,7 +52,7 @@ QUESTION_LEVELS = {"quoted", "derived", "hypothesis"}
 ANGLES = {"recommend", "compare", "problem", "howto", "purchase", "alternative", "constraint", "integrate"}
 Q_STAGES = {"exploring", "choosing", "using", "troubleshooting"}
 ORIGINS = {"real", "model", "competitor"}
-WHERE_ASKED = {"assistant", "search_engine", "site_search", "agent", "forum", "support", "other"}
+WHERE_ASKED = {"assistant", "search_engine", "site_search", "agent", "product", "forum", "support", "other"}
 # Evidence: off-site posts carry a URL; first-party records carry a ref (table or export and window).
 OFFSITE_SOURCES = {"forum", "review", "qa", "social", "video", "competitor_page", "web"}
 FIRST_PARTY_SOURCES = {"site_search", "api_search", "mcp_search", "search_miss", "feedback", "support",
@@ -128,7 +129,10 @@ def set_stage(proj, stage, note):
     cur = proj.get("stage", "idea")
     if stage in order and order.index(stage) > (order.index(cur) if cur in order else -1):
         proj["stage"] = stage
-    proj.setdefault("log", []).append({"date": date.today().isoformat(), "stage": stage, "note": note})
+    log = proj.setdefault("log", [])
+    # Re-running a check with the same result is not an event: log only what changed.
+    if not log or (log[-1].get("stage"), log[-1].get("note")) != (stage, note):
+        log.append({"date": date.today().isoformat(), "stage": stage, "note": note})
 
 
 # ---------- evidence, demand map, question bank ----------
@@ -143,8 +147,9 @@ def evidence_errors(ev, where):
         errs = []
         if not ev.get("ref"):
             errs.append(f"{where}: first-party evidence ({src}) needs ref: the table or export and its window")
-        if not (ev.get("q") or ev.get("quote")):
-            errs.append(f"{where}: first-party evidence ({src}) needs q (the query) or quote (the words)")
+        if not (ev.get("q") or ev.get("quote") or (ev.get("value") and ev.get("n") is not None)):
+            errs.append(f"{where}: first-party evidence ({src}) needs q (the query), quote (the words), "
+                        "or value and n (a counted answer option, e.g. a survey choice)")
         return errs
     if src is None or src in OFFSITE_SOURCES:
         errs = []
@@ -202,7 +207,41 @@ def validate_needs(needs):
             warns.append(f"{where}: no where_asked: say where people bring this need (assistant, site_search, forum…)")
         if n.get("count") is not None and not isinstance(n.get("count"), int):
             errs.append(f"{where}: count must be an integer (evidence rows behind the need)")
+        cbs = n.get("count_by_source")
+        if cbs is not None and not (isinstance(cbs, dict) and all(isinstance(v, int) for v in cbs.values())):
+            errs.append(f"{where}: count_by_source maps a source to an integer count, e.g. {{\"forum\": 40}}")
+        for j, v in enumerate(n.get("volume") or [], 1):
+            if not (isinstance(v, dict) and v.get("ref") and isinstance(v.get("n"), (int, float))):
+                errs.append(f"{where}: volume {j} needs ref (table and window) and n (requests, not people)")
     return errs, warns, ids
+
+
+def quote_index(path):
+    """url -> list of normalised quotes, from a CSV or JSONL with url and quote fields."""
+    import csv
+    rows = read_jsonl(path) if path.suffix == ".jsonl" else list(csv.DictReader(path.open()))
+    idx = defaultdict(list)
+    for r in rows:
+        if r.get("url") and r.get("quote"):
+            idx[r["url"]].append(norm_quote(r["quote"]))
+    return idx
+
+
+def norm_quote(t):
+    t = str(t).replace("\u2019", "'").replace("\u2018", "'").replace("\u201c", '"').replace("\u201d", '"')
+    return re.sub(r"\s+", " ", t).strip().strip("…").strip().lower()
+
+
+def unverified_quotes(needs, idx):
+    """Off-site quotes that are not a substring of a source row with the same URL."""
+    out = []
+    for n in needs:
+        for e in n.get("evidence") or []:
+            if isinstance(e, dict) and str(e.get("url", "")).startswith("http") and e.get("quote"):
+                q = norm_quote(e["quote"])
+                if not any(q in x for x in idx.get(e["url"], [])):
+                    out.append(f"needs {n.get('id')}: quote not found verbatim at {e['url'][:80]}: {e['quote'][:60]!r}")
+    return out
 
 
 def need_summary(needs):
@@ -211,22 +250,28 @@ def need_summary(needs):
         ev = n.get("evidence") or []
         fp = sum(1 for e in ev if isinstance(e, dict) and e.get("source") in FIRST_PARTY_SOURCES)
         rows.append({"id": n.get("id"), "need": n.get("need", ""), "level": n.get("evidence_level"),
-                     "personas": len(n.get("personas") or []), "count": n.get("count"),
+                     "personas": n.get("personas") or [], "count": n.get("count"),
+                     "count_by_source": n.get("count_by_source") or {}, "volume": n.get("volume") or [],
                      "first_party": fp, "offsite": len(ev) - fp, "where_asked": n.get("where_asked") or []})
     rows.sort(key=lambda r: (-(r["count"] or 0), r["id"] or ""))
     return rows
 
 
 def needs_md(rows, proj):
-    total = sum(r["count"] or 0 for r in rows)
     L = [f"# Demand map: {proj.get('name', '')}", "",
          f"{len(rows)} needs; {sum(1 for r in rows if r['level'] == 'validated')} validated, "
-         f"{sum(1 for r in rows if r['level'] == 'hypothesis')} hypotheses. Counts are evidence rows, not market size.", "",
-         "| Need | Level | Count | Share | Evidence (first-party / off-site) | Asked in |",
-         "| --- | --- | --- | --- | --- | --- |"]
+         f"{sum(1 for r in rows if r['level'] == 'hypothesis')} hypotheses.", "",
+         "Count = evidence rows (quotes, messages, descriptions), not market size; one row may count under "
+         "several needs, so counts are not added up. Volume = search or API requests, a different measure, "
+         "never added to the count.", "",
+         "| Need | Who | Level | Count (by source) | Volume | Evidence (first-party / off-site) | Asked in |",
+         "| --- | --- | --- | --- | --- | --- | --- |"]
     for r in rows:
-        share = f"{(r['count'] or 0) / total:.0%}" if total and r["count"] is not None else "—"
-        L.append(f"| {r['id']}: {r['need']} | {r['level']} | {r['count'] if r['count'] is not None else '—'} | {share} | "
+        cnt = "—" if r["count"] is None else str(r["count"])
+        if r["count_by_source"]:
+            cnt += " (" + ", ".join(f"{k} {v}" for k, v in sorted(r["count_by_source"].items(), key=lambda kv: -kv[1])) + ")"
+        vol = "; ".join(f"{v.get('what', v['ref'])} {v['n']:,}" for v in r["volume"]) or "—"
+        L.append(f"| {r['id']}: {r['need']} | {', '.join(r['personas']) or '—'} | {r['level']} | {cnt} | {vol} | "
                  f"{r['first_party']} / {r['offsite']} | {', '.join(r['where_asked']) or '—'} |")
     return "\n".join(L) + "\n"
 
@@ -236,6 +281,11 @@ def cmd_needs(st, a):
     if not needs:
         die(f"no needs in {st.needs}: write the demand map first (references/demand-map.md)")
     errs, warns, _ = validate_needs(needs)
+    if a.quotes:
+        qpath = Path(a.quotes) if Path(a.quotes).is_absolute() else st.root / a.quotes
+        if not qpath.exists():
+            die(f"no quotes file {qpath}")
+        errs += unverified_quotes(needs, quote_index(qpath))
     rows = need_summary(needs)
     proj = read_json(st.project)
     for e in errs:
@@ -1079,7 +1129,9 @@ def main(argv=None):
     s.add_argument("--idea", required=True)
     s.add_argument("--live", action="store_true", help="the site is already live (new page space on a live site)")
     s.add_argument("--origin", help="the live site's origin, e.g. https://example.com")
-    sub.add_parser("needs")
+    s = sub.add_parser("needs")
+    s.add_argument("--quotes", help="CSV or JSONL of the collected off-site posts (url, quote): every off-site "
+                                    "quote in needs.jsonl must appear verbatim under its URL")
     sub.add_parser("bank")
     s = sub.add_parser("space")
     s.add_argument("--format", choices=["text", "json"], default="text")
