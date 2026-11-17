@@ -99,7 +99,8 @@ question lives in one section; target wordings are not pasted in as FAQ variants
 ### O5 Baseline
 
 Before any change: run every conversation at least 3 times per target platform, in fresh chats, with
-the user's go-ahead for their accounts (iron rule 3). One row per run:
+the user's go-ahead for their accounts (iron rule 3). Browser runs follow
+[site-idea's probe-runs.md](../../site-idea/references/probe-runs.md). One row per run:
 
 ```json
 {"conversation_id": "v12", "cluster": "k-ui-clicks-mobile", "platform": "ChatGPT", "mode": "manual",

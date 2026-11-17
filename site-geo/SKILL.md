@@ -62,7 +62,8 @@ traffic start in site-idea instead.
    queries from them: low citation share first.
 4. With the user's go-ahead, run probe A on the same pages, probes B and C for each target query
    (two or three of the site's main queries) and probe E once for the site, each three times in
-   fresh chats, from [references/chatgpt-probes.md](references/chatgpt-probes.md).
+   fresh chats, from [references/chatgpt-probes.md](references/chatgpt-probes.md). Run them in the
+   user's browser as [site-idea's probe-runs.md](../site-idea/references/probe-runs.md) says.
 5. Report.
 
 ## Checks
