@@ -12,12 +12,15 @@ about 300k tokens that every later step paid for again.
 If `gbot` is installed (`gbot bots list`), the probes run on the Grok Bot's own browser and model.
 Claude does not spend a call per step, only a few calls to hand the run over and file the results.
 
-1. **Pick the bot.** Use the project's own bot if one exists (for example `sfxmint外链助手`). Otherwise ask
-   the user which bot to use.
-2. **Check once per bot before the first run.** Ask it to open chatgpt.com, confirm it is logged in
-   with memory off or a temporary chat, and report the model label. If it is not logged in, the user
-   logs in on the bot's desktop (MANUAL). If it refuses to automate the site, fall back to the rules
-   below.
+1. **Use the probe bot `AI答案探测`.** It was created for this on 2026-11-17. If it is missing, create it
+   with `gbot bots create --name AI答案探测`. Project bots stay on their own work.
+2. **Account and chat mode.** All bots share one browser cookie store, so whatever account is logged in
+   to chatgpt.com is shared by every bot. The user chose to probe with that account. Use temporary
+   chats only, change no settings (memory included) and never log out: logging out would log out
+   every bot. If temporary chat is unavailable, stop and report; do not fall back to normal chats. If
+   no account is logged in, the user logs in on the bot's desktop (MANUAL). The model label may not
+   show in a temporary chat: ask the bot to read it from the model switcher, or to record
+   `not displayed`.
 3. **Send the whole sheet in one message** (`gbot send <bot> "$(cat …)"`, long sheets as a file the bot
    can read). Include: one new temporary chat per conversation; send the opening and then each
    follow-up, word for word; copy every answer **verbatim and in full**, with the model label, mode,
@@ -30,6 +33,12 @@ Claude does not spend a call per step, only a few calls to hand the run over and
    turns, characters. Never print the answers into the thread. Rerun any conversation that is
    missing, short, or looks paraphrased (no sources, no model label). Record
    `platform: ChatGPT via Grok Bot` in the run rows.
+
+Trial on 2026-11-17 (one SFXMint conversation, 3 turns): the bot returned 7.3k characters in the
+requested format. The links kept ChatGPT's `utm_source=chatgpt.com`, so they were copied rather than
+retyped. Two gaps: the model label did not show, and the links behind image or media cards were not
+exposed. Claude spent a handful of calls on sending, one background wait and filing. The run took
+about 10 minutes.
 
 ## Without gbot
 
