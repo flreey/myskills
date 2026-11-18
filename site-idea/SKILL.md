@@ -12,7 +12,7 @@ on their own, so this skill finds out what people are trying to do and whether s
 before anyone writes a template.
 
 Engine (Python stdlib): `python3 <skill-dir>/scripts/geo_idea.py --root <project> [--geo-dir geo] <command>`
-with `init`, `needs`, `bank`, `space`, `sample`, `probes`, `report`, `decide`, `extend`, `check`. State is
+with `init`, `needs`, `bank`, `space`, `sample`, `probes`, `report`, `queries`, `decide`, `extend`, `check`. State is
 `<project>/geo/` (or `--geo-dir` when one repository holds several GEO projects); its contract, shared
 with the later geo stages, is [references/state.md](references/state.md).
 
@@ -63,6 +63,30 @@ with the later geo stages, is [references/state.md](references/state.md).
    validated (needs before dimensions).
 7. **Writes stay in the geo folder.** This skill touches no site, registry or other project file.
 
+## Two shapes of page space
+
+Assistants behave differently by conversation type, so a space takes one of two shapes (`space` prints
+it):
+
+- **Capability × condition** (`kind: capability` on a generating dimension): what the product lets
+  people get or do (an operation, a file type, a feature, a service) × the conditions that change who
+  qualifies (free tier, no upload, no install, on a phone, a size or length, a licence, an
+  integration). This serves **choosing** conversations: the user wants something picked, the assistant
+  searches with "capability + conditions", then checks the candidates' own pages for those conditions
+  and picks the one that states them plainly. It is the default for a live product whose AI referrals
+  come from people looking for a tool, file or service. Values need proof (`assets`: a test output, the
+  file, a measured result); a condition every value meets (free, no upload) is a fact on every page,
+  not a dimension; only conditions that change the shortlist and that people search become dimensions.
+  How many pages it holds depends on how wide the capability dimension is (hundreds of format pairs or
+  sound kinds; tens of video operations).
+- **Situation** (no capability dimension): the user's circumstances (where the file came from, what it
+  is for). This serves **how-to** conversations, which assistants mostly answer from memory without
+  searching; pages here pay only when the answer needs data only we have (our own tests, files,
+  measurements).
+
+Demand still comes first (rule 1): the demand map decides which capabilities and conditions matter;
+the shape decides how the pages are cut. A site can hold both, one GEO folder each.
+
 ## Workflow
 
 0. **Start and map demand.** Read `geo-goal.md` (rule 0). `init --name <Name> --idea "<who, situation, task in one sentence>"`
@@ -77,8 +101,10 @@ with the later geo stages, is [references/state.md](references/state.md).
    each ([references/question-bank.md](references/question-bank.md), prompt included); run `bank` and
    fix what it flags. In a crowded market, add questions reverse-engineered from competitors
    ([references/competitor-probes.md](references/competitor-probes.md)).
-2. **Task space.** Write `geo/dimensions.json` (shape in references/state.md) from the needs: entity,
-   task and constraint dimensions whose values change the answer, each value with a source, excludes
+2. **Task space.** Pick the shape first (above): on a live product whose AI landings are people
+   looking for a tool, file or service, start with capability × condition. Write `geo/dimensions.json`
+   (shape in references/state.md) from the needs: capability, entity, task and constraint dimensions
+   whose values change the answer, each value with a source, excludes
    for combinations that make no sense or that the product will not serve. Run `space`; fix every
    ERROR, read every WARN. Show the generating dimensions, the described-only ones and the count in a
    short table, and adjust with the owner before sampling: a wrong dimension multiplies into every
@@ -92,8 +118,8 @@ with the later geo stages, is [references/state.md](references/state.md).
    `sample --from-questions --n 40` (bank questions spread over needs and angles, real wording first;
    `--weight`, `--origin`, `--ids`, `--append` in [references/question-bank.md](references/question-bank.md)),
    or `sample --pool <file> --n 40` (existing pages as candidates, spread over strata such as traffic
-   tiers). Combinations come marked with an `angle`: about a third `recommend` (the opening asks for a
-   tool, site or app), the rest `problem`. Fill `persona`, `opening`, `follow_ups` and `signals` where empty, following
+   tiers). Combinations come marked with an `angle`: `recommend` (the opening asks for a tool, site or
+   app) or `problem`; about two thirds `recommend` in a capability space, a third otherwise. Fill `persona`, `opening`, `follow_ups` and `signals` where empty, following
    [references/conversations.md](references/conversations.md). Then `probes` renders the sheet.
 4. **Probe.** Per rule 3: give the user `geo/gap/probes.md` (one new chat per conversation, each
    target platform, paste the whole answer into the named file), or run it the way they approved.
@@ -106,9 +132,13 @@ with the later geo stages, is [references/state.md](references/state.md).
    Then `check`, then `report`; on its first run `report` also writes the skeleton of
    `gap/channels.md` (`channels` writes it on demand, e.g. for `--without-probes`).
 6. **Other channels.** Probes cover assistant chat. For the same needs, collect what is cheap and
-   real: search engines (whether our pages and the winners' pages are indexed and rank under the
-   assistants' captured queries and the needs' natural wording, from Bing/Google results or Search
-   Console); agents, API and MCP (first-party search logs, zero-result queries, tool directory and
+   real: search engines — run `queries`: it splits the captured queries into **find searches**
+   (generic: the assistant looks for candidates), grouped into clusters, and **named checks** (a site
+   or product it already has in mind: its shortlist). Fill `rank` per find cluster (Bing first, as
+   ChatGPT search leans on it; Google SERP or Search Console when Bing is not available, said so):
+   whether our pages rank there decides whether they can be picked. When most queries are named checks
+   and we are not on the shortlist, the assistant answers from memory: that cell's lever is off-site
+   (lists, communities, reviews), not pages; agents, API and MCP (first-party search logs, zero-result queries, tool directory and
    registry presence). Write what was looked at and what was not; "not measured" is a valid cell.
 7. **Decide.** Complete `gap/channels.md`: drop the columns the goal card keeps out of scope, fill each
    cell with evidence or `not measured`, in two parts: `picked:` (whether the assistant finds and
@@ -145,6 +175,9 @@ space (above): sample and probe it (20–30 combinations are enough for one dime
 - `hint` is `go` when the high share reaches the threshold (default 0.33, `report --threshold`),
   `narrow` when only some values with two or more probed combinations reach it, `stop` otherwise.
   It is a starting point for the conversation, not the verdict.
+- Probes can undercount: SFXMint was in 0 of 71 probe answers while ChatGPT sent it about 31,000
+  visits in 28 days, most landing on single-sound and family pages. Before reading low presence as
+  absence, compare with AI-referred landings by page; they are the stronger picked evidence.
 - Read the notes first. A high gap with the site absent from most answers, and answers resting on
   lists, forums or no search, means pages alone will not change who is recommended: plan site-offsite
   (GEO mode) with the pages, or instead of them.
@@ -180,4 +213,9 @@ Revised again on 2026-11-18 after the ToHD round: all 70 combination openings de
 none asked for a tool, so ChatGPT answered from memory and the site was in 0 of 70 answers, while 15
 tool-seeking openings named it 7 times; `go` was still recorded with no remark. Combination samples now
 carry an angle (a third `recommend`), `check` warns when none asks for a tool, and `decide go|narrow`
-under 25% presence needs the owner's reason.
+under 25% presence needs the owner's reason. The same day the two space shapes were written down:
+ToHD's 129 captured queries were 6 find searches and 123 checks of named products (Topaz 20), and its
+ChatGPT landings went to the home page, while SFXMint's main line (`geo-find`: sound × variant, with
+format and licence written on every page) already had that shape and its landings went to matching
+single-sound pages. `kind: capability`, the space shape and `queries` were added for that; the
+capability default (two thirds tool-seeking openings) is a starting value.

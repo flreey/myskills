@@ -36,6 +36,7 @@ Where to enter:
 | Only an idea, no site | 0, then `site-idea` with off-site evidence only |
 | Live site, wants a new space of pages | 0 (current state matters), then `site-idea init --live` |
 | Live site, assistants recommend others for tasks it already has pages for | 0, then `site-geo` optimize O1–O5 (baseline, source diagnosis); its levers feed step 3 |
+| Live site whose AI-referred landings sit mostly on the home page or a few core pages | 0, then `site-geo` optimize on those pages first (the conditions assistants check: price and free tier, limits, upload, signup, watermark, devices, written on the page), alongside any new space |
 | A wave or change is past its window | 4 |
 
 ## Rules for every step
@@ -83,6 +84,11 @@ step of each folder, one line each, then the next step for the one the owner is 
 space is a new folder (`init --geo-dir <dir> --needs-from <first folder>`), never new dimensions in an
 existing one.
 
+Before the stage rows, read the goal card's AI-landing line (step 0 writes it): when most AI-referred
+landings go to the home page or a few core pages and those pages lose the tool-seeking probes, name
+site-geo optimize for them as a step-3 item next to whatever the stage rows say; that is where most of
+the traffic is.
+
 Check the rows in order; the first that matches decides:
 
 | Evidence | Means |
@@ -125,6 +131,11 @@ site-offsite; what the built pages say → the site build; traffic → site-meas
 data: it reports.
 
 ## Premises
+
+Revised 2026-11-18 (later) after the ToHD round: the stage rows sent a live site to a new situation
+space while about 92% of its ChatGPT landings went to the home page and its existing pages were not
+found for tool-seeking questions. The AI-landing line, the capability sheet in the goal card and the
+optimize-first row were added; site-idea gained the capability × condition space shape and `queries`.
 
 Rewritten 2026-11-18 after the SFXMint long-tail round drifted: each step handed on the previous
 step's conclusion instead of the goal, one channel's probes (ChatGPT chat) narrowed the whole space,

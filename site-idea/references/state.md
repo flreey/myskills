@@ -32,6 +32,7 @@ under that folder.
 | `gap/raw/*.md` | site-idea (user pastes) | implemented | full AI answers, one file per run |
 | `gap/runs.jsonl` | site-idea | implemented | one row per AI run with the gap judgement |
 | `gap/probes.md`, `gap/report.json`, `gap/report.md` | site-idea (generated) | implemented | probe sheet and gap report |
+| `gap/queries.jsonl`, `gap/queries.md` | site-idea `queries` (generated; `rank` filled by hand and kept) | implemented | the assistants' captured search queries: find clusters with our rank, and named checks (its shortlist) |
 | `gap/channels.md` | site-idea (written with the owner) | convention | need × channel table: evidence or "not measured", who wins, whether we appear, what only we have, lever (pages, off-site, product and docs, not now) |
 | `<root>/geo-goal.md` (project root, one per site, shared by every GEO folder) | site (written with the owner) | convention | goal card: goal, north star, needs and audiences served, channels, levers, not doing, current state, constraints |
 | `facts.jsonl` | site-batch | implemented | product facts with source and checked date |
@@ -129,7 +130,10 @@ probed this round; `probes` uses it, else `platforms`, and turns each name into 
 }
 ```
 
-- `kind`: `entity` (object, format, product, place), `task` (what is done), `constraint` (condition).
+- `kind`: `capability` (what the product lets people get or do: an operation, a file type, a feature;
+  makes the space a capability × condition space, see site-idea "Two shapes of page space"), `entity`
+  (object, format, product, place), `task` (what is done), `constraint` (condition). `space` records
+  the shape in `project.json.space.shape`.
 - `changes_answer: true` makes the dimension generate pages and requires `why`. A dimension that does
   not change the answer is kept for wording only (`described_only` in `space`).
 - Value ids are slugs without `__` (the combination id joins them with `__` in dimension order);
@@ -166,6 +170,22 @@ without it make `check` warn.
 Samples from the question bank also carry `question_id`, `need_id`, `angle`, `conditions` and
 `evidence_level`, and use the question id as `combo_id`; samples from a pool carry `url` and `stratum`.
 The report groups results by each of these when present.
+
+## gap/queries.jsonl
+
+Written by `queries` from every run's `search_queries` (main and `runs-*.jsonl` sets). One row per find
+cluster (`kind: find`, generic searches grouped by shared words) and per named candidate (`kind: named`,
+or `own` for the project's name: the assistant checking us). Rows carry `n`, `conversations`,
+`examples`, `combos`, `angles` and `own_in_answer`. Find rows take a hand-filled `rank`, kept across
+reruns by `key`:
+
+```json
+{"id": "f2", "kind": "find", "key": "4k free no upscaler video watermark", "n": 2,
+ "rank": {"engine": "bing", "date": "2026-11-19", "ours": null, "url": null,
+          "winners": ["4kvideoupscaler.com", "upscaler.video"], "source": "bing.com, logged out, US"}}
+```
+
+`ours` is our best position, or null when we are not in the results looked at.
 
 ## gap/runs.jsonl
 

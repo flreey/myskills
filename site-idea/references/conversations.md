@@ -28,7 +28,7 @@ Rules:
   arrive in a follow-up rather than the opening; that is how people talk.
 - Do not name the idea, the product or any brand. The probe measures what the assistant does on its own.
 - Openings follow the sample's `angle`. `sample` marks about a third of the combinations
-  `recommend` (`--tool-share`): their opening asks for a tool, site or app under the combination's
+  `recommend` (two thirds in a capability space; `--tool-share`): their opening asks for a tool, site or app under the combination's
   conditions ("is there a free site that can fix a blurry WhatsApp video on my phone?"). The rest are
   `problem`: they start from the situation ("the yearbook site rejects my photos") and never ask for a
   tool. Both are needed: problem openings show whether the answer is good, recommend openings show

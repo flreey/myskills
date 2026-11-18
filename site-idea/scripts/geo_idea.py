@@ -20,6 +20,7 @@ Commands
   decide   --verdict go|narrow|stop --by user [--subspace JSON] [--note TEXT] [--without-probes]
   extend   --dimension D --values a,b --by user   open more values of a validated dimension (long tail)
   check                                     validate every geo/ file this skill owns
+  queries                                   group the assistants' search queries -> geo/gap/queries.jsonl / .md
 
 State lives in <project>/geo/ (contract: references/state.md); --geo-dir names another folder when one
 repository holds several GEO projects. This script never contacts an AI service or the web; the model
@@ -38,7 +39,7 @@ import re
 import sys
 
 SCHEMA = 1
-KINDS = {"entity", "task", "constraint"}
+KINDS = {"capability", "entity", "task", "constraint"}
 GAPS = {
     "generic": "high", "outdated": "high", "unmet_constraint": "high", "no_resource": "high",
     "weak_sources": "medium", "self_made": "medium", "good": "low",
@@ -55,6 +56,13 @@ PRESENCE_LINE = 0.25
 # Combination samples: share whose opening asks for a tool, site or app (angle `recommend`); the rest
 # start from the problem. With none, the probes measure the answer, never whether a tool gets picked.
 TOOL_SHARE = 0.33
+# A capability space (what the product can do x the conditions that change who qualifies) serves
+# choosing conversations, so most of its openings ask for a tool, file, app or service.
+TOOL_SHARE_CAPABILITY = 0.67
+# Words that do not separate one search from another when grouping the assistants' queries.
+QUERY_STOP = {"a", "an", "the", "for", "to", "of", "in", "on", "and", "or", "with", "how", "my", "is", "can",
+              "i", "you", "best", "top", "vs", "what", "which", "do", "does", "it", "that", "your", "online"}
+
 VALUE_ID = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 # What a follow-up asks decides where a page answers it (site-batch references/question-mapping.md).
 TURN_KINDS = {"constraint", "howto", "why", "compare", "resource", "other"}
@@ -140,6 +148,8 @@ class State:
         self.report_json = self.dir / "gap" / "report.json"
         self.report_md = self.dir / "gap" / "report.md"
         self.channels = self.dir / "gap" / "channels.md"
+        self.queries = self.dir / "gap" / "queries.jsonl"
+        self.queries_md = self.dir / "gap" / "queries.md"
         self.goal = self.root / GOAL_FILE
         # A second need space on the same site shares the first one's demand map (init --needs-from).
         nf = read_json(self.project, {}).get("needs_from") if self.project.exists() else None
@@ -536,6 +546,12 @@ def cmd_bank(st, a):
 
 # ---------- task space ----------
 
+def space_shape(dims):
+    """`capability` when a generating dimension is what the product can do (choosing conversations),
+    else `situation` (the user's circumstances; how-to conversations)."""
+    return "capability" if any(d.get("kind") == "capability" for d in generating(dims)) else "situation"
+
+
 def generating(dims):
     return [d for d in dims["dimensions"] if d.get("changes_answer")]
 
@@ -587,6 +603,9 @@ def validate_dimensions(dims):
                             "combinations have it today (number or text), and where that count comes from")
         if not d.get("source"):
             warns.append(f"{did}: no 'source' for its values (where the list comes from)")
+        if d.get("kind") == "capability" and d.get("changes_answer") and d.get("assets") is None:
+            warns.append(f"{did}: a capability dimension states no assets: name the proof each value has "
+                         "(a test output, the file, a measured result) so pages claim only what the product does")
     for r in dims.get("exclude", []):
         keys = r.get("same") or list(r.get("when", {}).keys())
         for k in keys:
@@ -598,7 +617,7 @@ def validate_dimensions(dims):
     if not gen:
         errs.append("no dimension has changes_answer=true: there is no page space")
     kinds = {d.get("kind") for d in gen}
-    if gen and "entity" not in kinds and "task" not in kinds:
+    if gen and not kinds & {"entity", "task", "capability"}:
         warns.append("only constraint dimensions generate pages: check that an entity or task dimension is missing")
     return errs, warns
 
@@ -657,7 +676,7 @@ def cmd_space(st, a):
         out.update({
             "generating": [{"id": d["id"], "kind": d["kind"], "values": len(d["values"])} for d in gen],
             "described_only": [d["id"] for d in dims["dimensions"] if not d.get("changes_answer")],
-            "product": product, "after_excludes": n, "exact": exact,
+            "product": product, "after_excludes": n, "exact": exact, "shape": space_shape(dims),
         })
         size = n if n is not None else product
         if size > SPACE_WARN:
@@ -670,7 +689,7 @@ def cmd_space(st, a):
         needs = read_jsonl(st.needs) if st.needs.exists() else []
         validated = [x for x in needs if x.get("evidence_level") == "validated"]
         proj = read_json(st.project)
-        proj["space"] = {"date": date.today().isoformat(), "combinations": size,
+        proj["space"] = {"date": date.today().isoformat(), "combinations": size, "shape": out["shape"],
                          "generating": [d["id"] for d in gen], "assets": assets,
                          "fingerprint": dims_fingerprint(dims)}
         if validated:
@@ -687,6 +706,7 @@ def cmd_space(st, a):
         for w in warns:
             print(f"WARN   {w}")
         if not errs:
+            print(f"shape: {out['shape']}")
             print("generating: " + ", ".join(f"{g['id']}({g['values']})" for g in out["generating"]))
             if out["described_only"]:
                 print("described on the page only: " + ", ".join(out["described_only"]))
@@ -899,6 +919,8 @@ def cmd_sample(st, a):
             use[k][v] += 1
         rows.append({"combo_id": cid, "combo": combo, "persona": "", "opening": "",
                      "opening_scope": None, "follow_ups": [], "signals": []})
+    if a.tool_share is None:
+        a.tool_share = TOOL_SHARE_CAPABILITY if space_shape(dims) == "capability" else TOOL_SHARE
     if not 0 <= a.tool_share <= 1:
         die("--tool-share is a share between 0 and 1")
     k = round(len(rows) * a.tool_share)
@@ -1037,6 +1059,9 @@ def build_report(samples, runs, threshold):
             notes.append(f"own site in {presence['in_answer_share']:.0%} of answers: a gap is an opening for "
                          "the content, not proof the assistant will find the pages; check the captured "
                          "search queries against where the site ranks")
+        if presence["in_answer_share"] < 0.25:
+            notes.append("probes can undercount picks (one account, fresh chats, a few runs each): before "
+                         "reading this as absence, compare with AI-referred landings by page")
     else:
         notes.append("own presence not recorded (runs have no 'own'): the report shows answer gaps only, "
                      "not whether the assistant would pick this site")
@@ -1341,8 +1366,9 @@ def presence_gate(a, rep, pres):
     if "recommend" not in by_angle:
         msg += "; no probed sample asked for a tool, site or app (angle recommend), so picking was not tested"
     if not (a.note or "").strip():
-        die(msg + ". Record the owner's reason with --note (e.g. a first small wave as a test, with the "
-            "off-site or existing-page levers alongside), or decide narrow / stop")
+        die(msg + ". Record the owner's reason with --note (e.g. AI-referred landings on matching pages, "
+            "which probes undercount; or a first small wave as a test, with the off-site or existing-page "
+            "levers alongside), or decide narrow / stop")
     print(f"WARN   {msg}", file=sys.stderr)
 
 
@@ -1478,6 +1504,138 @@ def cmd_extend(st, a):
 
 # ---------- check ----------
 
+def query_tokens(q):
+    t = re.findall(r"[a-z0-9][a-z0-9.+'-]*", q.lower())
+    return frozenset(w for w in t if w not in QUERY_STOP and not re.fullmatch(r"20\d\d", w))
+
+
+DOMAIN_RE = re.compile(r"(?:site:)?((?:[a-z0-9-]+\.)+(?:com|ai|app|io|net|org|video|co|online|tools|dev|me))\b", re.I)
+NAME_RE = re.compile(r"^(?:[A-Z][a-z0-9]+[A-Z][A-Za-z0-9]*|[A-Z][a-z]{2,}[A-Za-z0-9]*|[A-Z]{1,2}[a-z][A-Za-z0-9]*)$")
+NOT_NAMES = {"Free", "Best", "How", "Online", "Official", "What", "Which", "Top", "Why", "Can", "Is", "Super", "Mac",
+             "Windows", "Android", "iPhone"}
+
+
+def named_entity(q):
+    """The site or product a query checks: a domain, else its first proper name (CapCut, HandBrake)."""
+    m = DOMAIN_RE.search(q)
+    if m:
+        return m.group(1).lower().removeprefix("www.")
+    for w in re.findall(r"[A-Za-z0-9][A-Za-z0-9.+-]*", q):
+        if NAME_RE.match(w) and w not in NOT_NAMES:
+            return w
+    return None
+
+
+def cluster_queries(queries):
+    """Greedy grouping, most frequent first: a query joins the first group whose seed shares at least
+    60% of the shorter query's words (overlap coefficient)."""
+    freq = Counter(queries)
+    groups = []
+    for q, _ in sorted(freq.items(), key=lambda kv: (-kv[1], kv[0])):
+        tok = query_tokens(q)
+        if not tok:
+            continue
+        for g in groups:
+            if len(tok & g["seed"]) / min(len(tok), len(g["seed"])) >= 0.6:
+                g["queries"].append(q)
+                break
+        else:
+            groups.append({"seed": tok, "label": q, "queries": [q]})
+    return groups
+
+
+def cmd_queries(st, a):
+    """Find searches (generic: the assistant looks for candidates) are grouped into clusters whose rank
+    decides whether our pages can be picked; named checks (a site or product it already has in mind)
+    show its shortlist."""
+    proj = read_json(st.project)
+    by_sample = {s["combo_id"]: s for s in read_jsonl(st.samples)}
+    brands = [b.lower() for b in brand_terms(proj, read_jsonl(st.competitors)) if b]
+    items = []
+    for path in [st.runs] + list(st.extra_runs):
+        for r in read_jsonl(path):
+            for q in r.get("search_queries") or []:
+                if isinstance(q, str) and q.strip():
+                    items.append((q.strip(), r))
+    if not items:
+        die("no captured search queries in the runs (search_queries): capture them in the browser runs first")
+    kind_of = {}
+    for q, _ in items:
+        if any(re.search(rf"\b{re.escape(b)}\b", q.lower()) for b in brands):
+            kind_of[q] = ("own", proj.get("name", "own"))
+        elif named_entity(q):
+            kind_of[q] = ("named", named_entity(q))
+        else:
+            kind_of[q] = ("find", None)
+
+    def summary(qs):
+        runs = [r for q, r in items if q in qs]
+        own = [r for r in runs if r.get("own") in OWN_STATUS]
+        return {"n": len(runs), "conversations": len({r.get("combo_id") for r in runs}),
+                "examples": sorted(qs)[:5], "combos": sorted({r.get("combo_id") for r in runs}),
+                "angles": dict(Counter((by_sample.get(r.get("combo_id")) or {}).get("angle") for r in runs)),
+                "own_in_answer": round(sum(r["own"] in IN_ANSWER for r in own) / len(own), 2) if own else None}
+
+    old = {row.get("key"): row for row in read_jsonl(st.queries)} if st.queries.exists() else {}
+    rows = []
+    for i, g in enumerate(cluster_queries([q for q, _ in items if kind_of[q][0] == "find"]), 1):
+        key = " ".join(sorted(g["seed"]))
+        rows.append({"id": f"f{i}", "kind": "find", "key": key, "label": g["label"], **summary(set(g["queries"])),
+                     "rank": (old.get(key) or {}).get("rank")})
+    named, label = defaultdict(set), {}
+    for q, (k, ent) in kind_of.items():
+        if k in ("named", "own"):
+            # TensorPix and tensorpix.ai are one candidate: key on the name part, lower case.
+            key = (k, registrable(ent) if "." in ent else ent.lower())
+            named[key].add(q)
+            label.setdefault(key, ent)
+    for i, (key, qs) in enumerate(sorted(named.items(), key=lambda kv: (kv[0][0] != "own", -len(kv[1]), kv[0][1])), 1):
+        rows.append({"id": f"n{i}", "kind": key[0], "key": f"{key[0]}:{key[1]}", "label": label[key], **summary(qs)})
+    write_jsonl(st.queries, rows)
+    find = [r for r in rows if r["kind"] == "find"]
+    checks = [r for r in rows if r["kind"] != "find"]
+    convs = len({r.get("combo_id") for _, r in items})
+    L = [f"# Assistants' search queries: {proj.get('name', '')}", "",
+         f"{len(items)} captured queries from {convs} conversations: "
+         f"{sum(r['n'] for r in find)} find searches in {len(find)} clusters, "
+         f"{sum(r['n'] for r in checks)} checks of {len(checks)} named sites or products.", "",
+         "## Find searches (rank decides whether our pages can be picked)", "",
+         "Fill `rank` in queries.jsonl per cluster (engine, date, our position or null, our URL, the winners' "
+         "domains, source) and rerun: filled ranks are kept.", "",
+         "| Cluster | Runs | We are in the answer | Our rank | Example queries |", "| --- | --- | --- | --- | --- |"]
+    for r in find:
+        rk = r["rank"] or {}
+        rank = (f"{rk.get('engine')}: {rk.get('ours') if rk.get('ours') is not None else 'not in results'}"
+                if rk else "not measured")
+        share = f"{r['own_in_answer']:.0%}" if r["own_in_answer"] is not None else "not recorded"
+        L.append(f"| {r['id']} | {r['n']} | {share} | {rank} | " + "; ".join(f"`{q}`" for q in r["examples"][:3]) + " |")
+    L += ["", "## Named checks (the assistant's shortlist: who it already has in mind)", "",
+          "When we are not on this list, the assistant answers from memory and checks others: lists, "
+          "communities and reviews (site-offsite GEO mode) change the shortlist; pages alone do not.", "",
+          "| Checked | Kind | Runs | Conversations | Example queries |", "| --- | --- | --- | --- | --- |"]
+    for r in checks:
+        L.append(f"| {r['label']} | {r['kind']} | {r['n']} | {r['conversations']} | "
+                 + "; ".join(f"`{q}`" for q in r["examples"][:2]) + " |")
+    st.queries_md.write_text("\n".join(L) + "\n")
+    print(json.dumps({"find_clusters": len(find), "find_queries": sum(r["n"] for r in find),
+                      "named": len(checks), "named_queries": sum(r["n"] for r in checks),
+                      "own_checks": sum(r["n"] for r in checks if r["kind"] == "own"),
+                      "ranked": sum(1 for r in find if r["rank"]), "file": str(st.queries)}, ensure_ascii=False))
+
+
+def rank_errors(rk, where):
+    if rk is None:
+        return []
+    if not isinstance(rk, dict):
+        return [f"{where}: rank is an object {{engine, date, ours, url, winners, source}} or null"]
+    errs = [f"{where}: rank needs {k}" for k in ("engine", "date", "source") if not rk.get(k)]
+    if rk.get("ours") is not None and not (isinstance(rk["ours"], int) and rk["ours"] >= 1):
+        errs.append(f"{where}: rank.ours is our position (1 or more), or null when we are not in the results")
+    if not isinstance(rk.get("winners", []), list):
+        errs.append(f"{where}: rank.winners is a list of domains")
+    return errs
+
+
 def cmd_check(st, a):
     errs = []
     proj = read_json(st.project)
@@ -1552,6 +1710,9 @@ def cmd_check(st, a):
         raw = r.get("raw")
         if raw and not (st.root / raw).exists():
             errs.append(f"{where}: raw file {raw} does not exist")
+    for i, row in enumerate(read_jsonl(st.queries) if st.queries.exists() else [], 1):
+        if row.get("kind") == "find":
+            errs += rank_errors(row.get("rank"), f"queries:{row.get('id', i)}")
     warns = goal_warnings(st, proj)
     combo_rows = [s for s in samples if not s.get("question_id") and not s.get("url")]
     if combo_rows and not any(s.get("angle") == "recommend" for s in combo_rows):
@@ -1622,8 +1783,9 @@ def main(argv=None):
                    help="with --from-questions: share of seats per need (repeatable; unnamed needs weigh 1)")
     s.add_argument("--append", action="store_true", help="add to samples.jsonl, skipping questions already in it")
     s.add_argument("--pool", help="JSONL of candidate rows {combo, url?, stratum?}: sample them, spread over strata")
-    s.add_argument("--tool-share", type=float, default=TOOL_SHARE,
-                   help="combinations: share of samples whose opening asks for a tool, site or app (angle recommend)")
+    s.add_argument("--tool-share", type=float, default=None,
+                   help="combinations: share of samples whose opening asks for a tool, site or app (angle recommend); "
+                        f"default {TOOL_SHARE_CAPABILITY} for a capability space, {TOOL_SHARE} otherwise")
     sub.add_parser("probes")
     s = sub.add_parser("report")
     s.add_argument("--threshold", type=float, default=0.33)
@@ -1646,9 +1808,10 @@ def main(argv=None):
     s.add_argument("--by", required=True)
     s.add_argument("--note")
     sub.add_parser("check")
+    sub.add_parser("queries")
     a = p.parse_args(argv)
     st = State(a.root, a.geo_dir)
-    {"init": cmd_init, "needs": cmd_needs, "bank": cmd_bank, "space": cmd_space, "sample": cmd_sample,
+    {"init": cmd_init, "needs": cmd_needs, "bank": cmd_bank, "space": cmd_space, "sample": cmd_sample, "queries": cmd_queries,
      "probes": cmd_probes, "report": cmd_report, "channels": cmd_channels, "decide": cmd_decide, "extend": cmd_extend,
      "check": cmd_check}[a.cmd](st, a)
 

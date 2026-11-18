@@ -38,6 +38,12 @@ to the owner as its own question, never as a row in a table.
 <one measurable outcome, e.g. "sessions from AI referrals that end in a download, per week">
 Secondary: <presence and first-pick rate in retests; index and rank under the assistants' rewritten queries>
 
+## Capabilities (what the product does, under which conditions, with proof)
+| Capability | Conditions met (free tier, no upload, devices, limits, licence, …) | Proof (test, file, measurement, date) |
+Write it before any page space: assistants pick by "capability + conditions" and check them on our
+pages. A capability without proof is not claimed on a page. New products: write it before the site
+exists, and prefer capabilities whose conditions set the product apart.
+
 ## Who and what we serve
 | Audience | Needs (ids once the demand map exists) | Why |
 
@@ -56,6 +62,7 @@ Pages / off-site / product and docs / generating missing assets: <which, with li
 ## Current state (facts, each with source and date)
 - Pages: <count by type, what each serves>
 - Traffic by channel: <search, AI referral, agent/API>
+- AI-referred landings by page type: <home / core tool pages / long-tail pages / guides, with counts and window>
 - What assistants do today: <presence, who they pick; or "not probed">
 - Running experiments: <name, pages, window, read date> — do not overlap them
 - GEO folders: <folder, need space, stage, decision date>

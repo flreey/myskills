@@ -74,7 +74,11 @@ contract: [../site-idea/references/state.md](../site-idea/references/state.md). 
    the project's own approvals; the rows pass the gate only when every asset is `ready`.
 3. **Facts.** Write `geo/facts.jsonl` ([references/combos.md](references/combos.md)).
 4. **Templates.** One per task type, 2–5 in all, each `geo/templates/<id>.json`
-   ([references/templates.md](references/templates.md)); `required` follows the dominant gaps. Then
+   ([references/templates.md](references/templates.md)); `required` follows the dominant gaps. In a
+   capability space (`project.json.space.shape`), one template per capability family, and every page
+   opens with the capability and the conditions the assistant checks (free tier and when it is paid,
+   limits, upload or not, signup, watermark, devices), each from `facts.jsonl`, with the captured find
+   queries (`gap/queries.md`) as the wording for titles. Then
    `questions --template <id>` and map the questions
    ([references/question-mapping.md](references/question-mapping.md)): openings routed to item, group
    or hub by scope; follow-ups merged into 5–8 `question_slots`; `title_source` from item-level

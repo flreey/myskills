@@ -123,6 +123,61 @@ class GeoIdeaTest(unittest.TestCase):
         run(self.root, "report")
         self.assertEqual(run(self.root, "decide", "--verdict", "go", "--by", "user")[0], 0)  # picked: no reason needed
 
+    def test_capability_space_leans_on_tool_seeking_openings(self):
+        dims = json.loads(json.dumps(DIMS))
+        dims["dimensions"][0]["kind"] = "capability"
+        (self.root / "geo/dimensions.json").write_text(json.dumps(dims))
+        code, out = run(self.root, "space", "--format", "json")
+        self.assertEqual(json.loads(out)["shape"], "capability")
+        self.assertEqual(gi.read_json(self.root / "geo/project.json")["space"]["shape"], "capability")
+        code, out = run(self.root, "sample", "--n", "9")
+        self.assertEqual(json.loads(out)["angles"], {"problem": 3, "recommend": 6})
+        del dims["dimensions"][0]["assets"]
+        (self.root / "geo/dimensions.json").write_text(json.dumps(dims))
+        code, out = run(self.root, "space", "--format", "json")
+        self.assertTrue(any("capability dimension states no assets" in w for w in json.loads(out)["warnings"]))
+
+    def test_queries_split_find_searches_from_named_checks(self):
+        run(self.root, "sample", "--n", "4")
+        rows = gi.read_jsonl(self.root / "geo/gap/samples.jsonl")
+        base = {"platform": "ChatGPT", "date": "2026-11-18", "mode": "browser", "web_search": True, "gap": "generic"}
+        gi.write_jsonl(self.root / "geo/gap/runs.jsonl", [
+            {**base, "combo_id": rows[0]["combo_id"], "own": "first", "search_queries": [
+                "free online heic to jpg converter no upload 2026", "heic to jpg converter free no upload browser",
+                "Convert heic limits pricing"]},
+            {**base, "combo_id": rows[1]["combo_id"], "own": "absent", "search_queries": [
+                "CloudConvert heic jpg free limits", "site:cloudconvert.com heic to jpg", "iPhone Photos export JPG official"]},
+        ])
+        gi.write_jsonl(self.root / "geo/gap/runs-website.jsonl", [
+            {**base, "combo_id": rows[2]["combo_id"], "own": "absent", "search_queries": ["batch pdf to png converter offline"]}])
+        code, out = run(self.root, "queries")
+        self.assertEqual(code, 0, out)
+        q = gi.read_jsonl(self.root / "geo/gap/queries.jsonl")
+        find = [r for r in q if r["kind"] == "find"]
+        self.assertEqual(len(find), 2)                       # the two heic searches are one cluster
+        heic = next(r for r in find if "heic" in r["key"])
+        self.assertEqual(heic["n"], 2)
+        self.assertEqual(heic["own_in_answer"], 1.0)
+        named = {r["label"]: r for r in q if r["kind"] != "find"}
+        self.assertEqual(named["Convert"]["kind"], "own")    # the project name: the assistant checking us
+        self.assertEqual(named["CloudConvert"]["n"], 2)      # CloudConvert and cloudconvert.com are one
+        self.assertIn("Photos", named)                       # iPhone is a platform word, not a candidate
+        self.assertIn("Named checks", (self.root / "geo/gap/queries.md").read_text())
+        rows_q = gi.read_jsonl(self.root / "geo/gap/queries.jsonl")
+        i = next(n for n, r in enumerate(rows_q) if r["key"] == heic["key"])
+        rows_q[i]["rank"] = {"engine": "bing", "date": "2026-11-19", "ours": 3, "url": "https://x/heic",
+                             "winners": ["cloudconvert.com"], "source": "bing.com manual"}
+        gi.write_jsonl(self.root / "geo/gap/queries.jsonl", rows_q)
+        run(self.root, "queries")
+        kept = next(r for r in gi.read_jsonl(self.root / "geo/gap/queries.jsonl") if r["key"] == heic["key"])
+        self.assertEqual(kept["rank"]["ours"], 3)            # filled ranks survive a rerun
+        rows_q[i]["rank"] = {"engine": "bing", "ours": 0}
+        gi.write_jsonl(self.root / "geo/gap/queries.jsonl", rows_q)
+        code, out = run(self.root, "check")
+        self.assertEqual(code, 1)
+        self.assertIn("rank needs date", out)
+        self.assertIn("rank.ours is our position", out)
+
     def test_sample_refuses_to_overwrite(self):
         run(self.root, "sample", "--n", "4")
         code, _ = run(self.root, "sample", "--n", "4")
