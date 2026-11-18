@@ -24,10 +24,45 @@ about 300k tokens that every later step paid for again.
   references/chatgpt-probes.md, thinking effort). Record the model and effort as shown for every run,
   or `not displayed`.
 
-## Preferred: hand the run to a Grok Bot (`gbot`)
+## Preferred: a page script in a logged-in browser tab
 
-If `gbot` is installed (`gbot bots list`), the probes run on the Grok Bot's own browser and model.
-Claude does not spend a call per step, only a few calls to hand the run over and file the results.
+Needs the user's logged-in ChatGPT in a browser where page JavaScript can run: the T3 built-in browser
+(`preview_evaluate` with `awaitPromise:false`) or any CDP tool. The whole run is one in-page loop, so
+Claude spends about a dozen short calls. Measured 2026-11-18: 24 conversations (65 turns) in about 30
+minutes. It also captures the search queries for every run.
+
+1. Navigate the tab to `https://chatgpt.com/?temporary-chat=true`. Keep the tab visible.
+2. Evaluate `window.__CONVS = [{id, turns: [opening, follow-up, ...]}, ...]`, then part A of
+   [scripts/chatgpt_probe_runner.js](../scripts/chatgpt_probe_runner.js). It returns at once and the loop
+   runs in the page.
+3. Poll the status with a short evaluate every few minutes from a background `sleep`. Never poll in a
+   model loop and never take screenshots.
+4. When `running` is false, evaluate part B once. It rebuilds every answer from the captured stream and
+   triggers one JSON download (T3: `preview_status` lists the download path).
+5. Convert it with a script, so answers never pass through the model:
+   `python3 site-idea/scripts/probe_run_to_raw.py <download>.json --out geo/gap/raw`. It writes
+   `<id>--chatgpt-instant--1.md` (header, STATUS line, `=== TURN n USER/ASSISTANT ===` blocks,
+   `=== SEARCH QUERIES ===`, `=== STREAM URLS ===`), never overwrites a file and prints one status line
+   per conversation. Rerun any conversation whose STATUS is not `ok`.
+6. Record `slice: chatgpt-instant` and `platform: ChatGPT` in the run rows; `report --where
+   slice=chatgpt-instant` then reads only those.
+
+Learned facts (also in the runner's header):
+
+- A new chat through the "/" link leaves temporary mode. Click `button[aria-label="Temporary chat"]` and
+  confirm `button[aria-label="Turn off temporary chat"]` before sending. Stop if it is not there.
+- There are two `.ProseMirror` editors and two send buttons: use only the visible ones.
+- The DOM answer markup is not stable (no `data-message-author-role`) and may not render while the panel
+  is hidden. The answer stream always has the text, so answers come from the stream.
+- A turn ends with one more `"type":"message_stream_complete"` in the stream and no visible stop button.
+- Local Chrome through browser-harness had ChatGPT logged out, and answers stalled in a background tab.
+  The tab must be visible and logged in.
+
+## Fallback: Grok Bot (`gbot`)
+
+Use it when no browser with page JavaScript is available and `gbot` is installed (`gbot bots list`).
+The probes run on the Grok Bot's own browser and model. It cannot run JavaScript, so it never captures
+search queries.
 
 1. **Use the probe bot `AI答案探测`.** It was created for this on 2026-11-17. If it is missing, create it
    with `gbot bots create --name AI答案探测`. Project bots stay on their own work.
@@ -39,17 +74,14 @@ Claude does not spend a call per step, only a few calls to hand the run over and
    chats. If no account is logged in, the user logs in on the bot's desktop (MANUAL). The model label
    may not show in a temporary chat: ask the bot to read it from the model switcher, or to record
    `not displayed`.
-3. **Send the whole sheet in one message** (`gbot send <bot> "$(cat …)"`, long sheets as a file the bot
-   can read). Include: one new temporary chat per conversation; send the opening and then each
+3. **Send one conversation per message** (`gbot send <bot> "$(cat …)"`; see the rules below). Include: one new temporary chat per conversation; send the opening and then each
    follow-up, word for word; copy every answer **verbatim and in full**, with the model label, mode,
-   date and sources; no summaries. Ask for each conversation as its own message, headed with its
-   `conversation_id`, and a final `DONE <count>` line. Also put in the message: the model for each
-   conversation (see "Model and mode"), and rules 6–9 of the next section. In short: before each
-   conversation, confirm "Unpersonalized" and that the account is still logged in; count the turns
-   yourself; and capture the search queries with the section D script of site-geo
-   references/chatgpt-probes.md. If the bot cannot run that script, it reports
-   `search_queries: null`, and the report says those runs cannot separate "not searched for" from
-   "searched, not chosen".
+   date and sources; no summaries. Head the message with its
+   `conversation_id` and end the answer with a `DONE <turns>` line. Also put in the message: the model for each
+   conversation (see "Model and mode"), and rules 6–8 of "Without a page script or gbot". In short: before turn 1, confirm "Unpersonalized"
+   and that the account is still logged in; count the turns yourself. The bot cannot run the section D
+   script of site-geo references/chatgpt-probes.md, so write `search_queries: null`; the report then
+   cannot separate "not searched for" from "searched, not chosen" for those runs.
 4. **Wait without model calls.** Use one background shell loop that checks `gbot thread <bot> --json` for
    the `DONE` line, not repeated checks by the model.
 5. **File the results with a script.** Parse the thread JSON and write each conversation to
@@ -64,7 +96,22 @@ retyped. Two gaps: the model label did not show, and the links behind image or m
 exposed. Claude spent a handful of calls on sending, one background wait and filing. The run took
 about 10 minutes.
 
-## Without gbot
+What happened in practice (2026-11-18), and the rules that follow:
+
+- **One conversation per message.** A whole sheet in one message did not hold. Send the next
+  conversation from a script as soon as the last turn of the previous one is filed. Rotate to a fresh
+  bot after about 6 conversations.
+- **One bot at a time.** Bots share one browser, so parallel runs wipe each other's temporary chats.
+- **Bot `STATUS=error` is often a false alarm.** Check each turn's answer instead of the status.
+- **Confirm "Unpersonalized" only before turn 1.**
+- **No search queries.** Capture them separately with the preferred path above. Bot `searched=yes` is
+  unreliable (links appear without a search), so `web_search` comes only from captured queries and is
+  `null` otherwise.
+- **Circuit breaker.** Check that the site loads first. Two 403 "Unable to load site" in a row pause the
+  whole run: rotating bots does not help.
+- **Deleting a bot** may need the Grok Bot app.
+
+## Without a page script or gbot
 
 1. **Run probes in a fresh, separate agent.** Use a subagent or a new thread, not the working thread.
    Pass it only the probe sheet path, the output directory, the platform and mode, and these rules.
@@ -98,3 +145,9 @@ about 10 minutes.
    queries and opened URLs with the answer, and write `search_queries: null` when the capture is
    empty. The rewritten queries are what pages must match; a run without them cannot tell "not
    searched for" from "searched, not chosen".
+
+## Platforms
+
+Run a one-conversation feasibility check per platform before planning the run. Perplexity required a
+sign-up when logged out, so it is not free to add. Drop a platform that cannot be probed logged in, and
+say so in the report.

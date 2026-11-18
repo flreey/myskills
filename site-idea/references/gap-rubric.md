@@ -25,6 +25,7 @@ Rules:
   ("no answer on quality loss for batch HEIC → JPG").
 - Record `cited` (URL and type) and `recommended` (names) even when the label is `good`: those sources
   are the off-site targets later.
+- When the opening deliberately names no brand, do not mark an answer down for not naming a competitor.
 - Never raise a label because the product would answer better. The gap is in the answer, not in a
   comparison with the idea.
 - When unsure between two labels, pick the lower level and say why in `gap_note`.
@@ -44,7 +45,7 @@ are sent to, and why not:
 | `cited[]` | every source URL with its type: `brand` (the site), `competitor`, `list`, `forum`, `video`, `docs`, `news`, `other` |
 | `web_search` | `true` when the assistant searched; `false` answers come from the model alone |
 | `search_queries` | the queries it ran (site-geo references/chatgpt-probes.md, section D), or `null` when not captured; never `[]` for "not captured" |
-| `outcome` | competitor probes only: `competitor_page`, `constraint_unmet`, `lists_forums`, `no_search`, `own_recommended`, `other` ([competitor-probes.md](competitor-probes.md)) |
+| `outcome` | competitor probes only: `competitor_page`, `constraint_unmet`, `lists_forums`, `no_search`, `own_recommended`, `generic_rules`, `other` ([competitor-probes.md](competitor-probes.md)) |
 
 `report` turns these into the presence section: share of answers with the site, first
 recommendations, the source mix behind answers without it and a lever hint.

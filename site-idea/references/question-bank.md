@@ -38,6 +38,8 @@ For each need in the map, write 8–12 questions a person in that situation migh
 Work on 3–5 needs per batch.
 - Cover at least 4 angles per need: recommend, compare, problem, howto, purchase, alternative,
   constraint, integrate.
+- A follow-up `kind` is one of constraint, howto, why, compare, resource, other. Do not put angle
+  names there.
 - Personas must really differ in wording: a beginner does not say "one-shot" or "LUFS"; a sound
   designer does. Do not reword the same question.
 - Most openings describe the situation, not "what is the best …". At most a third use best, free or AI.

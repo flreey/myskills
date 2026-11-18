@@ -27,7 +27,8 @@ questions where the recommendation is decided, and why the winner wins.
    `kind`: `library`, `video`, `game`, `generator`, `list` (rankings and aggregators), `marketplace`,
    `tool`, `other`. Add `aliases` for other spellings of its name; a competitor that is also a
    platform people name in their conditions (itch.io) goes into the project's `allowed_names`.
-2. **Reverse-engineer candidate questions**, 5–10 per competitor, from two places: its own landing
+2. **Reverse-engineer candidate questions**, 5–10 per competitor (3–5 is usually enough when several
+   competitors share the same licensing situations), from two places: its own landing
    and use-case pages (which situations it targets), and an assistant asked who it suits and when.
    Write them into `geo/questions.jsonl` with `origin: "competitor"`, `competitor: "<id>"`, and no brand
    in the question text. Mark what came from the assistant's self-description as `hypothesis`.
@@ -47,6 +48,7 @@ questions where the recommendation is decided, and why the winner wins.
 | `lists_forums` | the answer rests on rankings, articles or forum threads | off-site: enter those sources (site-offsite GEO mode) |
 | `no_search` | no web search; the answer comes from the model's memory | long-term consensus; no page credit in the short term |
 | `own_recommended` | the site is recommended already | keep it; check whether a follow-up drops it |
+| `generic_rules` | no source is recommended; the answer explains licensing in general and asks back which service the user uses (the most common case) | the question names no service, so it cannot be won with a page alone: add the situation as a condition, or work the off-site sources |
 | `other` | none of these | say what happened in `gap_note` |
 
 6. **Report.** `geo_idea.py report` counts outcomes, presence, the source mix behind answers without
