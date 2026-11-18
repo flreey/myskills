@@ -10,7 +10,7 @@ description: 站外建设（SEO 和 GEO 两种模式）：SEO 模式做新站外
 
 ## 基本立场
 
-- **先定目标再选渠道。** 不同目标适合的渠道差别很大，见 [渠道分层](references/channels.md)。
+- **先定目标再选渠道。** 不同目标适合的渠道差别很大，见 [渠道分层](references/channel-tiers.md)。
 - **按回报分配精力。** 投一个目录或发布平台通常要 5–15 分钟；一条博客评论几乎没有价值。不要因为“能发出去”就去投。
 - **为读者推荐。** 不为操纵排名批量制造链接，参见 [Google 链接垃圾政策](https://developers.google.com/search/docs/essentials/spam-policies#link-spam)。
 - **只算核验过的链接。** 没有独立看到公开链接的，不计入数量。
@@ -174,7 +174,8 @@ AI 回答“推荐 / 有哪些 / 值不值得”这类问题时，主要依据�
 
 1. **拿到 AI 实际引用的来源**：
    `python3 <skill-dir>/scripts/cited_sources.py --root <项目> --own <自己的域名>`
-   - 读 `geo/gap/runs.jsonl`（site-idea 的缺口检查）和 `geo/optimize/runs.jsonl`（site-geo 的持续优化），按域名汇总被引用次数、覆盖的任务数、来源类型、平台，以及同一回答里自己有没有被引用。
+   - 先读项目根目录的目标卡 `geo-goal.md` 和各 GEO 目录的 `gap/channels.md`：只做 Lever 含 `offsite` 的那些需求；目标卡把某个渠道列为不做时，不为它找来源。
+   - 读各 GEO 目录的 `gap/runs*.jsonl`（site-idea 的缺口检查，含额外的运行集）和 `optimize/runs.jsonl`（site-geo 的持续优化），按域名汇总被引用次数、覆盖的任务数、来源类型、平台，以及同一回答里自己有没有被引用。一个站有多个 GEO 目录时，`cited_sources.py` 用 `--geo-dir`（可重复）逐个传入。
    - 产品缺席、覆盖任务多的排前面：这是 AI 已经在看、但还没有我们的地方。
    - 记录太少（少于 20 次回答）时说明“样本薄”，用 site-idea 或 site-geo 补跑问答，不凭印象列来源。
 2. **按来源类型决定动作**（都按 SEO 模式的快筛和授权规则执行）：

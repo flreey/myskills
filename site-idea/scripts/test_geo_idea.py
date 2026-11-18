@@ -16,6 +16,7 @@ spec.loader.exec_module(gi)
 DIMS = {
     "dimensions": [
         {"id": "source", "kind": "entity", "changes_answer": True, "why": "method differs", "source": "list",
+         "assets": {"needs": "a converter run per pair", "have": 3, "source": "converter list"},
          "values": [{"id": "heic"}, {"id": "png"}, {"id": "pdf"}]},
         {"id": "target", "kind": "entity", "changes_answer": True, "why": "loss differs", "source": "list",
          "values": [{"id": "jpg"}, {"id": "png"}, {"id": "pdf"}]},
@@ -38,6 +39,16 @@ def run(root, *args):
         except SystemExit as e:
             code = e.code or 0
     return code, out.getvalue()
+
+
+def ready_to_decide(root, levers=None, geo="geo"):
+    """Meet the decision gates: task space checked, need x channel table with a lever per need."""
+    run(root, "--geo-dir", geo, "space")
+    rows = "".join(f"| {nid}: x | not probed | not measured | not measured | {lv} | |\n" for nid, lv in (levers or {}).items())
+    (root / geo / "gap").mkdir(parents=True, exist_ok=True)
+    (root / geo / "gap/channels.md").write_text(
+        "| Need | Assistant chat | Search engines | Agents / API / MCP | Lever | Owner's note |\n"
+        "| --- | --- | --- | --- | --- | --- |\n" + rows)
 
 
 class GeoIdeaTest(unittest.TestCase):
@@ -117,6 +128,7 @@ class GeoIdeaTest(unittest.TestCase):
         gi.write_jsonl(self.root / "geo/gap/runs.jsonl", [
             {"combo_id": cid, "platform": "ChatGPT", "date": "2026-11-17", "mode": "manual", "gap": "generic"}])
         run(self.root, "report")
+        ready_to_decide(self.root)
         code, _ = run(self.root, "decide", "--verdict", "go", "--by", "model")
         self.assertEqual(code, 2)
         code, _ = run(self.root, "decide", "--verdict", "narrow", "--by", "user", "--subspace", '{"source": ["gif"]}')
@@ -133,7 +145,8 @@ class GeoIdeaTest(unittest.TestCase):
         gi.write_jsonl(self.root / "geo/gap/runs.jsonl", [
             {"combo_id": cid, "platform": "ChatGPT", "date": "2026-11-17", "mode": "manual", "gap": "generic"}])
         run(self.root, "report")
-        run(self.root, "decide", "--verdict", "narrow", "--by", "user", "--subspace", '{"source": ["heic"]}')
+        ready_to_decide(self.root)
+        self.assertEqual(run(self.root, "decide", "--verdict", "narrow", "--by", "user", "--subspace", '{"source": ["heic"]}')[0], 0)
         code, _ = run(self.root, "extend", "--dimension", "source", "--values", "png", "--by", "model")
         self.assertEqual(code, 2)
         code, _ = run(self.root, "extend", "--dimension", "source", "--values", "gif", "--by", "user")
@@ -341,6 +354,12 @@ class DemandAndBankTest(unittest.TestCase):
         self.assertEqual(run(self.root, "report")[0], 0)
         code, out = run(self.root, "check")
         self.assertEqual(code, 0, out)  # no task-space dimensions on the bank route
+        ready_to_decide(self.root, {"n-safe": "pages+offsite", "n-fit": "not-now"})
+        code, out = run(self.root, "decide", "--verdict", "narrow", "--by", "user", "--subspace", '{"need": ["n-safe"]}')
+        self.assertNotEqual(code, 0)  # the bank route still needs a task space before pages (rule 6b)
+        # a task-space dimension called `need` would shadow need ids in --subspace: use another name
+        (self.root / "geo/dimensions.json").write_text(json.dumps(DIMS).replace('"need"', '"mode"'))
+        ready_to_decide(self.root, {"n-safe": "pages+offsite", "n-fit": "not-now"})
         code, out = run(self.root, "decide", "--verdict", "narrow", "--by", "user", "--subspace", '{"need": ["n-nope"]}')
         self.assertNotEqual(code, 0)
         code, out = run(self.root, "decide", "--verdict", "narrow", "--by", "user", "--subspace", '{"need": ["n-safe"]}')
@@ -418,9 +437,11 @@ class DemandAndBankTest(unittest.TestCase):
         gi.write_jsonl(self.root / "geo/needs.jsonl", NEEDS)
         code, _ = run(self.root, "decide", "--verdict", "go", "--by", "model", "--without-probes")
         self.assertEqual(code, 2)
+        ready_to_decide(self.root, {"n-safe": "pages", "n-fit": "product"})
         code, out = run(self.root, "decide", "--verdict", "go", "--by", "user", "--without-probes")
         self.assertEqual(code, 0)
         dec = json.loads((self.root / "geo/project.json").read_text())["decision"]
+        self.assertEqual(dec["levers"], {"n-fit": ["product"], "n-safe": ["pages"]})
         self.assertEqual(dec["evidence"]["basis"], "first-party demand")
         self.assertEqual(dec["evidence"]["needs_validated"], 1)
 
@@ -553,6 +574,102 @@ class DemandAndBankTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("runs-captured:1", out)
         self.assertNotEqual(run(self.root, "report", "--where", "oops")[0], 0)
+
+class GatesTest(unittest.TestCase):
+    """The rules the 2026-11-18 validation found unenforced: per-channel decisions, task space first,
+    decisions kept, needs before dimensions, the goal card."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        run(self.root, "init", "--name", "Mint", "--idea", "sounds", "--live", "--origin", "https://example.com")
+        gi.write_jsonl(self.root / "geo/needs.jsonl", NEEDS)
+        run(self.root, "needs")
+        gi.write_jsonl(self.root / "geo/questions.jsonl", BANK)
+        run(self.root, "sample", "--n", "4", "--from-questions")
+        base = {"platform": "ChatGPT", "date": "2026-11-18", "mode": "browser", "own": "absent"}
+        gi.write_jsonl(self.root / "geo/gap/runs.jsonl", [{**base, "combo_id": "q1", "gap": "generic"}])
+        run(self.root, "report")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_report_marks_one_channel_and_thin_samples_and_writes_the_table(self):
+        md = (self.root / "geo/gap/report.md").read_text()
+        self.assertIn("Assistant-chat hint (ChatGPT only", md)
+        self.assertIn("1 (thin)", md)
+        rep = gi.read_json(self.root / "geo/gap/report.json")
+        self.assertTrue(rep["notes"][0].startswith("thin sample"))
+        table = (self.root / "geo/gap/channels.md").read_text()
+        self.assertIn("| n-safe: ", table)
+        self.assertIn("1 runs (thin)", table)
+        self.assertIn("| ? |", table)
+        self.assertEqual(run(self.root, "channels")[0], 2)          # never overwritten by accident
+
+    def test_decide_needs_levers_task_space_and_pages(self):
+        code, out = run(self.root, "decide", "--verdict", "go", "--by", "user")
+        self.assertEqual(code, 2)                                     # levers still `?`
+        t = self.root / "geo/gap/channels.md"
+        t.write_text(t.read_text().replace("| ? |", "| offsite |"))
+        self.assertEqual(run(self.root, "decide", "--verdict", "go", "--by", "user")[0], 2)  # no task space
+        (self.root / "geo/dimensions.json").write_text(json.dumps(DIMS))
+        run(self.root, "space")
+        self.assertEqual(run(self.root, "decide", "--verdict", "go", "--by", "user")[0], 2)  # no need has pages
+        self.assertEqual(run(self.root, "decide", "--verdict", "stop", "--by", "user", "--note", "offsite only")[0], 0)
+        t.write_text(t.read_text().replace("| offsite |", "| pages+offsite |", 1))
+        dims = json.loads(json.dumps(DIMS))
+        dims["dimensions"][1]["values"].append({"id": "gif"})
+        (self.root / "geo/dimensions.json").write_text(json.dumps(dims))
+        self.assertEqual(run(self.root, "decide", "--verdict", "go", "--by", "user")[0], 2)  # space is stale
+        run(self.root, "space")
+        self.assertEqual(run(self.root, "decide", "--verdict", "go", "--by", "user", "--note", "second")[0], 0)
+        proj = gi.read_json(self.root / "geo/project.json")
+        self.assertEqual([d["verdict"] for d in proj["decisions"]], ["stop", "go"])   # history kept
+        self.assertEqual(proj["decision"]["note"], "second")
+        self.assertEqual(proj["decisions"][0]["note"], "offsite only")
+
+    def test_space_without_validated_needs_does_not_advance(self):
+        tmp = tempfile.TemporaryDirectory()
+        root = Path(tmp.name)
+        run(root, "init", "--name", "Idea", "--idea", "x")
+        gi.write_jsonl(root / "geo/needs.jsonl", [NEEDS[1]])        # a hypothesis only
+        (root / "geo/dimensions.json").write_text(json.dumps(DIMS))
+        code, out = run(root, "space")
+        self.assertEqual(code, 0)
+        self.assertIn("no validated need", out)
+        self.assertEqual(gi.read_json(root / "geo/project.json")["stage"], "idea")
+        tmp.cleanup()
+
+    def test_rerun_behind_the_stage_logs_a_check_and_needs_are_shared(self):
+        p = self.root / "geo/project.json"
+        proj = gi.read_json(p)
+        proj["stage"] = "pages"
+        gi.write_json(p, proj)
+        gi.write_jsonl(self.root / "geo/needs.jsonl", NEEDS + [{**NEEDS[1], "id": "n-new"}])
+        run(self.root, "needs")
+        log = gi.read_json(p)["log"]
+        self.assertEqual(log[-1]["stage"], "check")
+        self.assertEqual(gi.read_json(p)["stage"], "pages")
+        code, _ = run(self.root, "--geo-dir", "geo-find", "init", "--name", "Find", "--idea", "y", "--needs-from", "geo")
+        self.assertEqual(code, 0)
+        code, out = run(self.root, "--geo-dir", "geo-find", "needs")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(json.loads(out.splitlines()[-1])["needs"], 3)
+        self.assertFalse((self.root / "geo-find/needs.jsonl").exists())
+
+    def test_check_warns_about_goal_card_and_old_decisions(self):
+        _, out = run(self.root, "check")
+        self.assertIn("no goal card geo-goal.md", out)
+        (self.root / "geo-goal.md").write_text("# Goal card\n\n## North star\nAI referrals that download, per week\n\n## Goal\nx\n")
+        p = self.root / "geo/project.json"
+        proj = gi.read_json(p)
+        proj["north_star"] = "page views"
+        proj["decision"] = {"verdict": "narrow"}
+        gi.write_json(p, proj)
+        (self.root / "geo/gap/channels.md").unlink()
+        _, out = run(self.root, "check")
+        self.assertIn("north_star differs", out)
+        self.assertIn("predates the need × channel table", out)
 
 
 if __name__ == "__main__":

@@ -1,8 +1,12 @@
-# Goal card (`geo/goal.md`)
+# Goal card (`geo-goal.md`)
 
-One page, written at step 0 with the owner and kept in the GEO folder (`geo/` or the `--geo-dir`
-folder). Every later step reads it first; every brief to another thread or agent includes it as
-written. Change it only with the owner, and keep a dated line in "Changes" for each change.
+One page per site, written at step 0 with the owner and kept at the project root as `geo-goal.md`,
+outside every GEO folder: a site can run several (`geo/`, `geo-longtail/`, …, one per need space),
+and they all serve the same goal. Every later step reads it first; every brief to another thread or
+agent includes it as written. Change it only with the owner, and keep a dated line in "Changes" for
+each change. It is the source of truth for the goal, north star, audiences and channels:
+`project.json` copies (`north_star`, `audience`, `platforms`) follow it, and `geo_idea.py check` warns
+when they differ.
 
 ## How to write it
 
@@ -47,6 +51,7 @@ Pages / off-site / product and docs / generating missing assets: <which, with li
 - Traffic by channel: <search, AI referral, agent/API>
 - What assistants do today: <presence, who they pick; or "not probed">
 - Running experiments: <name, pages, window, read date> — do not overlap them
+- GEO folders: <folder, need space, stage, decision date>
 - Assets: <what we have that others do not>
 
 ## Constraints

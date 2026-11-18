@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Which outside sources do AI assistants cite for a project's tasks? Targets for GEO off-site work.
 
-    python3 cited_sources.py --root <project> --own <domain> [--own <domain>]... [--format json|md]
+    python3 cited_sources.py --root <project> --own <domain> [--own <domain>]... [--geo-dir DIR]... [--format json|md]
 
-Reads the AI runs a GEO project already recorded: geo/gap/runs.jsonl (site-idea gap check) and
-geo/optimize/runs.jsonl (site-geo optimize), each row with combo_id or cluster, platform, date, gap,
+Reads the AI runs a GEO project already recorded, in each GEO folder (default geo/; --geo-dir is
+repeatable for a site with several, e.g. geo-longtail): gap/runs.jsonl and gap/runs-*.jsonl (site-idea
+gap check, extra run sets included) and optimize/runs.jsonl (site-geo optimize), each row with combo_id or cluster, platform, date, gap,
 cited [{url, type}] and recommended [names]. Groups the cited URLs by domain and reports, per domain:
 how many runs and tasks cite it, its source types, the platforms, whether the project's own domains
 were cited in the same answers, and how many of those answers had a high-opportunity gap. Domains
@@ -19,7 +20,13 @@ import sys
 from urllib.parse import urlparse
 
 HIGH = {"generic", "outdated", "unmet_constraint", "no_resource"}
-FILES = ("geo/gap/runs.jsonl", "geo/optimize/runs.jsonl")
+def run_files(root, geo_dirs):
+    files = []
+    for g in geo_dirs:
+        base = root / g
+        files += [base / "gap" / "runs.jsonl", *sorted((base / "gap").glob("runs-*.jsonl")),
+                  base / "optimize" / "runs.jsonl"]
+    return files
 
 
 def domain(url):
@@ -27,12 +34,12 @@ def domain(url):
     return host[4:] if host.startswith("www.") else host
 
 
-def read_runs(root):
+def read_runs(root, geo_dirs=("geo",)):
     rows = []
-    for rel in FILES:
-        p = root / rel
+    for p in run_files(root, geo_dirs):
         if not p.exists():
             continue
+        rel = str(p.relative_to(root))
         for i, line in enumerate(p.read_text().splitlines(), 1):
             if line.strip():
                 try:
@@ -91,11 +98,13 @@ def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--root", default=".")
     p.add_argument("--own", action="append", default=[], help="the project's own domain(s)")
+    p.add_argument("--geo-dir", action="append", default=[], help="GEO folder(s) under the root (default geo; repeatable)")
     p.add_argument("--format", choices=["json", "md"], default="md")
     a = p.parse_args(argv)
-    rows = read_runs(Path(a.root).resolve())
+    dirs = a.geo_dir or ["geo"]
+    rows = read_runs(Path(a.root).resolve(), dirs)
     if not rows:
-        sys.exit("no recorded runs in geo/gap/runs.jsonl or geo/optimize/runs.jsonl")
+        sys.exit(f"no recorded runs in {', '.join(dirs)} (gap/runs*.jsonl, optimize/runs.jsonl)")
     out = aggregate(rows, a.own)
     if a.format == "json":
         print(json.dumps({"runs": len(rows), "domains": out}, ensure_ascii=False, indent=2))

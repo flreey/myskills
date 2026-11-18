@@ -473,6 +473,37 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertTrue((self.root / "geo-families/instances.jsonl").exists())
 
+    def test_geo_dir_json_output_stays_in_its_folder(self):
+        (self.root / "geo").rename(self.root / "geo-find")
+        (self.root / "geo").mkdir()
+        (self.root / "geo/out").mkdir()
+        (self.root / "geo/out/index.json").write_text('{"other": true}')
+        code, out = run(self.root, "--geo-dir", "geo-find", "build", "--target", "json")
+        self.assertEqual(code, 0, out)
+        self.assertTrue((self.root / "geo-find/out/convert.json").exists())
+        self.assertEqual(json.loads((self.root / "geo/out/index.json").read_text()), {"other": True})
+
+    def test_unapproved_template_cannot_be_planned_or_released(self):
+        ge.write_json(self.root / "geo/templates/convert.json", dict(TEMPLATE, approved=None))
+        code, _ = run(self.root, "wave-plan", "--per-template", "1")
+        self.assertEqual(code, 2)
+        ge.write_json(self.root / "geo/templates/convert.json", TEMPLATE)
+        self.assertEqual(run(self.root, "wave-plan", "--per-template", "1")[0], 0)
+        ge.write_json(self.root / "geo/templates/convert.json", dict(TEMPLATE, approved=None))
+        self.assertEqual(run(self.root, "wave-release", "--wave", "1")[0], 2)
+
+    def test_questions_on_the_bank_route_match_by_need(self):
+        ge.write_json(self.root / "geo/project.json",
+                      dict(PROJECT, decision={"verdict": "narrow", "by": "user", "subspace": {"need": ["n-safe"]}}))
+        ge.write_jsonl(self.root / "geo/gap/samples.jsonl", [
+            {"combo_id": "q1", "question_id": "q1", "need_id": "n-safe", "combo": {}, "opening": "can I ship it?",
+             "follow_ups": [{"q": "credit needed?", "kind": "constraint"}]},
+            {"combo_id": "q2", "question_id": "q2", "need_id": "n-fit", "combo": {}, "opening": "loop it?"}])
+        code, out = run(self.root, "questions", "--template", "convert")
+        self.assertEqual(code, 0, out)
+        rep = json.loads(out)
+        self.assertEqual((rep["samples"], rep["matched_by"]), (1, "need"))
+
     def test_snapshot_titles_are_unescaped(self):
         self.assertEqual(ge.page_summary("<title>Cats &amp; Dogs</title><h1>A &#39;b&#39;</h1>")["title"], "Cats & Dogs")
 

@@ -19,7 +19,7 @@ research.
 
 | # | Question | Output | Skill |
 | --- | --- | --- | --- |
-| 0 | Where are we, and what result do we want? | Goal card `geo/goal.md` with the current state | here ([references/goal-card.md](references/goal-card.md)) |
+| 0 | Where are we, and what result do we want? | Goal card `geo-goal.md` with the current state | here ([references/goal-card.md](references/goal-card.md)) |
 | 1 | What are users trying to do, and how do they ask? | Demand map `needs.jsonl`, question bank | `site-idea` steps 0–1 |
 | 2 | Where is the opportunity? | Need × channel table: who wins now, are we there, what only we have, how many pages it supports | `site-idea` steps 2–7 (task space, probes, other channels, decision) |
 | 3 | Make a small batch of changes | Pages, off-site entries, or product and docs changes, whichever the table points to | `site-batch` (pages), `site-offsite` GEO mode (lists, communities, directories), the product's own workflow (API, MCP, tool listings); `site-kit` builds, `site-check` GEO mode accepts |
@@ -40,8 +40,13 @@ Where to enter:
 
 ## Rules for every step
 
+These hold in every site-* GEO skill (site-idea, site-batch, site-geo, site-offsite and site-check in
+GEO mode); the others point here instead of repeating them. Where an engine can check a rule, it does:
+`decide` refuses pages without the need × channel table and a task space, `wave-plan` refuses
+unapproved templates, `check` warns when the goal card is missing or project.json drifts from it.
+
 1. **The goal card travels.** Every step, and every brief handed to another thread or agent, starts
-   from `geo/goal.md` as written, not from the previous step's summary. Every hand-off ends with one
+   from `geo-goal.md` (project root) as written, not from the previous step's summary. Every hand-off ends with one
    line: what this step dropped compared with the card (needs, audiences, channels, levers), or
    "nothing".
 2. **One channel never decides for all.** Evidence and decisions are per need × channel (assistant
@@ -59,18 +64,24 @@ Where to enter:
 
 ## Find the step
 
-Read only what exists under the project root (GEO folders may be several: `geo/`, or one passed as
-`--geo-dir`):
+Read only what exists under the project root. The goal card is one per site; GEO folders may be
+several (`geo/`, `geo-longtail/`, … each with its own `project.json`, passed as `--geo-dir`): report the
+step of each folder, one line each, then the next step for the one the owner is working on. A new need
+space is a new folder (`init --geo-dir <dir> --needs-from <first folder>`), never new dimensions in an
+existing one.
+
+Check the rows in order; the first that matches decides:
 
 | Evidence | Means |
 | --- | --- |
-| no `geo/goal.md` | step 0 next, whatever else exists |
-| `goal.md` older than the last decision, or its "current state" older than about 30 days | refresh step 0 before the next step |
-| `project.json` `stage`: `idea`, `needs` | step 1 (site-idea) |
-| `stage`: `space`, `gap`, or a bank without `dimensions.json` | step 2 (site-idea); no pages before the task space exists |
-| `stage`: `decided`, `blueprint`, `pages` | step 3 (site-batch for pages; levers outside pages per the decision's channel table) |
-| a released wave past its window (`geo/waves.jsonl`) | step 4 |
-| `geo/optimize/` | site-geo optimize has run; its experiments feed step 4 |
+| no `geo-goal.md` at the project root | step 0 next, whatever else exists |
+| `geo-goal.md` older than the folder's last decision, or its "current state" older than about 30 days | refresh step 0 before the next step |
+| `decision` in `project.json` but no `gap/channels.md`, or `channels.md` has a channel the card keeps in scope measured nowhere (`not measured` down the whole column) | back to step 2: fill the table and let the owner review the old decision (`decide` again; earlier decisions stay in `decisions`) |
+| `stage`: `idea`, `needs` | step 1 (site-idea) |
+| `stage`: `space`, `gap`, or `dimensions.json` without a generating dimension | step 2 (site-idea); no pages before the task space exists |
+| `stage`: `decided`, `blueprint`, `pages` | step 3: pages for the needs whose Lever in `gap/channels.md` includes `pages` (site-batch); `offsite` to site-offsite; `product` to the product's workflow |
+| a released wave past its window (`waves.json`) | step 4 |
+| `optimize/` in a GEO folder | site-geo optimize has run; its experiments feed step 4 |
 | `.sitekit.json` | kit site: build, check and release go through `site-kit` |
 | `umami.config.json` | Umami wired (site-measure) |
 
@@ -93,9 +104,9 @@ Page acceptance: `site-check` GEO mode on the changed pages; kit sites also pass
 
 ## Ownership
 
-Each fact has one owner: goal card → this skill (`geo/goal.md`); demand map, question bank, task
-space, channel evidence and decision → site-idea (`geo/project.json`, `geo/needs.jsonl`,
-`geo/questions.jsonl`, `geo/dimensions.json`, `geo/gap/`); templates, page data and waves → site-batch
+Each fact has one owner: goal card → this skill (`geo-goal.md`); demand map, question bank, task
+space, need × channel table and decision → site-idea (`project.json`, `needs.jsonl`, `questions.jsonl`,
+`dimensions.json`, `gap/` in each GEO folder); templates, page data and waves → site-batch
 (`geo/`); live-site findings and experiments → site-geo (`geo/optimize/`); off-site ledger →
 site-offsite; what the built pages say → the site build; traffic → site-measure. site-check owns no
 data: it reports.

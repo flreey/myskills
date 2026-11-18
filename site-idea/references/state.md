@@ -23,7 +23,7 @@ under that folder.
 
 | File | Owner | Status | Holds |
 | --- | --- | --- | --- |
-| `project.json` | all (each writes its own fields) | implemented | idea, audience, market, platforms, north star, stage, decision, log |
+| `project.json` | all (each writes its own fields) | implemented | idea, audience, market, platforms, north star (copied from the goal card, which wins), stage, `space`, `decision` and `decisions` history, `needs_from`, log |
 | `needs.jsonl`, `needs.md` | site-idea | implemented | demand map: needs, personas, pains, where asked, evidence ([demand-map.md](demand-map.md)) |
 | `questions.jsonl`, `bank.md` | site-idea | implemented | question bank: questions per need and angle with evidence level ([question-bank.md](question-bank.md)) |
 | `competitors.jsonl` | site-idea | implemented | competitors for reverse-engineered questions ([competitor-probes.md](competitor-probes.md)) |
@@ -33,7 +33,7 @@ under that folder.
 | `gap/runs.jsonl` | site-idea | implemented | one row per AI run with the gap judgement |
 | `gap/probes.md`, `gap/report.json`, `gap/report.md` | site-idea (generated) | implemented | probe sheet and gap report |
 | `gap/channels.md` | site-idea (written with the owner) | convention | need × channel table: evidence or "not measured", who wins, whether we appear, what only we have, lever (pages, off-site, product and docs, not now) |
-| `goal.md` | site (written with the owner) | convention | goal card: goal, north star, needs and audiences served, channels, levers, not doing, current state, constraints |
+| `<root>/geo-goal.md` (project root, one per site, shared by every GEO folder) | site (written with the owner) | convention | goal card: goal, north star, needs and audiences served, channels, levers, not doing, current state, constraints |
 | `facts.jsonl` | site-batch | implemented | product facts with source and checked date |
 | `assets/` | site-batch | implemented | test outputs and data the facts cite |
 | `templates/<id>.json` | site-batch | implemented | template spec = one site-kit directory collection |
@@ -79,10 +79,15 @@ under that folder.
   "allowed_names": ["iPhone", "Windows"],
   "output": {"target": "kit", "dir": "geo/out"},
   "stage": "decided",
+  "space": {"date": "2026-11-19", "combinations": 12, "generating": ["source", "need"],
+            "assets": {"source": {"needs": "one converter run per pair", "have": 9, "source": "converter matrix"}},
+            "fingerprint": "3f2a9c1b7d04"},
   "decision": {"verdict": "narrow", "date": "2026-11-20", "by": "user",
                "subspace": {"source": ["heic", "webp"]}, "note": "",
-               "evidence": {"probed": 40, "share_high": 0.28, "hint": "narrow",
+               "levers": {"n-convert-iphone": ["pages"], "n-safe-upload": ["offsite", "product"]},
+               "evidence": {"probed": 40, "share_high": 0.28, "hint": "narrow", "platforms": ["ChatGPT"],
                             "in_answer_share": 0.1, "lever_hint": "offsite"}},
+  "decisions": ["… every decision, oldest first, the current one last"],
   "log": [{"date": "2026-11-17", "stage": "idea", "note": "initialised"}]
 }
 ```
@@ -91,6 +96,12 @@ under that folder.
 name and the site domain's name part count already. `allowed_names` (optional): platforms or
 products whose name changes the answer (Steam, YouTube, Godot, itch.io), so the brand check lets them
 through.
+
+`space` is written by `space`: the count, the generating dimensions, their `assets` and a fingerprint
+of `dimensions.json`; `decide go|narrow` refuses when the fingerprint no longer matches. `decision` is
+the current decision with the levers read from `gap/channels.md`; `decisions` keeps every one.
+`needs_from` (optional, `init --needs-from`) names another GEO folder whose `needs.jsonl` this folder
+reads: one demand map per site, one folder per need space. `output.dir` defaults to `<geo-dir>/out`.
 
 `platforms` are the target platforms and may be free text. `probe_platforms` (optional) are the ones
 probed this round; `probes` uses it, else `platforms`, and turns each name into a safe file-name slug.
@@ -121,7 +132,11 @@ probed this round; `probes` uses it, else `platforms`, and turns each name into 
 - `kind`: `entity` (object, format, product, place), `task` (what is done), `constraint` (condition).
 - `changes_answer: true` makes the dimension generate pages and requires `why`. A dimension that does
   not change the answer is kept for wording only (`described_only` in `space`).
-- Value ids are slugs without `__` (the combination id joins them with `__` in dimension order).
+- Value ids are slugs without `__` (the combination id joins them with `__` in dimension order);
+  `space` warns about ids that are not slugs (URLs, spaces, capitals).
+- `assets` (on generating dimensions): `{needs, have, source}`: what one page needs (files, a
+  measurement, data), how many values or combinations have it today (number or text) and where that
+  count comes from. `decide go|narrow` needs it on at least one generating dimension.
 - `exclude`: `same` drops combinations where two dimensions share a value id; `when` drops
   combinations matching every listed dimension (a value or a list of values).
 
@@ -219,3 +234,19 @@ Only rows that pass the gate are written; `released` decides whether the kit bui
 | quality gate and wave release | failing rows are never written to `data/`; `gate()` returns `indexable: released`, and with `ungated: 'omit'` unreleased rows are not built at all |
 | per-template sitemap and index watch | the kit's page index; one collection per template keeps them separable |
 | SEO registry | `seo.registry.mode` stays `advisory` on geo sites: the geo state is the record for generated pages; site-plan's registry covers the hand-made pages |
+
+## gap/channels.md
+
+Written by `report` (first run) or `channels`, then edited by hand with the owner. One row per need;
+the first cell starts with the need id and a colon; one column per channel the goal card keeps in
+scope; `decide` reads only the Lever column.
+
+```markdown
+| Need | Assistant chat | Search engines | Agents / API / MCP | Lever | Owner's note |
+| --- | --- | --- | --- | --- | --- |
+| n-safe: ship sounds without credit | 12 runs; high gap 50%; site in answer 1/12 | asked there; index and rank not measured | volume: licence words 23 | pages+offsite | |
+| n-find: find one specific sound | 4 runs (thin); high gap 50%; site in answer 0/4 | not measured | volume: api search 94,823 | product | search quality first |
+```
+
+Levers: `pages`, `offsite`, `product` (API, MCP, docs, tool listings, search quality), `not-now`;
+several joined by `+`. `?` means not chosen yet, and `decide` refuses while any row has it.

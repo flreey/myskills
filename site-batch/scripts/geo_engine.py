@@ -103,6 +103,7 @@ class State:
     def __init__(self, root, geo_dir="geo"):
         self.root = Path(root).resolve()
         self.geo = self.root / geo_dir
+        self.rel = geo_dir.strip("/")
         self.project = self.geo / "project.json"
         self.dimensions = self.geo / "dimensions.json"
         self.facts = self.geo / "facts.jsonl"
@@ -490,7 +491,7 @@ def cmd_lint(st, a):
     if (proj.get("decision") or {}).get("verdict") not in ("go", "narrow"):
         errs.append("project.json: no go or narrow decision recorded (site-idea decide)")
     if not templates:
-        errs.append("no templates in geo/templates/")
+        errs.append(f"no templates in {st.rel}/templates/")
     lint_templates(templates, dims, errs, warns)
     validated = (proj.get("decision") or {}).get("dimensions")
     if validated:
@@ -552,7 +553,7 @@ def cmd_preview(st, a, dims, templates, result, out_dir):
     base = (t.get("collection") or {}).get("basePath", "").rstrip("/")
     path = write_json_target(out_dir / "preview", tid, t, [item], base, pending=0)
     print(json.dumps({"preview": str(path), "url": item["url"],
-                      "next": "point a local build of the site at this file (or copy it over geo/out/<id>.json in a "
+                      "next": f"point a local build of the site at this file (or copy it over {out_dir}/<id>.json in a "
                               "scratch checkout), render the page, show it to the owner; delete the preview folder after"},
                      ensure_ascii=False, indent=2))
 
@@ -668,7 +669,8 @@ def output_target(st, proj, a):
     target = getattr(a, "target", None) or out.get("target") or ("kit" if (st.root / ".sitekit.json").exists() else "json")
     if target not in ("kit", "json"):
         die("output target must be kit or json")
-    out_dir = st.root / (getattr(a, "out", None) or out.get("dir") or "geo/out")
+    # Default next to the state, so a second GEO folder (--geo-dir) never writes over another one's output.
+    out_dir = st.root / (getattr(a, "out", None) or out.get("dir") or f"{st.rel}/out")
     return target, out_dir
 
 
@@ -759,7 +761,7 @@ def cmd_scaffold(st, a):
     proj, dims, facts, templates, combos, waves = st.load()
     t = templates.get(a.template)
     if not t:
-        die(f"no template {a.template!r} in geo/templates/")
+        die(f"no template {a.template!r} in {st.rel}/templates/")
     errs, warns = [], []
     lint_templates({a.template: t}, dims, errs, warns)
     if errs:
@@ -867,9 +869,17 @@ def cmd_questions(st, a):
     t = templates.get(a.template)
     if not t:
         die(f"no template {a.template!r}")
-    samples = [s for s in read_jsonl(st.samples) if all(d in (s.get("combo") or {}) for d in t.get("dimensions", []))]
+    allsamples = read_jsonl(st.samples)
+    samples = [s for s in allsamples if s.get("combo") and all(d in s["combo"] for d in t.get("dimensions", []))]
+    matched_by = "dimensions"
     if not samples:
-        die("no gap samples cover this template's dimensions (geo/gap/samples.jsonl)")
+        # Question-bank route: samples are bank questions, not combinations. Match them by need instead:
+        # the template's `needs`, else the decision's need subspace, else every bank sample.
+        needs = t.get("needs") or ((proj.get("decision") or {}).get("subspace") or {}).get("need")
+        samples = [s for s in allsamples if s.get("question_id") and (not needs or s.get("need_id") in needs)]
+        matched_by = "need" if needs else "all bank samples"
+    if not samples:
+        die(f"no gap samples for this template in {st.rel}/gap/samples.jsonl (by dimensions or, on the bank route, by need)")
     openings, levels = [], defaultdict(int)
     turns = defaultdict(list)
     for s in samples:
@@ -883,7 +893,7 @@ def cmd_questions(st, a):
                 turns[f.get("kind", "other")].append({"q": f.get("q", ""), "combo_id": s["combo_id"], "adds": f.get("adds", [])})
             else:
                 turns["unlabelled"].append({"q": f, "combo_id": s["combo_id"]})
-    out = {"template": a.template, "samples": len(samples), "levels": dict(levels), "openings": openings,
+    out = {"template": a.template, "samples": len(samples), "matched_by": matched_by, "levels": dict(levels), "openings": openings,
            "follow_ups_by_kind": {k: v for k, v in sorted(turns.items(), key=lambda kv: -len(kv[1]))},
            "slots": [q.get("id") for q in t.get("question_slots", []) or []],
            "next": "cluster follow-ups by meaning into 5-8 question_slots; item-level openings shape title_source; "
@@ -948,10 +958,18 @@ def baseline_sums(items):
     return {k: round(v, 2) for k, v in sorted(sums.items())}
 
 
+def unapproved(templates, tids):
+    return sorted(t for t in tids if not (templates.get(t) or {}).get("approved"))
+
+
 def cmd_wave_plan(st, a):
     proj, dims, facts, templates, waves, result = evaluate(st)
+    todo = unapproved(templates, [a.template] if a.template else list(result))
+    if todo:
+        die(f"template(s) not approved by the owner: {', '.join(todo)} (set approved: {{by, date}} after they saw "
+            "the spec and a preview; rule 4)")
     if any(w["status"] == "planned" for w in waves["waves"]):
-        die("a planned wave exists: release it or edit geo/waves.json first")
+        die(f"a planned wave exists: release it or edit {st.rel}/waves.json first")
     wid = max([w["id"] for w in waves["waves"]] + [0]) + 1
     combos, control, baseline = {}, {}, {}
     for tid, r in result.items():
@@ -1011,6 +1029,9 @@ def cmd_wave_release(st, a):
         die(f"no wave {a.wave}")
     if w["status"] == "released":
         die(f"wave {a.wave} is already released")
+    todo = unapproved(st.load()[3], w.get("combos", {}))
+    if todo:
+        die(f"template(s) not approved by the owner: {', '.join(todo)} (rule 4)")
     w["status"], w["released"] = "released", a.date or date.today().isoformat()
     if a.deployed:
         w["deployed"] = a.deployed
@@ -1054,7 +1075,7 @@ def cmd_funnel(st, a):
     all_inst = read_jsonl(st.instances)
     inst = [i for i in all_inst if i["gate"]["pass"] and i["released"]]
     if not inst:
-        die("no released pages in geo/instances.jsonl: release a wave and build first")
+        die(f"no released pages in {st.rel}/instances.jsonl: release a wave and build first")
     undeployed = sorted({i["wave"] for i in inst if not i.get("deployed_on")}, key=str)
     if undeployed:
         print(f"note: waves {undeployed} have no deployed date (wave-deployed): windows count from release",
@@ -1109,7 +1130,7 @@ def main(argv=None):
     sub.add_parser("lint")
     s = sub.add_parser("build")
     s.add_argument("--target", choices=["kit", "json"], help="default: project.json output.target, else kit when .sitekit.json exists, else json")
-    s.add_argument("--out", help="json target directory (default geo/out)")
+    s.add_argument("--out", help="json target directory (default <geo-dir>/out)")
     s.add_argument("--preview", help="TEMPLATE:COMBO_ID: render one gated row as if released, for approval")
     s = sub.add_parser("scaffold")
     s.add_argument("--template", required=True)

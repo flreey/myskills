@@ -27,6 +27,7 @@ writes needs, questions, conversations, signals and judgements, the script check
 Python stdlib only.
 """
 import argparse
+import hashlib
 from collections import Counter, defaultdict
 from datetime import date
 import itertools
@@ -43,6 +44,12 @@ GAPS = {
     "weak_sources": "medium", "self_made": "medium", "good": "low",
 }
 VERDICTS = {"go", "narrow", "stop"}
+# Need x channel table (gap/channels.md): one lever cell per need, chosen with the owner.
+LEVERS = {"pages", "offsite", "product", "not-now"}
+GOAL_FILE = "geo-goal.md"   # one goal card per site, at the project root (site skill, step 0)
+THIN_NEED_RUNS = 8
+THIN_TOTAL = 25
+VALUE_ID = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 # What a follow-up asks decides where a page answers it (site-batch references/question-mapping.md).
 TURN_KINDS = {"constraint", "howto", "why", "compare", "resource", "other"}
 STAGES = ["idea", "needs", "space", "gap", "decided"]
@@ -126,14 +133,24 @@ class State:
         self.probes = self.dir / "gap" / "probes.md"
         self.report_json = self.dir / "gap" / "report.json"
         self.report_md = self.dir / "gap" / "report.md"
+        self.channels = self.dir / "gap" / "channels.md"
+        self.goal = self.root / GOAL_FILE
+        # A second need space on the same site shares the first one's demand map (init --needs-from).
+        nf = read_json(self.project, {}).get("needs_from") if self.project.exists() else None
+        if nf:
+            self.needs = self.root / nf / "needs.jsonl"
 
 
 def set_stage(proj, stage, note):
     # Later stages belong to site-batch; a report or check after them must not move the stage back.
     order = STAGES + ["blueprint", "pages"]
     cur = proj.get("stage", "idea")
-    if stage in order and order.index(stage) > (order.index(cur) if cur in order else -1):
+    advanced = stage in order and order.index(stage) > (order.index(cur) if cur in order else -1)
+    if advanced:
         proj["stage"] = stage
+    # A step re-run behind the current stage is logged as a check, so the log never reads as a step back.
+    if not advanced and stage != cur:
+        stage, note = "check", f"{stage} re-run: {note}"
     log = proj.setdefault("log", [])
     # Re-running a check with the same result is not an event: log only what changed.
     if not log or (log[-1].get("stage"), log[-1].get("note")) != (stage, note):
@@ -554,6 +571,14 @@ def validate_dimensions(dims):
             errs.append(f"{did}: no values")
         if len(vids) != len(set(vids)) or any(not v or "__" in v for v in vids):
             errs.append(f"{did}: value ids must be unique, non-empty and free of '__'")
+        odd = [v for v in vids if v and not VALUE_ID.match(v)]
+        if odd:
+            warns.append(f"{did}: {len(odd)} value ids are not slugs (lowercase, digits, . _ -), e.g. {odd[0][:60]!r}")
+        if d.get("assets") is not None:
+            ast = d["assets"]
+            if not (isinstance(ast, dict) and ast.get("needs") and isinstance(ast.get("have", 0), (int, str))):
+                errs.append(f"{did}: assets is {{needs, have, source}}: what one page needs, how many values or "
+                            "combinations have it today (number or text), and where that count comes from")
         if not d.get("source"):
             warns.append(f"{did}: no 'source' for its values (where the list comes from)")
     for r in dims.get("exclude", []):
@@ -570,6 +595,11 @@ def validate_dimensions(dims):
     if gen and "entity" not in kinds and "task" not in kinds:
         warns.append("only constraint dimensions generate pages: check that an entity or task dimension is missing")
     return errs, warns
+
+
+def dims_fingerprint(dims):
+    """Changes whenever a dimension, value, asset note or exclude rule changes: `space` must run again."""
+    return hashlib.sha1(json.dumps(dims, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:12]
 
 
 def count_space(dims):
@@ -599,6 +629,10 @@ def cmd_init(st, a):
         "site": {"live": bool(a.live), "origin": a.origin or ""},
         "decision": None, "log": [],
     }
+    if a.needs_from:
+        if not (st.root / a.needs_from / "needs.jsonl").exists():
+            die(f"no {a.needs_from}/needs.jsonl to share")
+        proj["needs_from"] = a.needs_from.strip("/")
     set_stage(proj, "idea", "initialised")
     write_json(st.project, proj)
     if not st.dimensions.exists():
@@ -622,8 +656,22 @@ def cmd_space(st, a):
         size = n if n is not None else product
         if size > SPACE_WARN:
             warns.append(f"space of {size} combinations: plan to publish a small validated part, never all")
+        assets = {d["id"]: d["assets"] for d in gen if d.get("assets")}
+        out["assets"] = assets
+        if not assets:
+            warns.append("no generating dimension states its assets ({needs, have, source}): pages need the "
+                         "page count and what each page needs shown to the owner first (rule 6b)")
+        needs = read_jsonl(st.needs) if st.needs.exists() else []
+        validated = [x for x in needs if x.get("evidence_level") == "validated"]
         proj = read_json(st.project)
-        set_stage(proj, "space", f"space {size} combinations from {len(gen)} dimensions")
+        proj["space"] = {"date": date.today().isoformat(), "combinations": size,
+                         "generating": [d["id"] for d in gen], "assets": assets,
+                         "fingerprint": dims_fingerprint(dims)}
+        if validated:
+            set_stage(proj, "space", f"space {size} combinations from {len(gen)} dimensions")
+        else:
+            warns.append("no validated need in the demand map: needs come before dimensions (rule 1); "
+                         "the space is recorded but the stage does not move")
         write_json(st.project, proj)
     if a.format == "json":
         print(json.dumps(out, ensure_ascii=False, indent=2))
@@ -638,6 +686,9 @@ def cmd_space(st, a):
                 print("described on the page only: " + ", ".join(out["described_only"]))
             tail = out["after_excludes"] if out["exact"] else "unknown (too large to enumerate)"
             print(f"combinations: {out['product']} before excludes, {tail} after")
+            for did, ast in out["assets"].items():
+                print(f"assets {did}: needs {ast.get('needs')}; have {ast.get('have', '?')}"
+                      + (f" ({ast['source']})" if ast.get("source") else ""))
     sys.exit(1 if errs else 0)
 
 
@@ -960,6 +1011,9 @@ def build_report(samples, runs, threshold):
                                "own_in_answer": round(v["in_answer"] / v["own_measured"], 2) if v["own_measured"] else None}
                            for k, v in sorted(g.items(), key=lambda kv: str(kv[0]))}
     notes = []
+    if probed and (len(probed) < THIN_TOTAL or len(platforms) <= 1):
+        notes.append(f"thin sample: {len(probed)} probed on {len(platforms)} platform(s) "
+                     f"({', '.join(platforms) or 'none'}); read it as one channel's sample, not a measurement")
     if presence["measured"]:
         if presence["in_answer_share"] < 0.25 and presence["lever_hint"] in ("offsite", "consensus"):
             notes.append(f"own site in {presence['in_answer_share']:.0%} of answers and the answers rest on "
@@ -1039,7 +1093,9 @@ def build_presence(runs):
 
 def report_md(rep, proj):
     L = [f"# Gap report: {proj.get('name', '')}", "",
-         f"Hint (the decision is the owner's): **{rep['hint']}**. "
+         f"Assistant-chat hint ({', '.join(rep['platform_runs']) or 'no platform'} only; not a decision for "
+         f"search engines or agents, and the decision is the owner's, per need × channel in gap/channels.md): "
+         f"**{rep['hint']}**. "
          f"{rep['high']} of {rep['probed']} probed combinations show a high-opportunity gap "
          f"({rep['share_high']:.0%}; threshold {rep['threshold']:.0%}). "
          f"{rep['with_signals']} of the probed combinations have outside evidence, "
@@ -1080,11 +1136,13 @@ def report_md(rep, proj):
         g = (rep.get("groups") or {}).get(key)
         if not g:
             continue
-        L += [f"## {title}", "", "| Value | Probed | High | Share high | Site in answer |", "| --- | --- | --- | --- | --- |"]
+        L += [f"## {title}", "", "| Value | Probed | Runs | High | Share high | Site in answer |",
+              "| --- | --- | --- | --- | --- | --- |"]
         for k, v in g.items():
             sh = f"{v['share_high']:.0%}" if v["share_high"] is not None else "—"
             oa = f"{v['own_in_answer']:.0%} of {v['own_measured']}" if v["own_in_answer"] is not None else "—"
-            L.append(f"| {k} | {v['probed']} | {v['high']} | {sh} | {oa} |")
+            runs = f"{v['runs']} (thin)" if v["runs"] < THIN_NEED_RUNS else str(v["runs"])
+            L.append(f"| {k} | {v['probed']} | {runs} | {v['high']} | {sh} | {oa} |")
         L.append("")
     if rep["values"]:
         L += ["## By dimension value", "", "| Value | Probed | High | Share high | With signals |",
@@ -1137,9 +1195,135 @@ def cmd_report(st, a):
     if rep["probed"]:
         set_stage(proj, "gap", f"gap report: {rep['high']}/{rep['probed']} high, hint {rep['hint']}")
         write_json(st.project, proj)
+    if not st.channels.exists():
+        write_channels(st, proj, rep)
     out = {k: rep[k] for k in ("probed", "high", "share_high", "hint", "strong_values", "notes")}
+    out["channels"] = str(st.channels)
     out.update({k: rep["presence"][k] for k in ("in_answer_share", "first_share", "lever_hint", "queries_captured")})
     print(json.dumps(out, ensure_ascii=False, indent=2))
+
+
+def chat_cell(rep, nid):
+    g = ((rep or {}).get("groups") or {}).get("need_id", {}).get(nid)
+    if not g or not g.get("runs"):
+        return "not probed"
+    thin = " (thin)" if g["runs"] < THIN_NEED_RUNS else ""
+    sh = f"{g['share_high']:.0%}" if g.get("share_high") is not None else "—"
+    oa = f"{g['in_answer']}/{g['own_measured']}" if g.get("own_measured") else "not recorded"
+    return f"{g['runs']} runs{thin}; high gap {sh}; site in answer {oa}"
+
+
+def agent_cell(n):
+    where = set(n.get("where_asked") or [])
+    vol = volume_rows(n.get("volume") or []) or []
+    parts = [f"{what.replace('_', ' ')} {total:,}" if not isinstance(total, str) else f"{what.replace('_', ' ')} {total}"
+             for what, total, _ in vol]
+    if parts:
+        return "volume: " + "; ".join(parts)
+    if where & {"agent", "site_search", "product"}:
+        return "asked there (" + ", ".join(sorted(where & {"agent", "site_search", "product"})) + "); volume not measured"
+    return "not measured"
+
+
+def write_channels(st, proj, rep=None):
+    """Skeleton of the need x channel table; the agent fills evidence it has, the owner picks the lever."""
+    needs = read_jsonl(st.needs) if st.needs.exists() else []
+    L = [f"# Need × channel: {proj.get('name', '')}", "",
+         f"Skeleton written {date.today().isoformat()} by geo_idea.py. Drop a column the goal card "
+         f"(`{GOAL_FILE}`) marks out of scope. Fill each cell with evidence or `not measured`; the owner picks "
+         f"the Lever for every need: {', '.join(sorted(LEVERS))} (several joined by `+`), `?` until chosen. "
+         "`decide` reads the Lever column.", "",
+         "| Need | Assistant chat | Search engines | Agents / API / MCP | Lever | Owner's note |",
+         "| --- | --- | --- | --- | --- | --- |"]
+    for n in needs:
+        search = ("asked there; index and rank not measured" if "search_engine" in (n.get("where_asked") or [])
+                  else "not measured")
+        L.append(f"| {n.get('id')}: {n.get('need', '')} | {chat_cell(rep, n.get('id'))} | {search} | "
+                 f"{agent_cell(n)} | ? | |")
+    st.channels.parent.mkdir(parents=True, exist_ok=True)
+    st.channels.write_text("\n".join(L) + "\n")
+
+
+def parse_channels(path):
+    """{need_id: set(levers)} from the Lever column; unknown words are returned separately."""
+    levers, unknown, col = {}, [], None
+    for line in path.read_text().splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if col is None:
+            low = [c.lower() for c in cells]
+            if "lever" in low:
+                col = low.index("lever")
+            continue
+        if set(cells[0]) <= set("-: "):
+            continue
+        nid = cells[0].split(":")[0].strip().strip("`")
+        cell = cells[col] if col < len(cells) else ""
+        words = {w.strip().lower() for w in re.split(r"[+,/ ]+", cell) if w.strip() and w.strip() != "?"}
+        unknown += [f"{nid}: {w}" for w in words - LEVERS]
+        levers[nid] = words & LEVERS
+    return levers, unknown, col is not None
+
+
+def decision_gates(st, a, proj, dims, sub):
+    errs, warns, levers = [], [], {}
+    if not st.channels.exists():
+        errs.append(f"no {st.rel}/gap/channels.md: run `channels` (or `report`), fill it and pick each need's "
+                    "Lever with the owner; the decision is per need × channel")
+    else:
+        levers, unknown, ok = parse_channels(st.channels)
+        if not ok:
+            errs.append("gap/channels.md has no Lever column")
+        undecided = [n for n, l in levers.items() if not l]
+        if undecided:
+            errs.append(f"Lever not chosen in gap/channels.md for: {', '.join(undecided)}")
+        if unknown:
+            errs.append(f"unknown levers in gap/channels.md ({', '.join(sorted(LEVERS))}): {', '.join(unknown)}")
+    if a.verdict in ("go", "narrow"):
+        gen = [d["id"] for d in generating(dims)] if dims.get("dimensions") else []
+        space = proj.get("space") or {}
+        if not gen:
+            errs.append("no task space: pages need dimensions.json with generating dimensions, checked by `space` "
+                        "(rule 6b); a decision that makes no pages is --verdict stop, with the other levers "
+                        "in gap/channels.md")
+        elif space.get("fingerprint") != dims_fingerprint(dims):
+            errs.append("dimensions.json changed since the last `space` (or `space` never ran): run space")
+        elif not space.get("assets"):
+            errs.append("the task space states no assets: add {needs, have, source} to the generating "
+                        "dimensions and run space, so the owner sees the page count and what each page needs")
+        if levers and all(levers.values()) and not any("pages" in l for l in levers.values()):
+            errs.append("no need has the lever `pages` in gap/channels.md: a decision without pages is --verdict stop")
+        for nid in (sub or {}).get("need", []):
+            if levers.get(nid) and "pages" not in levers[nid]:
+                errs.append(f"subspace need {nid} does not have the lever `pages` in gap/channels.md")
+        needs = read_jsonl(st.needs) if st.needs.exists() else []
+        if not any(n.get("evidence_level") == "validated" for n in needs):
+            warns.append("no validated need behind this decision: every need is derived or a hypothesis")
+    if errs:
+        die("; ".join(errs))
+    for w in warns:
+        print(f"WARN   {w}", file=sys.stderr)
+    return {n: sorted(l) for n, l in levers.items()}
+
+
+def record_decision(st, proj, dec, stage_note):
+    """Decisions are appended, never overwritten: `decision` is the current one, `decisions` the history."""
+    hist = proj.setdefault("decisions", [])
+    if proj.get("decision") and (not hist or hist[-1] != proj["decision"]):
+        hist.append(proj["decision"])
+    hist.append(dec)
+    proj["decision"] = dec
+    set_stage(proj, "decided", stage_note)
+    write_json(st.project, proj)
+    print(json.dumps(dec, ensure_ascii=False, indent=2))
+
+
+def cmd_channels(st, a):
+    if st.channels.exists() and not a.force:
+        die(f"{st.channels} exists: edit it (or --force rebuilds the skeleton and loses the edits)")
+    write_channels(st, read_json(st.project), read_json(st.report_json, None))
+    print(json.dumps({"written": str(st.channels)}, ensure_ascii=False))
 
 
 def cmd_decide(st, a):
@@ -1156,16 +1340,17 @@ def cmd_decide(st, a):
     rep = read_json(st.report_json)
     if not rep.get("probed"):
         die("the gap report has no judged runs: probe and judge before deciding")
+    dims = read_json(st.dimensions, {"dimensions": []})
+    levers = decision_gates(st, a, proj, dims, sub)
     pres = rep.get("presence") or {}
-    proj["decision"] = {"verdict": a.verdict, "date": date.today().isoformat(), "by": "user",
-                        "subspace": sub, "note": a.note or "",
-                        "evidence": {"probed": rep["probed"], "share_high": rep["share_high"], "hint": rep["hint"],
-                                     "in_answer_share": pres.get("in_answer_share"), "lever_hint": pres.get("lever_hint")},
-                        "dimensions": [d["id"] for d in generating(read_json(st.dimensions))],
-                        "extensions": []}
-    set_stage(proj, "decided", f"decision {a.verdict}")
-    write_json(st.project, proj)
-    print(json.dumps(proj["decision"], ensure_ascii=False, indent=2))
+    dec = {"verdict": a.verdict, "date": date.today().isoformat(), "by": "user",
+           "subspace": sub, "note": a.note or "", "levers": levers,
+           "evidence": {"probed": rep["probed"], "share_high": rep["share_high"], "hint": rep["hint"],
+                        "platforms": sorted(rep.get("platform_runs") or {}),
+                        "in_answer_share": pres.get("in_answer_share"), "lever_hint": pres.get("lever_hint")},
+           "dimensions": [d["id"] for d in generating(dims)] if dims.get("dimensions") else [],
+           "extensions": []}
+    record_decision(st, proj, dec, f"decision {a.verdict}")
 
 
 def subspace_arg(st, a):
@@ -1193,22 +1378,23 @@ def decide_without_probes(st, a):
     validated = [n for n in needs if n.get("evidence_level") == "validated"]
     if not validated:
         die("--without-probes needs validated needs in needs.jsonl (real evidence behind them)")
-    dims = read_json(st.dimensions)
-    derr, _ = validate_dimensions(dims)
-    if derr:
-        die("fix dimensions first: " + "; ".join(derr))
+    dims = read_json(st.dimensions, {"dimensions": []})
+    if dims.get("dimensions"):
+        derr, _ = validate_dimensions(dims)
+        if derr:
+            die("fix dimensions first: " + "; ".join(derr))
     proj = read_json(st.project)
     sub = subspace_arg(st, a)
+    levers = decision_gates(st, a, proj, dims, sub)
     rep = read_json(st.report_json, {})
-    proj["decision"] = {"verdict": a.verdict, "date": date.today().isoformat(), "by": "user",
-                        "subspace": sub, "note": a.note or "",
-                        "evidence": {"basis": "first-party demand", "needs_validated": len(validated),
-                                     "probed": rep.get("probed", 0), "share_high": rep.get("share_high"),
-                                     "hint": rep.get("hint")},
-                        "dimensions": [d["id"] for d in generating(dims)], "extensions": []}
-    set_stage(proj, "decided", f"decision {a.verdict} on first-party demand")
-    write_json(st.project, proj)
-    print(json.dumps(proj["decision"], ensure_ascii=False, indent=2))
+    dec = {"verdict": a.verdict, "date": date.today().isoformat(), "by": "user",
+           "subspace": sub, "note": a.note or "", "levers": levers,
+           "evidence": {"basis": "first-party demand", "needs_validated": len(validated),
+                        "probed": rep.get("probed", 0), "share_high": rep.get("share_high"),
+                        "hint": rep.get("hint")},
+           "dimensions": [d["id"] for d in generating(dims)] if dims.get("dimensions") else [],
+           "extensions": []}
+    record_decision(st, proj, dec, f"decision {a.verdict} on first-party demand")
 
 
 def cmd_extend(st, a):
@@ -1326,10 +1512,38 @@ def cmd_check(st, a):
         raw = r.get("raw")
         if raw and not (st.root / raw).exists():
             errs.append(f"{where}: raw file {raw} does not exist")
+    warns = goal_warnings(st, proj)
     for e in errs:
         print(f"ERROR  {e}")
-    print(json.dumps({"errors": len(errs)}))
+    for w in warns:
+        print(f"WARN   {w}")
+    print(json.dumps({"errors": len(errs), "warnings": len(warns)}))
     sys.exit(1 if errs else 0)
+
+
+def goal_section(text, title):
+    m = re.search(rf"^##\s+{re.escape(title)}\s*$(.*?)(?=^##\s|\Z)", text, re.M | re.S)
+    if not m:
+        return ""
+    lines = [x.strip() for x in m.group(1).splitlines() if x.strip()]
+    return lines[0] if lines else ""
+
+
+def goal_warnings(st, proj):
+    """The goal card is the site's source of truth; project.json copies must not drift from it."""
+    warns = []
+    if not st.goal.exists():
+        warns.append(f"no goal card {GOAL_FILE} at the project root: the site skill's step 0 writes it with the owner")
+    else:
+        star = goal_section(st.goal.read_text(), "North star")
+        mine = (proj.get("north_star") or "").strip()
+        norm = lambda t: re.sub(r"\W+", " ", t).strip().lower()
+        if star and mine and norm(star) != norm(mine):
+            warns.append(f"project.json north_star differs from {GOAL_FILE}: the goal card wins; copy it over")
+    if proj.get("decision") and not st.channels.exists():
+        warns.append("a decision exists without gap/channels.md: it predates the need × channel table; "
+                     "back to step 2 and let the owner review it")
+    return warns
 
 
 def main(argv=None):
@@ -1342,6 +1556,7 @@ def main(argv=None):
     s.add_argument("--idea", required=True)
     s.add_argument("--live", action="store_true", help="the site is already live (new page space on a live site)")
     s.add_argument("--origin", help="the live site's origin, e.g. https://example.com")
+    s.add_argument("--needs-from", help="another GEO folder whose needs.jsonl this space shares (a second need space on one site)")
     s = sub.add_parser("needs")
     s.add_argument("--quotes", help="CSV or JSONL of the collected off-site posts (url, quote): every off-site "
                                     "quote in needs.jsonl must appear verbatim under its URL")
@@ -1367,6 +1582,8 @@ def main(argv=None):
                    help="only runs whose field equals VALUE, e.g. slice=chatgpt-instant (repeatable)")
     s.add_argument("--include-extra", action="store_true",
                    help="count the runs-*.jsonl sets in the main numbers (default: reported separately)")
+    s = sub.add_parser("channels")
+    s.add_argument("--force", action="store_true", help="rebuild the skeleton (loses edits)")
     s = sub.add_parser("decide")
     s.add_argument("--verdict", required=True)
     s.add_argument("--by", required=True)
@@ -1383,7 +1600,7 @@ def main(argv=None):
     a = p.parse_args(argv)
     st = State(a.root, a.geo_dir)
     {"init": cmd_init, "needs": cmd_needs, "bank": cmd_bank, "space": cmd_space, "sample": cmd_sample,
-     "probes": cmd_probes, "report": cmd_report, "decide": cmd_decide, "extend": cmd_extend,
+     "probes": cmd_probes, "report": cmd_report, "channels": cmd_channels, "decide": cmd_decide, "extend": cmd_extend,
      "check": cmd_check}[a.cmd](st, a)
 
 

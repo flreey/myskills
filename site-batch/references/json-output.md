@@ -2,7 +2,7 @@
 
 `geo_engine.py build` picks the target from `--target`, then `project.json.output.target`, then
 `kit` when `.sitekit.json` exists, otherwise `json`. The JSON target writes to `--out`,
-`project.json.output.dir`, or `geo/out/`:
+`project.json.output.dir`, or `<geo-dir>/out/` (`geo/out/` for the default folder):
 
 | File | Holds |
 | --- | --- |

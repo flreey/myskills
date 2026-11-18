@@ -39,6 +39,9 @@ Both take `--format json`. `--retired` lists product names and positioning the s
 | SEO (default) | hand-made pages planned by keyword | primary phrase from the site-plan brief or registry | 1. Copy is written around the keyword | brief, GSC, keyword pool, PAA | registry and brief |
 | GEO | pages from site-batch (`geo/`), or any page meant to be quoted by AI assistants | the task: the row in `geo/combos/<template>.jsonl` (combo, constraints, question slots), or on a live site the page brief `geo/optimize/briefs/<page>.json` (site-geo O4b), or the task the owner names | 1G. The answer serves the task | follow-ups in `geo/gap/samples.jsonl`, real signals, site search misses | `geo/instances.jsonl` gate and the template |
 
+With several GEO folders (`geo/`, `geo-longtail/`, …), use the folder the page's template lives in
+wherever this skill names `geo/`, and check only pages for needs whose Lever in that folder's
+`gap/channels.md` includes `pages`; the goal card (`geo-goal.md`) says which channels the page serves.
 Pick GEO when the project has `geo/` and the page belongs to a template (its URL is under a template
 `basePath`), or the owner says the page is for AI assistants. A site can have both: check each page in
 its own mode. Checks 2b–5 and S2–S4 are the same in both modes.

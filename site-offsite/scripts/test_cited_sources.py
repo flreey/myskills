@@ -39,6 +39,19 @@ class CitedSourcesTest(unittest.TestCase):
             self.assertEqual(out[-1]["domain"], "list.example")
             self.assertIn("| reddit.com | 2 | 2 | forum |", cs.to_md(out, 3))
 
+    def test_geo_dirs_and_extra_run_sets(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            (root / "geo-longtail/gap").mkdir(parents=True)
+            (root / "geo-longtail/gap/runs.jsonl").write_text(json.dumps(
+                {"combo_id": "q1", "platform": "ChatGPT", "gap": "generic", "cited": [{"url": "https://a.example/x"}]}) + "\n")
+            (root / "geo-longtail/gap/runs-thinking.jsonl").write_text(json.dumps(
+                {"combo_id": "q2", "platform": "ChatGPT", "gap": "good", "cited": [{"url": "https://b.example/y"}]}) + "\n")
+            self.assertEqual(cs.read_runs(root), [])
+            rows = cs.read_runs(root, ["geo-longtail"])
+            self.assertEqual(len(rows), 2)
+            self.assertEqual({x["domain"] for x in cs.aggregate(rows, [])}, {"a.example", "b.example"})
+
 
 if __name__ == "__main__":
     unittest.main()

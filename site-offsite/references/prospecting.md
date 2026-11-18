@@ -107,7 +107,7 @@
 
 ## 2 已知类别
 
-按 channels.md 的 T1 类别，结合你的产品类别去搜当前还在收录的目录：
+按 channel-tiers.md 的 T1 类别，结合你的产品类别去搜当前还在收录的目录：
 
 - `<类别> tools directory submit`
 - `submit your <类别> tool`

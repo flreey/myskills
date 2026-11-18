@@ -1,4 +1,4 @@
 interface:
   display_name: "Site Idea"
-  short_description: "GEO 新页面空间验证：需求地图、问题库、任务空间、AI 答案缺口和我们是否出现，决定做、缩小范围还是放弃"
-  default_prompt: "Use $site-idea on this idea: map the real demand first, expand each need into questions from several angles, model the task space, sample conversations, prepare the probe sheet, judge the answers I paste back for gaps and whether we appear, and report so I can decide go, narrow or stop."
+  short_description: "GEO 需求和机会：需求地图、问题库、任务空间（页数和资产）、AI 助手探测、需求 × 渠道表，由站长按格子决定"
+  default_prompt: "Use $site-idea on this project: read the goal card (geo-goal.md) first, map the real demand, expand each need into questions from several angles, model the task space with the assets each page needs, sample and probe the assistants, judge the answers I paste back, add search and agent evidence, fill the need × channel table (gap/channels.md) and let me pick a lever per need before deciding."

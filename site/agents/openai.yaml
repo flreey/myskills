@@ -1,4 +1,4 @@
 interface:
   display_name: "Site (GEO)"
   short_description: "GEO 总入口：写目标卡，判断项目在循环的哪一步，指向下一个 site-* skill"
-  default_prompt: "Use $site on this project: read or write the goal card (geo/goal.md) with the current state, find which step of the GEO loop the project is at, name the next site-* skill and command, and say what this step answers."
+  default_prompt: "Use $site on this project: read or write the goal card (geo-goal.md at the project root) with the current state, find which step of the GEO loop the project is at, name the next site-* skill and command, and say what this step answers."

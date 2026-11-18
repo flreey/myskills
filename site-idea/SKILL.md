@@ -27,9 +27,10 @@ with the later geo stages, is [references/state.md](references/state.md).
 
 ## Iron rules
 
-0. **The goal card comes first.** Read `geo/goal.md` (written with the owner by the `site` skill)
-   before step 0; without it, run the `site` skill's step 0 first. End every report with what this
-   step dropped compared with the card, or "nothing".
+0. **The site skill's rules apply** (goal card first and passed on, one channel never decides for
+   all, dropping is the owner's call, small first, tools get one hour). Read `geo-goal.md` at the
+   project root before step 0; without it, run the `site` skill's step 0 first. End every report with
+   what this step dropped compared with the card, or "nothing".
 1. **Needs before dimensions.** No dimension, sample or page before the demand map says who needs
    what and where they ask. A dimension makes pages only if it changes the answer: `changes_answer:
    true` needs a `why` naming how the answer differs. Who asks, the country or a synonym usually does
@@ -47,27 +48,26 @@ with the later geo stages, is [references/state.md](references/state.md).
    (`own`), what was recommended, the cited sources and, when the browser allows, the search queries
    the assistant ran. A gap says the content has room; only presence and sources say whether pages
    will be found.
-6. **The decision is the owner's, per need × channel.** Channels are assistant chat, search engines
-   and agents/API/MCP. Probes are evidence for the assistant-chat channel only: the report's `hint`
-   never drops a need on its own, and a need with no room in chat may still be worth pages for search
-   or agents. `decide --by user` runs only after the owner chose in chat; `go` or `narrow` records which
-   part of the space gets pages, and `geo/gap/channels.md` records every cell's lever. No asset,
-   template or page work starts before that.
-6a. **Dropping needs the owner.** Leaving out a need, audience, channel or lever (at the demand map,
-   the bank, the space or the decision) is put to the owner with what it costs (volume, quotes) and,
-   once they agree, written under "Not doing" in the goal card. Never as a side remark in a step.
-6b. **No pages without a task space.** The question-bank path may sample before `space`, but a `go`
-   or `narrow` that leads to pages needs `geo/dimensions.json` checked by `space`, with the page count
-   and the assets each combination needs, shown to the owner.
-6c. **Tools get one hour.** A probe tool or browser problem not solved in about an hour gets a simpler
-   path (hand the sheet to the user, fewer conversations) or is skipped and reported.
+6. **The decision is the owner's, per need × channel.** `gap/channels.md` has one row per need and one
+   Lever per row (pages, offsite, product, not-now), picked with the owner; probes fill only the
+   assistant-chat column, and the report's `hint` reads that column only. `decide --by user` runs
+   after the owner chose in chat and refuses while a Lever is still `?`. `go` or `narrow` records the
+   part of the space that gets pages and needs at least one need with `pages`; a decision that makes no
+   pages is `stop`, with the other levers in the table. Decisions are kept in `decisions`, never
+   overwritten.
+6b. **No pages without a task space.** `decide go|narrow` refuses unless `dimensions.json` has a
+   generating dimension, `space` ran on the current file, and the generating dimensions state their
+   assets (`{needs, have, source}`): the owner sees how many pages are possible and what each needs.
+   The question-bank route needs it too. `space` itself does not move the stage while no need is
+   validated (needs before dimensions).
 7. **Writes stay in the geo folder.** This skill touches no site, registry or other project file.
 
 ## Workflow
 
-0. **Start and map demand.** Read `geo/goal.md` (rule 0). `init --name <Name> --idea "<who, situation, task in one sentence>"`
-   (`--live --origin <url>` for a live site). Fill `project.json` (`audience`, `market`, `platforms`,
-   `north_star`) from what the user said; ask only for what is missing and changes the work. Then
+0. **Start and map demand.** Read `geo-goal.md` (rule 0). `init --name <Name> --idea "<who, situation, task in one sentence>"`
+   (`--live --origin <url>` for a live site; `--needs-from <folder>` for a second need space on the
+   same site, which then reads that folder's `needs.jsonl` instead of copying it). Copy `audience`,
+   `market`, `platforms` and `north_star` into `project.json` from the goal card; the card wins. Then
    collect first-party and off-site evidence, group it into needs and write `geo/needs.jsonl`
    ([references/demand-map.md](references/demand-map.md)); `needs` checks it and writes
    `geo/needs.md`. Show the owner the map (needs, counts, where each is asked) and agree which needs
@@ -81,10 +81,12 @@ with the later geo stages, is [references/state.md](references/state.md).
    for combinations that make no sense or that the product will not serve. Run `space`; fix every
    ERROR, read every WARN. Show the generating dimensions, the described-only ones and the count in a
    short table, and adjust with the owner before sampling: a wrong dimension multiplies into every
-   later page. For each generating dimension, note which assets a page needs and how many
-   combinations have them today or could have them (generated, collected): that, not the number of
-   questions, sets how many pages are possible. Skipping this step is allowed only for a decision that
-   leads to no pages (rule 6b).
+   later page. Give each generating dimension `assets: {needs, have, source}`: what one page needs,
+   how many values or combinations have it today or could have it (generated, collected), and where
+   that count comes from; `space` prints it and records it in `project.json.space`. That, not the
+   number of questions, sets how many pages are possible. One folder holds one need space: a dimension
+   for another need that would multiply with these is a new folder (`--needs-from`). Skipping this step
+   is allowed only for a decision that makes no pages (rule 6b).
 3. **Sample.** One of: `sample --n 40` (combinations, at least the widest dimension's value count),
    `sample --from-questions --n 40` (bank questions spread over needs and angles, real wording first;
    `--weight`, `--origin`, `--ids`, `--append` in [references/question-bank.md](references/question-bank.md)),
@@ -95,42 +97,47 @@ with the later geo stages, is [references/state.md](references/state.md).
    target platform, paste the whole answer into the named file), or run it the way they approved.
    Browser runs follow [references/probe-runs.md](references/probe-runs.md): a page script in a
    logged-in browser tab first (it also captures the assistant's search queries); a Grok Bot via
-   `gbot` only as a fallback. Rule 6c applies to both. Save every answer under `geo/gap/raw/` and add a row to
+   `gbot` only as a fallback. The one-hour tool rule (site skill rule 5) applies to both. Save every answer under `geo/gap/raw/` and add a row to
    `geo/gap/runs.jsonl` with `gap: null`.
 5. **Judge.** Label every run with [references/gap-rubric.md](references/gap-rubric.md): `gap`,
    `gap_note`, `own`, `cited`, `recommended`, `search_queries`, and `outcome` for competitor probes.
-   Then `check`, then `report`.
+   Then `check`, then `report`; on its first run `report` also writes the skeleton of
+   `gap/channels.md` (`channels` writes it on demand, e.g. for `--without-probes`).
 6. **Other channels.** Probes cover assistant chat. For the same needs, collect what is cheap and
    real: search engines (whether our pages and the winners' pages are indexed and rank under the
    assistants' captured queries and the needs' natural wording, from Bing/Google results or Search
    Console); agents, API and MCP (first-party search logs, zero-result queries, tool directory and
    registry presence). Write what was looked at and what was not; "not measured" is a valid cell.
-7. **Decide.** Write `geo/gap/channels.md`: one row per need, one column per channel in the goal
-   card, each cell with the evidence (or "not measured"), who wins, whether we appear, what only we
-   have, and the proposed lever (pages, off-site, product and docs, not now). Show it with
-   `geo/gap/report.md`: the share of high-opportunity combinations or
+7. **Decide.** Complete `gap/channels.md`: drop the columns the goal card keeps out of scope, fill each
+   cell with evidence or `not measured` (who wins, whether we appear, what only we have), and propose
+   a Lever per need. Show it with `gap/report.md`: the share of high-opportunity combinations or
    questions, where gaps concentrate (by value, need, angle, stratum), whether the site is in the
    answers, the sources behind answers without it and the lever hint, the captured queries, and the
    notes. Offer `go` (whole space), `narrow` (the subspace of strong values), `stop` (or change the idea
    and return to step 0). Record their answer with `decide --verdict <v> --by user [--subspace '<json>']
    [--note "<why>"]`. When the owner does not want probes as a precondition, `decide --without-probes`
    records a decision on validated first-party needs instead; say that the gap and presence are then
-   unknown. A `stop` for one channel is written in `channels.md`, not as `stop` for the space.
+   unknown. A lever for one need or channel lives in `channels.md`; `stop` means no pages from this
+   space, not that the needs are dropped.
 
 ## Long tail: more values later
+
+A new need or task type is a new space and a new GEO folder: `init --geo-dir <dir> --needs-from
+<first folder>`, then steps 2–7 there. More values of a dimension already decided stay in the folder.
 
 When pages exist and the owner wants more values of a dimension the gap check already covered (more
 events, formats, places), add the values to `geo/dimensions.json`, then, after the owner agrees in
 chat, `extend --dimension <id> --values a,b --by user`. No new probing is needed: the template's
 validation carries over, and site-batch's gate and wave funnel judge the new pages. New values should
-come from the demand map (searches, misses, quotes), not from a word list. A new dimension or a new
-task type is a new space: sample and probe it (20–30 combinations are enough for one dimension)
-before `decide`.
+come from the demand map (searches, misses, quotes), not from a word list. A new dimension is a new
+space (above): sample and probe it (20–30 combinations are enough for one dimension) before `decide`.
 
 ## Reading the report
 
-- `hint` and `lever_hint` read assistant-chat probes only. Use them for that column of
-  `channels.md`, never as the decision for a need.
+- The report's first line says which platforms the hint comes from. `hint` and `lever_hint` read
+  assistant-chat probes only: use them for that column of `channels.md`, never as the decision for a
+  need. A need with fewer than 8 runs is marked `thin`; under 25 probed or a single platform, the first
+  note says the whole sample is thin.
 - `hint` is `go` when the high share reaches the threshold (default 0.33, `report --threshold`),
   `narrow` when only some values with two or more probed combinations reach it, `stop` otherwise.
   It is a starting point for the conversation, not the verdict.

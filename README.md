@@ -23,7 +23,7 @@
 | [ai-feature-delivery](./ai-feature-delivery) | 把业务级功能修改请求变成受控交付流程：先只读识别影响面、验收场景、non-goals 和验证计划，确认后再实现，最后输出验证证据与剩余风险。 |
 | [chatgpt-pro-engineering-loop](./chatgpt-pro-engineering-loop) | Codex Desktop 通过已登录的 ChatGPT Pro 委派复杂仓库任务：优先用独立 GitHub 任务分支 + Draft PR 交换代码，以持久 conversation ID 恢复中断任务，并在本地隔离验收；GitHub 不可用或源码不能发布时回退到安全源码包。 |
 | [project-truth](./project-truth) | 让 AI 从经过校验的 Capability、Receipt 和 Git 状态驱动实现：只读获取紧凑真相上下文，通过固定版本 CLI 记录真实证据，重建离线 Dashboard，并停在人工验收和外部动作边界。 |
-| [site](./site) | GEO 总入口：和站长写目标卡（`geo/goal.md`：目标、北极星、服务的需求和人群、渠道、不做什么、现状），判断项目在 GEO 循环的哪一步（0 目标卡 → 1 需求和问法 → 2 需求 × 渠道的机会 → 3 先做一小批改动 → 4 复测），说明下一步用哪个 skill；规定目标卡随每次交接传递、按渠道分别决定、放下任何需求或渠道要站长确认。关键词 SEO 不经过这里，直接用 site-research → site-plan。 |
+| [site](./site) | GEO 总入口：和站长写目标卡（`geo-goal.md`：目标、北极星、服务的需求和人群、渠道、不做什么、现状），判断项目在 GEO 循环的哪一步（0 目标卡 → 1 需求和问法 → 2 需求 × 渠道的机会 → 3 先做一小批改动 → 4 复测），说明下一步用哪个 skill；规定目标卡随每次交接传递、按渠道分别决定、放下任何需求或渠道要站长确认。关键词 SEO 不经过这里，直接用 site-research → site-plan。 |
 | [site-idea](./site-idea) | GEO 需求和机会：从真实数据画需求地图、展开问题库（每条标依据）、拆任务空间（能做多少页、每页要什么资产）、在 ChatGPT 等助手上探测答案缺口和我们是否出现、补搜索引擎和 agent/API 两个渠道的证据，写“需求 × 渠道”表，由站长决定哪些格子做页面、哪些走站外或产品文档；之后用 `extend` 给已验证维度补长尾取值。状态在项目的 `geo/`（`scripts/geo_idea.py`）。 |
 | [site-offsite](./site-offsite) | 站外建设，两种模式：SEO 模式做新站外链（先定目标再按 T1–T4 分层选渠道，竞品外链缺口、目录与发布平台、专题资源页；要大量外链时用 Common Crawl 域名级链接图挖同类站的全部引荐域名，`scripts/cc_*`；素材包投稿、独立核验、台账、28 天回收）；GEO 模式让 AI 助手引用产品：`scripts/cited_sources.py` 汇总项目 `geo/` 里记录的 AI 回答实际引用的来源，先进入产品缺席的榜单、社区、目录和工具注册表，保持各渠道事实一致，再复测是否被引用。默认不做付费买链和博客评论。 |
 | [site-batch](./site-batch) | 批量页面（程序化 GEO / 长尾页）：盘点资产、写有来源的事实库、设计 2–5 个页面模板（站长批准）、填组合数据，过质量门槛（必填字段、数字必须来自事实、不重复度）后输出 site-kit directory 数据或通用 JSON；分波次发布，按模板看抓取、收录、AI 抓取、引用漏斗，扩量、暂停或修剪（`scripts/geo_engine.py`）。 |

@@ -24,9 +24,10 @@ contract: [../site-idea/references/state.md](../site-idea/references/state.md). 
 
 ## Iron rules
 
-0. **The goal card comes first.** Read `geo/goal.md` before anything else (the `site` skill writes it
-   with the owner); pages serve the needs and channels it names. End every report with what this step
-   dropped compared with the card, or "nothing"; dropping anything is the owner's call.
+0. **The site skill's rules apply** (goal card first, per-channel decisions, dropping is the owner's
+   call, small first, tools get one hour). Read `geo-goal.md` at the project root first; pages serve
+   only the needs whose Lever in `gap/channels.md` includes `pages`. End every report with what this
+   step dropped compared with the card, or "nothing".
 1. **No decision, no pages.** `project.json.decision.verdict` must be `go` or `narrow`; rows stay in
    the decided subspace and use only dimensions the gap check covered (`lint` and the gate enforce it).
    More values of a covered dimension: the owner runs site-idea `extend`. A new dimension or task
@@ -37,7 +38,7 @@ contract: [../site-idea/references/state.md](../site-idea/references/state.md). 
    out, or kept as a row whose `assets` say what it waits for (`to_generate`, `to_collect`): it fails
    the gate until each one is `ready`. The gate is never loosened to let thin rows through.
 4. **The owner approves each template** after seeing the spec and one rendered row (`approved`), and
-   each wave before release. Pattern or required-field changes bump `version` and need approval again.
+   each wave before release. `wave-plan` and `wave-release` refuse templates without `approved`. Pattern or required-field changes bump `version` and need approval again.
 5. **Waves, never everything at once.** Seed wave 50–200 pages across templates; later waves grow only
    for templates whose pages got crawled and indexed. No verdict before the 3–4 week window.
 6. **Generated files are not edited by hand.** `data/*.jsonl`, `geo/out/*` and `geo/instances.jsonl`
@@ -59,7 +60,7 @@ contract: [../site-idea/references/state.md](../site-idea/references/state.md). 
 
 ## Blueprint
 
-1. **Read the decision.** `geo/goal.md`, `geo/gap/channels.md` (which need × channel cells the pages
+1. **Read the decision.** `geo-goal.md`, `geo/gap/channels.md` (which need × channel cells the pages
    are for, and which cells another lever owns), `geo/project.json` (verdict, subspace), `geo/gap/report.md` (which gaps
    dominate, whether the site is in the answers, the lever hint and the captured search queries),
    `geo/needs.md` and `geo/bank.md` when present, `geo/gap/samples.jsonl` (follow-ups, signals, what
@@ -80,7 +81,8 @@ contract: [../site-idea/references/state.md](../site-idea/references/state.md). 
    openings and the captured search queries; group-level openings into group content. Fill two or
    three rows (and one group), `build --preview <template>:<combo>` (renders one row as if released,
    without a wave), show the owner the spec, one rendered item page and one group page, record
-   `approved`, then delete `geo/out/preview/`.
+   `approved`, then delete `<geo-dir>/out/preview/`. On the question-bank route, `questions` matches
+   samples by need (the template's `needs`, else the decision's need subspace) instead of by dimensions.
 5. **Rows.** Fill `geo/combos/<id>.jsonl` for at least the seed wave, every required question slot
    answered for that combination, and `geo/combos/<id>.groups.jsonl` for the groups the wave touches;
    `lint`, `status`, fix data until the failure reasons (and `group_failures`) are understood.
@@ -91,7 +93,7 @@ contract: [../site-idea/references/state.md](../site-idea/references/state.md). 
      `site_config_entry` into `modules.directory.collections` (remove the starter `items` collection,
      module and data, point home and nav at the new collections), set `seo.registry.mode` to
      `'advisory'`, `build`, `npm run check`, look at the screenshots.
-   - Any other stack: `build` writes `geo/out/` (or `project.json.output.dir`); the site renders those
+   - Any other stack: `build` writes `<geo-dir>/out/` (or `project.json.output.dir`); the site renders those
      files following [references/json-output.md](references/json-output.md).
    Nothing is released yet, so no item page is built until the first wave.
 
