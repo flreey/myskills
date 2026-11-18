@@ -57,7 +57,8 @@ Keep only advice that names something checkable on the page. "Add more content" 
 
 An answer alone cannot tell "searched and not chosen" from "never searched for it". The page shows
 only "Searching 4 websites", but the queries are in the answer's data stream. Capture them when you
-can run JavaScript in the page; otherwise record "not captured" and carry on.
+can run JavaScript in the page (ego-browser by default, see site-idea references/probe-runs.md); otherwise
+record "not captured" and carry on.
 
 Before sending the prompt, load a fresh temporary chat and run:
 

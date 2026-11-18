@@ -26,8 +26,10 @@ about 300k tokens that every later step paid for again.
 
 ## Preferred: a page script in a logged-in browser tab
 
-Needs the user's logged-in ChatGPT in a browser where page JavaScript can run: the T3 built-in browser
-(`preview_evaluate` with `awaitPromise:false`) or any CDP tool. The whole run is one in-page loop, so
+Needs the user's logged-in ChatGPT in a browser where page JavaScript can run. **Default browser:
+ego-browser** (Ego Lite, the `/ego-browser` skill), chosen by the owner 2026-11-18; the T3 built-in
+browser (`preview_evaluate` with `awaitPromise:false`) or any CDP tool is the fallback when ego-browser
+is not installed. The whole run is one in-page loop, so
 Claude spends about a dozen short calls. Measured 2026-11-18: 24 conversations (65 turns) in about 30
 minutes. It also captures the search queries for every run.
 
@@ -46,6 +48,32 @@ minutes. It also captures the search queries for every run.
    per conversation. Rerun any conversation whose STATUS is not `ok`.
 6. Record `slice: chatgpt-instant` and `platform: ChatGPT` in the run rows; `report --where
    slice=chatgpt-instant` then reads only those.
+
+### With ego-browser
+
+Run `ego-browser skill` first and follow the guide it prints for the installed version (APIs change
+between versions). The steps above map onto it like this; every call is one `ego-browser nodejs` script,
+in one TaskSpace for the whole run:
+
+1. **Open and check login.** `const task = await taskSpace("chatgpt probes <project>")`, `p1.goto(
+   "https://chatgpt.com/?temporary-chat=true")`, then read the page state with one `page.evaluate()`
+   (is there a "Log in" button, is the temporary-chat toggle present). Logged out, a CAPTCHA or 2FA:
+   `await task.handOff()`, end the round and ask the owner to log in in that window; resume with
+   `takeOverTaskSpace(<id>)`. Never type credentials.
+2. **Start the loop.** Read the runner file with `node:fs/promises` (absolute path; the script does not
+   run in the shell's directory and does not see shell variables), then
+   `await page.evaluate("window.__CONVS = " + JSON.stringify(convs))` and
+   `await page.evaluate(partA)`: it returns at once.
+3. **Poll cheaply** from a background shell `sleep`, each time one short script that evaluates
+   `JSON.stringify({running: window.__running, done: (window.__out||[]).length})`. No snapshots or
+   screenshots while it runs.
+4. **Collect.** Arm the download before part B, then save it to an absolute path:
+   `const d = page.waitForEvent("download", {timeout: 60000}); await page.evaluate(partB);
+   await (await d).saveAs("/abs/path/probe-run.json")`. Convert with `probe_run_to_raw.py` (step 5).
+5. **End the round** with `task.finish({ keep: [] })` in a separate last script.
+
+Check after the first conversation that answers arrive with the Ego window in the background; if they
+stall, keep it in front (the T3 and Chrome runs needed a visible tab).
 
 Learned facts (also in the runner's header):
 

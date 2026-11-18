@@ -96,8 +96,8 @@ with the later geo stages, is [references/state.md](references/state.md).
 4. **Probe.** Per rule 3: give the user `geo/gap/probes.md` (one new chat per conversation, each
    target platform, paste the whole answer into the named file), or run it the way they approved.
    Browser runs follow [references/probe-runs.md](references/probe-runs.md): a page script in a
-   logged-in browser tab first (it also captures the assistant's search queries); a Grok Bot via
-   `gbot` only as a fallback. The one-hour tool rule (site skill rule 5) applies to both. Save every answer under `geo/gap/raw/` and add a row to
+   logged-in browser tab first, in ego-browser by default (it also captures the assistant's search
+   queries); a Grok Bot via `gbot` only as a fallback. The one-hour tool rule (site skill rule 5) applies to both. Save every answer under `geo/gap/raw/` and add a row to
    `geo/gap/runs.jsonl` with `gap: null`.
 5. **Judge.** Label every run with [references/gap-rubric.md](references/gap-rubric.md): `gap`,
    `gap_note`, `own`, `cited`, `recommended`, `search_queries`, and `outcome` for competitor probes.

@@ -1,5 +1,6 @@
-// ChatGPT probe runner for a logged-in browser tab that can run page JavaScript (T3 built-in browser via
-// preview_evaluate with awaitPromise:false; any CDP tool works the same). Verified 2026-11-18 on chatgpt.com.
+// ChatGPT probe runner for a logged-in browser tab that can run page JavaScript (default: ego-browser via
+// page.evaluate, see references/probe-runs.md "With ego-browser"; also the T3 built-in browser via
+// preview_evaluate with awaitPromise:false, or any CDP tool). Verified 2026-11-18 on chatgpt.com (T3).
 //
 // Usage:
 //   1. Navigate the tab to https://chatgpt.com/?temporary-chat=true and keep the tab visible.
