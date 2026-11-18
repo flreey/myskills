@@ -5,6 +5,8 @@
 // Usage:
 //   1. Navigate the tab to https://chatgpt.com/?temporary-chat=true and keep the tab visible.
 //   2. Evaluate:  window.__CONVS = [{id, turns: [opening, follow-up, ...]}, ...];  then this file (part A).
+//      Each chat is set to Unpersonalized and to thinking effort window.__EFFORT (default 'Instant'; null
+//      keeps whatever the chat shows); a chat that cannot be set stops the run with err "setup: ...".
 //      It returns at once ("started N"); the loop runs in the page.
 //   3. Every few minutes (from a background sleep, not a model poll loop) evaluate a short status:
 //      JSON.stringify({running: window.__running, out: window.__out})
@@ -52,13 +54,44 @@
     }
     return !/\/c\//.test(location.pathname) && isTemp();
   }
+  // Per-chat choices (verified 2026-11-18 in Ego Lite on chatgpt.com): temporary chats show a
+  // "Personalized" button whose menu offers "Unpersonalized" (ignore memory, plugins and custom
+  // instructions). Synthetic clicks from this script do NOT select it: set it beforehand with a trusted
+  // keyboard (references/probe-runs.md); it then sticks for new chats, and unpersonalize() only checks it.
+  // The model button's last line is the thinking effort, which can differ chat to chat; setEffort() tries
+  // to set it and the run stops when either choice is wrong. Radix menus open on pointer events.
+  const press = (el) => { for (const t of ['pointerdown', 'mousedown', 'pointerup', 'mouseup'])
+    el.dispatchEvent(new (t.startsWith('pointer') ? PointerEvent : MouseEvent)(t, {bubbles: true, button: 0, pointerType: 'mouse'})); el.click(); };
+  const menuItem = (re) => [...document.querySelectorAll('[role="menuitem"],[role="menuitemradio"],[role="option"],[role="menu"] button,[role="menu"] div')]
+    .filter(e => e.offsetParent !== null && re.test((e.innerText || '').trim())).sort((a, b) => a.innerText.length - b.innerText.length)[0];
+  async function unpersonalize() {
+    const b = [...document.querySelectorAll('button')].find(x => /^(Un)?[Pp]ersonalized$/.test((x.innerText || '').trim()));
+    if (!b) return 'no toggle';
+    if (b.innerText.trim() === 'Unpersonalized') return 'Unpersonalized';
+    press(b); await sleep(900);
+    const it = menuItem(/^Unpersonalized/); if (!it) { document.body.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})); return 'no option'; }
+    press(it); await sleep(900);
+    const now = [...document.querySelectorAll('button')].find(x => /^(Un)?[Pp]ersonalized$/.test((x.innerText || '').trim()));
+    return now ? now.innerText.trim() : 'gone';
+  }
+  const effortNow = () => ((document.querySelector('button[aria-label="Select ChatGPT model"]') || {}).innerText || '').split('\n').pop().trim();
+  async function setEffort(want) {
+    if (!want || effortNow() === want) return effortNow();
+    const b = document.querySelector('button[aria-label="Select ChatGPT model"]'); if (!b) return null;
+    press(b); await sleep(900);
+    const it = menuItem(new RegExp('^' + want + '$')); if (it) { press(it); await sleep(900); }
+    else document.body.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+    return effortNow();
+  }
   (async () => {
     await sleep(2500);
     for (const c of CONVS) {
       const rec = {id: c.id, turns: [], err: null};
       if (!(await newChat())) { rec.err = 'newchat/temporary failed'; window.__out.push(rec); break; }
-      rec.unpers = (document.body.innerText.match(/(Un)?[Pp]ersonalized/) || [])[0] || null;
-      rec.model = ((document.querySelector('button[aria-label="Select ChatGPT model"]') || {}).innerText || '').split('\n').pop() || null;
+      rec.unpers = await unpersonalize();
+      rec.model = await setEffort(window.__EFFORT || 'Instant');
+      if (rec.unpers !== 'Unpersonalized' || (window.__EFFORT !== null && rec.model !== (window.__EFFORT || 'Instant'))) {
+        rec.err = `setup: ${rec.unpers} / ${rec.model}`; window.__out.push(rec); break; }
       for (const q of c.turns) {
         const before = completes();
         const ed = editor(); if (!ed) { rec.err = 'no composer'; break; }

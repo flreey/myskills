@@ -72,8 +72,18 @@ in one TaskSpace for the whole run:
    await (await d).saveAs("/abs/path/probe-run.json")`. Convert with `probe_run_to_raw.py` (step 5).
 5. **End the round** with `task.finish({ keep: [] })` in a separate last script.
 
-Check after the first conversation that answers arrive with the Ego window in the background; if they
-stall, keep it in front (the T3 and Chrome runs needed a visible tab).
+Verified 2026-11-18 (SFXMint, Ego Lite 2.2.1): answers arrive with the Ego window in the background.
+
+Before the run, set two per-chat choices and read them back in a fresh temporary chat:
+- **Unpersonalized.** Temporary chats show a `Personalized` button; its menu has `Unpersonalized`
+  ("this chat will ignore memory, plugins, and custom instructions"). Page-script clicks and even ego
+  `page.click()` on the item did not select it; ego's trusted keyboard did: `page.click` the button,
+  `keyboard.press("ArrowDown")` twice, `Enter`. The choice then stuck for new chats, so it acts like an
+  account default: tell the owner after the run and offer to switch it back.
+- **Thinking effort.** The model button's last line (`Instant`, `Medium`, …) varied between chats on the
+  same account (the first pilot chat ran `gpt-6-thinking` at Medium). The runner sets
+  `window.__EFFORT` (default `Instant`) per chat and stops with `err: "setup: …"` when either choice is
+  not what was asked, so a mixed run never happens silently.
 
 Learned facts (also in the runner's header):
 
