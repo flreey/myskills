@@ -1525,8 +1525,7 @@ def goal_section(text, title):
     m = re.search(rf"^##\s+{re.escape(title)}\s*$(.*?)(?=^##\s|\Z)", text, re.M | re.S)
     if not m:
         return ""
-    lines = [x.strip() for x in m.group(1).splitlines() if x.strip()]
-    return lines[0] if lines else ""
+    return " ".join(x.strip() for x in m.group(1).splitlines() if x.strip())
 
 
 def goal_warnings(st, proj):
@@ -1537,8 +1536,9 @@ def goal_warnings(st, proj):
     else:
         star = goal_section(st.goal.read_text(), "North star")
         mine = (proj.get("north_star") or "").strip()
-        norm = lambda t: re.sub(r"\W+", " ", t).strip().lower()
-        if star and mine and norm(star) != norm(mine):
+        norm = lambda t: re.sub(r"[\W_]+", " ", t).strip().lower()
+        # project.json may hold the whole section or its opening; anything not found in the card is drift.
+        if star and mine and norm(mine) not in norm(star):
             warns.append(f"project.json north_star differs from {GOAL_FILE}: the goal card wins; copy it over")
     if proj.get("decision") and not st.channels.exists():
         warns.append("a decision exists without gap/channels.md: it predates the need × channel table; "
