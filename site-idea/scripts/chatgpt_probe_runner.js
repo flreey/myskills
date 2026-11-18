@@ -74,7 +74,9 @@
     const now = [...document.querySelectorAll('button')].find(x => /^(Un)?[Pp]ersonalized$/.test((x.innerText || '').trim()));
     return now ? now.innerText.trim() : 'gone';
   }
-  const effortNow = () => ((document.querySelector('button[aria-label="Select ChatGPT model"]') || {}).innerText || '').split('\n').pop().trim();
+  // The button reads "Thinking effort\nInstant", or without the line break in some renders.
+  const effortNow = () => ((document.querySelector('button[aria-label="Select ChatGPT model"]') || {}).innerText || '')
+    .replace(/^\s*Thinking effort\s*/i, '').split('\n').pop().trim();
   async function setEffort(want) {
     if (!want || effortNow() === want) return effortNow();
     const b = document.querySelector('button[aria-label="Select ChatGPT model"]'); if (!b) return null;
@@ -137,7 +139,8 @@
     const m = (d.v && d.v.message) || d.message;
     if (m && m.author) { cur = {role: m.author.role, ctype: m.content && m.content.content_type, recipient: m.recipient,
       text: (m.content && m.content.parts && typeof m.content.parts[0] === 'string') ? m.content.parts[0] : ''}; msgs.push(cur); lastP = null; continue; }
-    if (d.o === 'patch' && Array.isArray(d.v)) { for (const op of d.v) applyOp(op); continue; }
+    // Batched ops come as {"o":"patch","v":[...]} or, since 2026-11-18, as {"v":[...]} without "o".
+    if (Array.isArray(d.v) && (d.o === 'patch' || d.o === undefined)) { for (const op of d.v) applyOp(op); continue; }
     if (d.p !== undefined || d.o !== undefined || typeof d.v === 'string') applyOp(d);
   }
   // queries and URLs per conversation, split at the same markers
