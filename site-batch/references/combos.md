@@ -10,6 +10,11 @@
 - `value` is one checkable statement with its numbers and units.
 - `source` is where it can be re-checked: a page that was opened, a file in the repo, a test output
   under `geo/assets/`, product code. Never the model's memory, never a search snippet.
+- `scope` says what the fact is about: `all` (every page), `<dim>=<value>[,<value>]` (one dimension's
+  values, e.g. `source=vhs`: it belongs to that value's parent page too), several dimensions joined
+  by `;` (`source=vhs;goal=instagram`: only this combination), or `combo=<combo_id>`. Free text is
+  allowed but never marks a fact as belonging to a parent page. The own-evidence gate
+  (templates.md `min_own_evidence`) reads it.
 - `checked` is the date it was last confirmed. A fact that changes (price, limit, version) is
   re-checked before every wave.
 - Facts about competitors or alternatives follow the same rule and are phrased neutrally.

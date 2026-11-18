@@ -36,7 +36,10 @@ contract: [../site-idea/references/state.md](../site-idea/references/state.md). 
    source and a date) or to a computed key fact. Not the model's memory, not a search snippet.
 3. **Missing data means no page.** A combination without the assets for its required fields is left
    out, or kept as a row whose `assets` say what it waits for (`to_generate`, `to_collect`): it fails
-   the gate until each one is `ready`. The gate is never loosened to let thin rows through.
+   the gate until each one is `ready`. Each row also needs evidence of its own (`min_own_evidence`,
+   default 1): a fact, key fact, asset or file that no sibling has and that is not just one
+   dimension's parent-page fact. A combination whose evidence is all shared is a section of its
+   parent page, not a page. The gate is never loosened to let thin rows through.
 4. **The owner approves each template** after seeing the spec and one rendered row (`approved`), and
    each wave before release. `wave-plan` and `wave-release` refuse templates without `approved`. Pattern or required-field changes bump `version` and need approval again.
 5. **Waves, never everything at once.** Seed wave 50–200 pages across templates; later waves grow only
@@ -135,6 +138,10 @@ deploy stages, each separately → funnel per template with page counts and wind
 items for the owner → what was not verified → what this step dropped compared with the goal card.
 
 ## Premises
+
+The own-evidence gate was added 2026-11-18 after ToHD's first `/fix` wave passed the text-uniqueness
+gate by rewording while every row combined its source page's and destination page's facts (14 of 16
+rows fail it); SFXMint's released rows (files and computed key facts per row) all still pass.
 
 Written 2026-11-17 against site-kit 2.15 (directory collections from `data/<id>.jsonl`,
 `defineCollection`, `gate`, `ungated: 'omit'`, overrides in `src/site/overrides/templates/`). Verified

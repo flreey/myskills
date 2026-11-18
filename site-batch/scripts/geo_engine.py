@@ -230,6 +230,13 @@ def lint_templates(templates, dims, errs, warns):
         for d in t.get("dimensions", []):
             if d not in dim_ids:
                 errs.append(f"{w}: unknown dimension {d!r}")
+        ef = t.get("evidence_fields", [])
+        if not (isinstance(ef, list) and all(isinstance(x, str) for x in ef)):
+            errs.append(f"{w}: evidence_fields is a list of row field names (row data only this page has, e.g. files)")
+        if not (isinstance(t.get("min_own_evidence", 1), int) and t.get("min_own_evidence", 1) >= 0):
+            errs.append(f"{w}: min_own_evidence is a whole number, 0 or more")
+        elif t.get("min_own_evidence", 1) == 0 and not t.get("min_own_evidence_why"):
+            errs.append(f"{w}: min_own_evidence 0 turns the own-evidence gate off: say why in min_own_evidence_why")
         col = t.get("collection", {})
         if is_adopt(t) and col.get("groups"):
             warns.append(f"{w}: adopt templates keep the site's own group pages; collection.groups is ignored")
@@ -417,6 +424,57 @@ def to_facts(row, t):
     return facts
 
 
+def parse_scope(scope):
+    """`source=vhs;goal=instagram` -> {source: {vhs}, goal: {instagram}}; `combo=<id>` -> {"__combo": {id}}.
+    Free-text scopes (`all`, `own-cc0`) parse to None."""
+    out = {}
+    for part in str(scope or "").split(";"):
+        if "=" not in part:
+            return None
+        k, _, v = part.partition("=")
+        k = "__combo" if k.strip() == "combo" else k.strip()
+        out[k] = {x.strip() for x in v.split(",") if x.strip()}
+    return out or None
+
+
+def evidence_items(row, cid, t, facts):
+    """What a row rests on, as comparable items: cited facts, key facts (label = value), ready assets and the
+    template's `evidence_fields`. A fact scoped to one value of a multi-dimension template (`source=vhs`)
+    belongs to that value's parent page, not to this combination, so it never counts as the row's own."""
+    dims = t.get("dimensions", []) or []
+    combo = row.get("combo", {}) or {}
+
+    def parent_only(fid):
+        f = facts.get(fid)
+        if not f:
+            return False
+        if f.get("scope") == "all":
+            return True
+        sc = parse_scope(f.get("scope"))
+        if sc is None or len(dims) <= 1:
+            return False
+        if cid in sc.get("__combo", set()):
+            return False
+        return not all(d in sc and combo.get(d) in sc[d] for d in dims)
+
+    items = set()
+    for fid in row.get("fact_ids") or []:
+        if not parent_only(fid):
+            items.add(f"fact:{fid}")
+    for k in row.get("key_facts") or []:
+        if k.get("fact_id") and parent_only(k["fact_id"]):
+            continue
+        items.add(f"key:{k.get('label', '')}={k.get('value', '')}")
+    for x in row.get("assets") or []:
+        if (x.get("status") or "") == "ready":
+            items.add("asset:" + json.dumps({k: x.get(k) for k in ("id", "kind", "brief")}, sort_keys=True))
+    for fld in t.get("evidence_fields", []) or []:
+        v = row.get(fld)
+        for x in (v if isinstance(v, list) else [v] if filled(v) else []):
+            items.add(f"{fld}:" + json.dumps(x, sort_keys=True))
+    return items
+
+
 def related_slugs(rows_by_cid, me, dims_order, limit=6):
     """Built siblings that differ from me in exactly one dimension, in dimension order."""
     out = []
@@ -467,13 +525,22 @@ def evaluate(st):
                 failed.append("duplicate url" if is_adopt(t) else "duplicate slug")
             seen_cid.add(cid)
             seen_slug.add(ident)
-            evald.append({"row": row, "cid": cid, "arm": arm, "failed": failed, "out": out, "sh": shingles(prose(row))})
+            evald.append({"row": row, "cid": cid, "arm": arm, "failed": failed, "out": out, "sh": shingles(prose(row)),
+                          "ev": evidence_items(row, cid, t, facts)})
         shared = set().union(*(shingles(x) for x in t.get("shared_text", []) or [] if isinstance(x, str)))
         for e in evald:
             e["sh"] = e["sh"] - shared
         counts = Counter(s for e in evald for s in e["sh"])
         minu = float(t.get("min_unique_ratio", 0.6))
+        # Rows already failing never become pages, so they do not take a sibling's evidence away.
+        ev_counts = Counter(x for e in evald if not e["failed"] for x in e["ev"])
+        mine = int(t.get("min_own_evidence", 1))
         for e in evald:
+            e["own_evidence"] = sum(1 for x in e["ev"] if ev_counts[x] <= (0 if e["failed"] else 1))
+            if len(evald) > 1 and e["own_evidence"] < mine:
+                e["failed"].append(f"own evidence {e['own_evidence']} < {mine}: every fact, key fact and asset this row "
+                                   "rests on is shared with a sibling or belongs to one dimension's parent page; add a "
+                                   "test, file or measurement only this combination has, or make it a section of the parent")
             sh = e["sh"]
             e["unique"] = round(sum(1 for s in sh if counts[s] == 1) / len(sh), 2) if sh else 0.0
             if len(evald) > 1 and e["unique"] < minu:
@@ -581,7 +648,7 @@ def cmd_build(st, a):
             instances.append({
                 "template": tid, "combo_id": e["cid"], "slug": out["slug"], "url": out["url"],
                 "adopt": is_adopt(t), "control_of": e["control_of"],
-                "gate": {"pass": not e["failed"], "failed": e["failed"]}, "unique_ratio": e["unique"],
+                "gate": {"pass": not e["failed"], "failed": e["failed"]}, "unique_ratio": e["unique"], "own_evidence": e.get("own_evidence"),
                 "wave": e["wave"], "released": e["released"], "released_on": e["released_on"],
                 "deployed_on": e["deployed_on"], "arm": e["arm"],
             })

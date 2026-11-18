@@ -64,7 +64,9 @@ never answer the same task.
 | `diagnosis` | Adopt templates: the evidence that these pages are the bottleneck and the running experiments the rows avoid ([adopt.md](adopt.md)). |
 | `required` | Must include `core_answer`. A row missing any required field never becomes a page. |
 | `facts_fields` | Extra row fields shown as fact rows: `[{"label": "Quality loss", "field": "loss_note"}]`. |
-| `min_unique_ratio` | Share of a row's 3-word shingles found in no other row of the template. Start at 0.6. |
+| `min_unique_ratio` | Share of a row's 3-word shingles found in no other row of the template. Start at 0.6. A secondary check: rewording passes it without making a page any thicker. |
+| `min_own_evidence` | The main thinness gate (default 1): how many evidence items the row has that no sibling row has. Items are cited facts, key facts (label = value), ready assets and `evidence_fields` values. A fact scoped to one dimension value (`source=vhs`) belongs to that value's parent page and never counts in a multi-dimension template; `all` never counts. Rows already failing for another reason do not take a sibling's evidence away. A row that fails it is a section of its parent page, or needs a test, file or measurement only this combination has. `0` turns it off and needs `min_own_evidence_why`. Passing it is necessary, not sufficient: still read rendered rows. |
+| `evidence_fields` | Row fields holding data only that page has (files on a sound page, `chooser` picks), counted as evidence items. |
 | `allow_numbers` | Numbers allowed in prose without a fact (step numbers, "1 page"). Keep it short. |
 | `experiment` | `{"name": "...", "arms": ["a", "b"]}`: arms are assigned per combination by hash; rows carry `variants.b` with the fields that differ. |
 | `approved` | `{"by": "user", "date": "YYYY-MM-DD"}` once the owner approved this spec and one rendered example (`build --preview <id>:<combo>`). |

@@ -49,7 +49,8 @@ def row(src, tgt, answer, **kw):
          "core_answer": answer, "fact_ids": ["f1", "f2"],
          "constraint_results": [{"constraint": "No upload", "status": "met", "note": f"{src} stays on your device"}],
          "follow_ups": [{"q": f"Does {src} keep dates?", "a": "Yes, EXIF dates are kept at quality 92."}],
-         "resource": {"label": "Open the converter", "url": f"/tools/{src}-to-{tgt}"}}
+         "resource": {"label": "Open the converter", "url": f"/tools/{src}-to-{tgt}"},
+         "key_facts": [{"label": "Our test", "value": f"{src} to {tgt} sample set", "source": f"own test {src}-{tgt}"}]}
     r.update(kw)
     return r
 
@@ -97,6 +98,41 @@ class EngineTest(unittest.TestCase):
         self.assertTrue(g["heic__png"]["gate"]["pass"])
         self.assertIn("missing constraint_results", g["webp__png"]["gate"]["failed"])
         self.assertIn("outside the decided subspace", g["pdf__jpg"]["gate"]["failed"])
+
+    def test_own_evidence_gate(self):
+        facts = FACTS + [
+            {"id": "f-heic", "value": "HEIC is the iPhone photo format.", "source": "Apple docs", "checked": "2026-11-17", "scope": "source=heic"},
+            {"id": "f-jpg", "value": "JPG has no transparency.", "source": "spec", "checked": "2026-11-17", "scope": "target=jpg"},
+            {"id": "f-pair", "value": "HEIC to JPG keeps the EXIF date in our test.", "source": "own test", "checked": "2026-11-17",
+             "scope": "source=heic;target=jpg"},
+            {"id": "f-all", "value": "Everything runs in the browser.", "source": "/docs", "checked": "2026-11-17", "scope": "all"},
+        ]
+        ge.write_jsonl(self.root / "geo/facts.jsonl", facts)
+        # Parent-page facts only: one per dimension value, plus a site-wide one. Thin by construction.
+        parent = {"fact_ids": ["f-heic", "f-jpg", "f-all"], "key_facts": [{"label": "Format", "value": "HEIC", "fact_id": "f-heic"}]}
+        rows = [row("heic", "jpg", "HEIC photos become JPG files that open anywhere, made on your device.", **parent),
+                row("heic", "png", "HEIC photos become PNG files with no further loss at all, made on your device.",
+                    fact_ids=["f-heic", "f-all"], key_facts=[{"label": "Format", "value": "HEIC", "fact_id": "f-heic"}])]
+        ge.write_jsonl(self.root / "geo/combos/convert.jsonl", rows)
+        g = self.gates()
+        self.assertTrue(any(f.startswith("own evidence 0 < 1") for f in g["heic__jpg"]["gate"]["failed"]))
+        self.assertEqual(g["heic__jpg"]["own_evidence"], 0)
+        # A fact scoped to the whole combination is this page's own.
+        rows[0]["fact_ids"] = ["f-heic", "f-pair"]
+        ge.write_jsonl(self.root / "geo/combos/convert.jsonl", rows)
+        g = self.gates()
+        self.assertFalse(any(f.startswith("own evidence") for f in g["heic__jpg"]["gate"]["failed"]))
+        self.assertTrue(any(f.startswith("own evidence") for f in g["heic__png"]["gate"]["failed"]))
+        # Row data named in evidence_fields counts (a page's own files).
+        t = dict(TEMPLATE, evidence_fields=["files"])
+        ge.write_json(self.root / "geo/templates/convert.json", t)
+        rows[1]["files"] = ["png-sample-1", "png-sample-2"]
+        ge.write_jsonl(self.root / "geo/combos/convert.jsonl", rows)
+        self.assertFalse(any(f.startswith("own evidence") for f in self.gates()["heic__png"]["gate"]["failed"]))
+        # Turning it off needs a reason.
+        ge.write_json(self.root / "geo/templates/convert.json", dict(TEMPLATE, min_own_evidence=0))
+        code, out = run(self.root, "lint")
+        self.assertIn("min_own_evidence_why", out)
 
     def test_unsourced_number_and_unknown_fact(self):
         rows = COMBOS[:2] + [row("webp", "jpg", "WebP converts to JPG in 3 seconds.", fact_ids=["f1", "f9"])]
