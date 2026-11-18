@@ -49,6 +49,12 @@ LEVERS = {"pages", "offsite", "product", "not-now"}
 GOAL_FILE = "geo-goal.md"   # one goal card per site, at the project root (site skill, step 0)
 THIN_NEED_RUNS = 8
 THIN_TOTAL = 25
+# Below this share of answers naming the site, pages need a stated reason (site rule 2: page levers
+# rest on whether the assistant picks us, not on the gap alone).
+PRESENCE_LINE = 0.25
+# Combination samples: share whose opening asks for a tool, site or app (angle `recommend`); the rest
+# start from the problem. With none, the probes measure the answer, never whether a tool gets picked.
+TOOL_SHARE = 0.33
 VALUE_ID = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 # What a follow-up asks decides where a page answers it (site-batch references/question-mapping.md).
 TURN_KINDS = {"constraint", "howto", "why", "compare", "resource", "other"}
@@ -893,9 +899,17 @@ def cmd_sample(st, a):
             use[k][v] += 1
         rows.append({"combo_id": cid, "combo": combo, "persona": "", "opening": "",
                      "opening_scope": None, "follow_ups": [], "signals": []})
+    if not 0 <= a.tool_share <= 1:
+        die("--tool-share is a share between 0 and 1")
+    k = round(len(rows) * a.tool_share)
+    # Evenly spaced over the rows, which are already spread over the values.
+    tool = {int((i + 0.5) * len(rows) / k) for i in range(k)} if k else set()
+    for i, r in enumerate(rows):
+        r["angle"] = "recommend" if i in tool else "problem"
     write_jsonl(st.samples, rows)
     uncovered = [f"{d['id']}={v['id']}" for d in gen for v in d["values"] if use[d["id"]][v["id"]] == 0]
-    out = {"samples": len(rows), "file": str(st.samples), "uncovered_values": uncovered}
+    out = {"samples": len(rows), "file": str(st.samples), "uncovered_values": uncovered,
+           "angles": dict(Counter(r["angle"] for r in rows))}
     if a.n < widest:
         out["warning"] = f"n={a.n} is below the widest dimension ({widest} values): some values go unsampled"
     print(json.dumps(out, ensure_ascii=False, indent=2))
@@ -1307,6 +1321,31 @@ def decision_gates(st, a, proj, dims, sub):
     return {n: sorted(l) for n, l in levers.items()}
 
 
+def presence_gate(a, rep, pres):
+    """Pages rest on whether the assistant picks the site (site rule 2). A low presence does not block
+    the owner's go, but the reason has to be written down, next to the presence by angle."""
+    if a.verdict not in ("go", "narrow"):
+        return
+    share = pres.get("in_answer_share")
+    if share is None:
+        print("WARN   own presence not recorded in the runs: this decision rests on the answer gap only, "
+              "not on whether the assistant would pick the site", file=sys.stderr)
+        return
+    if share >= PRESENCE_LINE:
+        return
+    by_angle = (rep.get("groups") or {}).get("angle") or {}
+    angles = ", ".join(f"{k} {v['own_in_answer']:.0%}" for k, v in by_angle.items() if v.get("own_in_answer") is not None)
+    msg = (f"own site in {share:.0%} of answers (lever hint {pres.get('lever_hint') or 'none'}"
+           + (f"; by angle: {angles}" if angles else "") + "): pages rest on whether the assistant picks the site "
+           "(site rule 2), and these probes say it does not yet")
+    if "recommend" not in by_angle:
+        msg += "; no probed sample asked for a tool, site or app (angle recommend), so picking was not tested"
+    if not (a.note or "").strip():
+        die(msg + ". Record the owner's reason with --note (e.g. a first small wave as a test, with the "
+            "off-site or existing-page levers alongside), or decide narrow / stop")
+    print(f"WARN   {msg}", file=sys.stderr)
+
+
 def record_decision(st, proj, dec, stage_note):
     """Decisions are appended, never overwritten: `decision` is the current one, `decisions` the history."""
     hist = proj.setdefault("decisions", [])
@@ -1343,6 +1382,7 @@ def cmd_decide(st, a):
     dims = read_json(st.dimensions, {"dimensions": []})
     levers = decision_gates(st, a, proj, dims, sub)
     pres = rep.get("presence") or {}
+    presence_gate(a, rep, pres)
     dec = {"verdict": a.verdict, "date": date.today().isoformat(), "by": "user",
            "subspace": sub, "note": a.note or "", "levers": levers,
            "evidence": {"probed": rep["probed"], "share_high": rep["share_high"], "hint": rep["hint"],
@@ -1513,6 +1553,11 @@ def cmd_check(st, a):
         if raw and not (st.root / raw).exists():
             errs.append(f"{where}: raw file {raw} does not exist")
     warns = goal_warnings(st, proj)
+    combo_rows = [s for s in samples if not s.get("question_id") and not s.get("url")]
+    if combo_rows and not any(s.get("angle") == "recommend" for s in combo_rows):
+        warns.append(f"none of the {len(combo_rows)} combination samples asks for a tool, site or app (angle "
+                     "recommend): the probes measure the answer, not whether the assistant picks a tool; "
+                     "re-sample (`sample --force`, --tool-share) or append such samples with angle recommend")
     for e in errs:
         print(f"ERROR  {e}")
     for w in warns:
@@ -1577,6 +1622,8 @@ def main(argv=None):
                    help="with --from-questions: share of seats per need (repeatable; unnamed needs weigh 1)")
     s.add_argument("--append", action="store_true", help="add to samples.jsonl, skipping questions already in it")
     s.add_argument("--pool", help="JSONL of candidate rows {combo, url?, stratum?}: sample them, spread over strata")
+    s.add_argument("--tool-share", type=float, default=TOOL_SHARE,
+                   help="combinations: share of samples whose opening asks for a tool, site or app (angle recommend)")
     sub.add_parser("probes")
     s = sub.add_parser("report")
     s.add_argument("--threshold", type=float, default=0.33)

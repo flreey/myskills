@@ -159,6 +159,10 @@ Older samples may carry first-party rows as `site_signals`.
 `sample --from-questions` fills `signals` from the question's `evidence`: a `<need_id>#e<N>` reference
 copies that evidence row from `needs.jsonl`; a URL or search-log string becomes `{"ref": "<string>"}`.
 
+Combination samples carry `angle`: `recommend` (the opening asks for a tool, site or app; about a
+third, `sample --tool-share`) or `problem` (it starts from the situation). Older combination samples
+without it make `check` warn.
+
 Samples from the question bank also carry `question_id`, `need_id`, `angle`, `conditions` and
 `evidence_level`, and use the question id as `combo_id`; samples from a pool carry `url` and `stratum`.
 The report groups results by each of these when present.

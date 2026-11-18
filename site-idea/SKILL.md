@@ -53,8 +53,9 @@ with the later geo stages, is [references/state.md](references/state.md).
    assistant-chat column, and the report's `hint` reads that column only. `decide --by user` runs
    after the owner chose in chat and refuses while a Lever is still `?`. `go` or `narrow` records the
    part of the space that gets pages and needs at least one need with `pages`; a decision that makes no
-   pages is `stop`, with the other levers in the table. Decisions are kept in `decisions`, never
-   overwritten.
+   pages is `stop`, with the other levers in the table. When the site is in under 25% of the answers,
+   `go` or `narrow` needs the owner's reason in `--note` (pages rest on being picked, not on the gap).
+   Decisions are kept in `decisions`, never overwritten.
 6b. **No pages without a task space.** `decide go|narrow` refuses unless `dimensions.json` has a
    generating dimension, `space` ran on the current file, and the generating dimensions state their
    assets (`{needs, have, source}`): the owner sees how many pages are possible and what each needs.
@@ -91,7 +92,8 @@ with the later geo stages, is [references/state.md](references/state.md).
    `sample --from-questions --n 40` (bank questions spread over needs and angles, real wording first;
    `--weight`, `--origin`, `--ids`, `--append` in [references/question-bank.md](references/question-bank.md)),
    or `sample --pool <file> --n 40` (existing pages as candidates, spread over strata such as traffic
-   tiers). Fill `persona`, `opening`, `follow_ups` and `signals` where empty, following
+   tiers). Combinations come marked with an `angle`: about a third `recommend` (the opening asks for a
+   tool, site or app), the rest `problem`. Fill `persona`, `opening`, `follow_ups` and `signals` where empty, following
    [references/conversations.md](references/conversations.md). Then `probes` renders the sheet.
 4. **Probe.** Per rule 3: give the user `geo/gap/probes.md` (one new chat per conversation, each
    target platform, paste the whole answer into the named file), or run it the way they approved.
@@ -174,3 +176,8 @@ and record what changed here. Revised 2026-11-18 after the SFXMint long-tail rou
 probes narrowed the space to licence guides, the agent/API channel had been dropped at the demand map
 without the owner, and the task space was skipped, so the largest need (finding a specific sound) had
 no plan. The goal card, per-channel decision, drop rule and mandatory task space were added for that.
+Revised again on 2026-11-18 after the ToHD round: all 70 combination openings described a problem and
+none asked for a tool, so ChatGPT answered from memory and the site was in 0 of 70 answers, while 15
+tool-seeking openings named it 7 times; `go` was still recorded with no remark. Combination samples now
+carry an angle (a third `recommend`), `check` warns when none asks for a tool, and `decide go|narrow`
+under 25% presence needs the owner's reason.

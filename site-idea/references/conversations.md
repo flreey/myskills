@@ -27,8 +27,14 @@ Rules:
 - Every generating dimension value of the combination appears somewhere in the path. A constraint can
   arrive in a follow-up rather than the opening; that is how people talk.
 - Do not name the idea, the product or any brand. The probe measures what the assistant does on its own.
-- Openings vary: many start from the problem ("the yearbook site rejects my photos"), not from a
-  request for a tool. Write at most a third of them as "what is the best tool for …".
+- Openings follow the sample's `angle`. `sample` marks about a third of the combinations
+  `recommend` (`--tool-share`): their opening asks for a tool, site or app under the combination's
+  conditions ("is there a free site that can fix a blurry WhatsApp video on my phone?"). The rest are
+  `problem`: they start from the situation ("the yearbook site rejects my photos") and never ask for a
+  tool. Both are needed: problem openings show whether the answer is good, recommend openings show
+  whether the assistant searches and picks a tool, and which. On ToHD (2026-11-18) 70 problem
+  openings searched 28 times and never named the site; 15 tool openings searched every time and named
+  it 7 times.
 - Match real wording when a signal has it: length, words, level of detail. Do not polish it.
 - Persona is a dimension marked `changes_answer: false` or a plausible person; it adds realism, never
   a new combination.

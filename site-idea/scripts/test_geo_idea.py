@@ -90,6 +90,39 @@ class GeoIdeaTest(unittest.TestCase):
             self.assertNotIn("persona", r["combo"])
         self.assertEqual(len({r["combo_id"] for r in rows}), 6)
 
+    def test_sample_tags_a_share_of_tool_seeking_openings(self):
+        code, out = run(self.root, "sample", "--n", "9")
+        self.assertEqual(json.loads(out)["angles"], {"problem": 6, "recommend": 3})
+        rows = gi.read_jsonl(self.root / "geo/gap/samples.jsonl")
+        self.assertEqual([r["angle"] for r in rows].count("recommend"), 3)
+        self.assertEqual(run(self.root, "sample", "--n", "4", "--force", "--tool-share", "1.5")[0], 2)
+        run(self.root, "sample", "--n", "4", "--force", "--tool-share", "0")
+        rows = gi.read_jsonl(self.root / "geo/gap/samples.jsonl")
+        self.assertEqual({r["angle"] for r in rows}, {"problem"})
+        code, out = run(self.root, "check")
+        self.assertIn("asks for a tool, site or app", out)    # WARN, not an error
+        self.assertEqual(code, 0)
+
+    def test_decide_with_the_site_absent_needs_the_owners_reason(self):
+        run(self.root, "sample", "--n", "6")
+        rows = gi.read_jsonl(self.root / "geo/gap/samples.jsonl")
+        base = {"platform": "ChatGPT", "date": "2026-11-18", "mode": "browser", "web_search": False}
+        runs = [{**base, "combo_id": r["combo_id"], "gap": "generic",
+                 "own": "listed" if r["angle"] == "recommend" and i == 0 else "absent"} for i, r in enumerate(rows)]
+        gi.write_jsonl(self.root / "geo/gap/runs.jsonl", runs)
+        run(self.root, "report")
+        rep = gi.read_json(self.root / "geo/gap/report.json")
+        self.assertIn("recommend", rep["groups"]["angle"])     # presence is reported per angle
+        ready_to_decide(self.root, {"n-a": "pages"})
+        code, _ = run(self.root, "decide", "--verdict", "go", "--by", "user")
+        self.assertEqual(code, 2)
+        self.assertEqual(run(self.root, "decide", "--verdict", "stop", "--by", "user")[0], 0)  # stop needs no reason
+        code, _ = run(self.root, "decide", "--verdict", "go", "--by", "user", "--note", "first wave of 18 as a test")
+        self.assertEqual(code, 0)
+        gi.write_jsonl(self.root / "geo/gap/runs.jsonl", [{**r, "own": "first"} for r in runs])
+        run(self.root, "report")
+        self.assertEqual(run(self.root, "decide", "--verdict", "go", "--by", "user")[0], 0)  # picked: no reason needed
+
     def test_sample_refuses_to_overwrite(self):
         run(self.root, "sample", "--n", "4")
         code, _ = run(self.root, "sample", "--n", "4")
@@ -363,6 +396,9 @@ class DemandAndBankTest(unittest.TestCase):
         code, out = run(self.root, "decide", "--verdict", "narrow", "--by", "user", "--subspace", '{"need": ["n-nope"]}')
         self.assertNotEqual(code, 0)
         code, out = run(self.root, "decide", "--verdict", "narrow", "--by", "user", "--subspace", '{"need": ["n-safe"]}')
+        self.assertEqual(code, 2)  # site absent from every answer: the owner's reason is required
+        code, out = run(self.root, "decide", "--verdict", "narrow", "--by", "user", "--subspace", '{"need": ["n-safe"]}',
+                        "--note", "small first wave as a test, offsite alongside")
         self.assertEqual(code, 0, out)
         self.assertEqual(gi.read_json(self.root / "geo/project.json")["decision"]["subspace"], {"need": ["n-safe"]})
 
