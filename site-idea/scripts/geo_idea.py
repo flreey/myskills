@@ -1602,13 +1602,17 @@ def cmd_queries(st, a):
          "## Find searches (rank decides whether our pages can be picked)", "",
          "Fill `rank` in queries.jsonl per cluster (engine, date, our position or null, our URL, the winners' "
          "domains, source) and rerun: filled ranks are kept.", "",
-         "| Cluster | Runs | We are in the answer | Our rank | Example queries |", "| --- | --- | --- | --- | --- |"]
+         "`winners_kind`: dedicated when pages made for this exact search win (a page of its own can win), "
+         "general when broad tool or home pages win (answer it as a section of one), mixed otherwise. "
+         "site-batch reads it before a combination of two dimensions becomes a page.", "",
+         "| Cluster | Runs | We are in the answer | Our rank | Winners | Example queries |",
+         "| --- | --- | --- | --- | --- | --- |"]
     for r in find:
         rk = r["rank"] or {}
         rank = (f"{rk.get('engine')}: {rk.get('ours') if rk.get('ours') is not None else 'not in results'}"
                 if rk else "not measured")
         share = f"{r['own_in_answer']:.0%}" if r["own_in_answer"] is not None else "not recorded"
-        L.append(f"| {r['id']} | {r['n']} | {share} | {rank} | " + "; ".join(f"`{q}`" for q in r["examples"][:3]) + " |")
+        L.append(f"| {r['id']} | {r['n']} | {share} | {rank} | {rk.get('winners_kind') or '?'} | " + "; ".join(f"`{q}`" for q in r["examples"][:3]) + " |")
     L += ["", "## Named checks (the assistant's shortlist: who it already has in mind)", "",
           "When we are not on this list, the assistant answers from memory and checks others: lists, "
           "communities and reviews (site-offsite GEO mode) change the shortlist; pages alone do not.", "",
@@ -1633,6 +1637,9 @@ def rank_errors(rk, where):
         errs.append(f"{where}: rank.ours is our position (1 or more), or null when we are not in the results")
     if not isinstance(rk.get("winners", []), list):
         errs.append(f"{where}: rank.winners is a list of domains")
+    if rk.get("winners_kind") not in (None, "dedicated", "general", "mixed"):
+        errs.append(f"{where}: rank.winners_kind is dedicated (pages for this exact search win), general "
+                    "(broad tool or home pages win) or mixed")
     return errs
 
 

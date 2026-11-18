@@ -40,6 +40,13 @@ contract: [../site-idea/references/state.md](../site-idea/references/state.md). 
    default 1): a fact, key fact, asset or file that no sibling has and that is not just one
    dimension's parent-page fact. A combination whose evidence is all shared is a section of its
    parent page, not a page. The gate is never loosened to let thin rows through.
+3b. **A page needs someone asking, and a search pages of its own win.** Every row cites `demand`
+   (a demand-map evidence row, a query cluster from `gap/queries.jsonl`, a first-party record or an
+   off-site quote; first-party `baseline` numbers count). A row of a template with two or more
+   dimensions also cites a find cluster whose `rank.winners_kind` is `dedicated`: when broad tool or
+   home pages win that search, the combination is a section of its parent page. Rows released before
+   these rules stay live and are listed by `lint` and `status` (`released_without_demand`) for the
+   owner to keep, back with evidence, or fold into their parents.
 4. **The owner approves each template** after seeing the spec and one rendered row (`approved`), and
    each wave before release. `wave-plan` and `wave-release` refuse templates without `approved`. Pattern or required-field changes bump `version` and need approval again.
 5. **Waves, never everything at once.** Seed wave 50–200 pages across templates; later waves grow only
@@ -138,6 +145,12 @@ deploy stages, each separately → funnel per template with page counts and wind
 items for the owner → what was not verified → what this step dropped compared with the goal card.
 
 ## Premises
+
+The demand and dedicated-winner gates were added the same day: without them a row with its own
+evidence could still ship when nobody asks for that combination (ToHD: 13 of 70 sampled combinations
+had off-site evidence) or when the search it answers is won by general pages. Replay: SFXMint geo-find
+and geo-families pass on their baseline numbers; the 12 released geo-longtail guides stay live and are
+listed; ToHD fix 0 of 18.
 
 The own-evidence gate was added 2026-11-18 after ToHD's first `/fix` wave passed the text-uniqueness
 gate by rewording while every row combined its source page's and destination page's facts (14 of 16

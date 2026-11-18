@@ -50,6 +50,7 @@ out, not filled with guesses.
 | `fact_ids` | Every fact the prose relies on. Numbers in prose that appear in no cited fact or key fact fail the gate. |
 | `key_facts[].hidden` | `true` sources a number in the prose (a count, a named file's length) without showing it as a fact row. |
 | `assets` | What the answer needs that may not exist yet: `[{"id": "a1", "kind": "sound", "status": "to_generate", "brief": "metal footsteps running up stairs, 4–8 takes"}]`. `status`: `ready`, `to_generate`, `to_collect`, `missing`. Any status other than `ready` fails the gate; `geo_engine.py assets` lists the queue by priority. |
+| `demand` | Who asks for this page: a list of `{"need_ref": "<need_id>#e<N>"}` (an evidence row of needs.jsonl), `{"query": "<cluster id or key>"}` (gap/queries.jsonl; a find cluster with `rank.winners_kind: dedicated` also passes the dedicated-winner gate), `{"source", "ref", "q" or "n"}` (first-party record) or `{"url", "quote"}` (off-site). `baseline` numbers on search, landing, fetch, referral, download or play keys above 0 also count. |
 | `related` | Optional list of combo ids to link instead of the automatic siblings (one-dimension templates have none). |
 | `baseline` | Optional numbers for the control split, e.g. `{"ai_fetch": 30, "ai_landings": 12}` over the last 28 days; `wave-plan --control-ratio` sums them per side. |
 | `priority` | Higher ships in an earlier wave. Start from the gap level of the nearest sampled combination. |

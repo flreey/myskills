@@ -50,7 +50,8 @@ def row(src, tgt, answer, **kw):
          "constraint_results": [{"constraint": "No upload", "status": "met", "note": f"{src} stays on your device"}],
          "follow_ups": [{"q": f"Does {src} keep dates?", "a": "Yes, EXIF dates are kept at quality 92."}],
          "resource": {"label": "Open the converter", "url": f"/tools/{src}-to-{tgt}"},
-         "key_facts": [{"label": "Our test", "value": f"{src} to {tgt} sample set", "source": f"own test {src}-{tgt}"}]}
+         "key_facts": [{"label": "Our test", "value": f"{src} to {tgt} sample set", "source": f"own test {src}-{tgt}"}],
+         "demand": [{"query": "f1"}]}
     r.update(kw)
     return r
 
@@ -62,6 +63,15 @@ COMBOS = [
     row("webp", "png", "WebP to PNG keeps transparency and animation is dropped.", constraint_results=[]),  # missing required
     row("pdf", "jpg", "PDF pages render to JPG one image per page at a fixed resolution."),  # outside subspace
 ]
+
+
+# One find cluster whose search is won by dedicated pages: rows citing it may be pages of their own.
+QUERIES = [{"id": "f1", "kind": "find", "key": "convert heic jpg", "label": "convert heic to jpg", "n": 3,
+            "rank": {"engine": "bing", "date": "2026-11-18", "ours": None, "winners": ["cloudconvert.com"],
+                     "winners_kind": "dedicated", "source": "bing.com"}},
+           {"id": "f2", "kind": "find", "key": "image converter", "label": "image converter", "n": 2,
+            "rank": {"engine": "bing", "date": "2026-11-18", "ours": None, "winners": ["convertio.co"],
+                     "winners_kind": "general", "source": "bing.com"}}]
 
 
 def run(root, *args):
@@ -84,6 +94,7 @@ class EngineTest(unittest.TestCase):
         ge.write_jsonl(r / "geo/facts.jsonl", FACTS)
         ge.write_json(r / "geo/templates/convert.json", TEMPLATE)
         ge.write_jsonl(r / "geo/combos/convert.jsonl", COMBOS)
+        ge.write_jsonl(r / "geo/gap/queries.jsonl", QUERIES)
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -133,6 +144,45 @@ class EngineTest(unittest.TestCase):
         ge.write_json(self.root / "geo/templates/convert.json", dict(TEMPLATE, min_own_evidence=0))
         code, out = run(self.root, "lint")
         self.assertIn("min_own_evidence_why", out)
+
+    def test_demand_and_dedicated_winner_gates(self):
+        ge.write_jsonl(self.root / "geo/needs.jsonl", [
+            {"id": "n-iphone", "evidence": [{"source": "site_search", "ref": "search_log 28d", "q": "heic to jpg", "n": 40}]}])
+        rows = [dict(COMBOS[0], demand=[]),                                     # nobody asks
+                dict(COMBOS[1], demand=[{"query": "f2"}]),                       # asked, but general pages win
+                dict(COMBOS[2], demand=[{"need_ref": "n-iphone#e1"}, {"query": "f1"}]),
+                dict(COMBOS[0], combo_id="heic__jpg", demand=[{"need_ref": "n-iphone#e9"}])]
+        ge.write_jsonl(self.root / "geo/combos/convert.jsonl", rows[:3])
+        g = self.gates()
+        self.assertTrue(any(f.startswith("no demand evidence") for f in g["heic__jpg"]["gate"]["failed"]))
+        self.assertTrue(any(f.startswith("no find-query cluster where dedicated pages win") for f in g["heic__png"]["gate"]["failed"]))
+        self.assertFalse(any("demand" in f or "dedicated" in f for f in g["webp__jpg"]["gate"]["failed"]), g["webp__jpg"]["gate"])
+        ge.write_jsonl(self.root / "geo/combos/convert.jsonl", [rows[3], rows[1]])
+        self.assertTrue(any("not an evidence row" in f for f in self.gates()["heic__jpg"]["gate"]["failed"]))
+        # Baseline numbers (AI landings, searches) count as first-party demand.
+        ge.write_jsonl(self.root / "geo/combos/convert.jsonl", [dict(COMBOS[0], demand=[{"query": "f1"}]),
+                                                                 dict(COMBOS[1], demand=[], baseline={"ai_landings": 12})])
+        g = self.gates()
+        self.assertFalse(any(f.startswith("no demand evidence") for f in g["heic__png"]["gate"]["failed"]))
+        # Turning a gate off needs a reason.
+        ge.write_json(self.root / "geo/templates/convert.json", dict(TEMPLATE, require_dedicated_winner=False))
+        code, out = run(self.root, "lint")
+        self.assertIn("require_dedicated_winner_why", out)
+
+    def test_released_rows_without_demand_stay_live(self):
+        run(self.root, "build", "--target", "kit")
+        run(self.root, "wave-plan", "--per-template", "2")
+        run(self.root, "wave-release", "--wave", "1", "--date", "2026-10-01")
+        rows = [dict(r, demand=[]) for r in COMBOS]                 # evidence removed after release
+        ge.write_jsonl(self.root / "geo/combos/convert.jsonl", rows)
+        g = self.gates()
+        released = [c for c, i in g.items() if i["released"]]
+        self.assertEqual(len(released), 2)
+        self.assertTrue(all(g[c]["gate"]["pass"] for c in released))  # kept live
+        code, out = run(self.root, "lint")
+        self.assertIn("2 released rows have no demand", out)
+        code, out = run(self.root, "status")
+        self.assertEqual(json.loads(out)["convert"]["released_without_demand"], 2)
 
     def test_unsourced_number_and_unknown_fact(self):
         rows = COMBOS[:2] + [row("webp", "jpg", "WebP converts to JPG in 3 seconds.", fact_ids=["f1", "f9"])]

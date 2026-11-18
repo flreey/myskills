@@ -113,6 +113,12 @@ Assistants quote passages, not pages, and filter options by the conditions the p
 - **Specific to the combination.** The answer and the details would be wrong on a sibling page
   (another value of one dimension). If swapping the nouns makes it fit a sibling, the row lacks
   combination data: a fix in site-batch, not in copy.
+- **Conditions on the first screen.** The conditions an assistant checks before it picks a site are
+  stated in plain text near the top, before the fold on a phone, not only on a pricing page or inside
+  the tool: whether it is free and when it is paid (price), limits (length, size, resolution, count),
+  upload or not, signup, watermark, devices. On ToHD (2026-11-18) ChatGPT searched `<site> limitations
+  pricing` before picking and picked the sites that stated these on the page. Missing or only behind a
+  click is a fix.
 - **Constraints stated.** Each condition people state for this task (from the row's
   `constraint_results`, the gap samples or the brief's `conditions`) has its own sentence or table row
   with met, with conditions, or not met, including the unmet ones. A missing or vague condition is a fix.

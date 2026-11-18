@@ -136,7 +136,9 @@ the shape decides how the pages are cut. A site can hold both, one GEO folder ea
    (generic: the assistant looks for candidates), grouped into clusters, and **named checks** (a site
    or product it already has in mind: its shortlist). Fill `rank` per find cluster (Bing first, as
    ChatGPT search leans on it; Google SERP or Search Console when Bing is not available, said so):
-   whether our pages rank there decides whether they can be picked. When most queries are named checks
+   whether our pages rank there decides whether they can be picked. Note whether the winners are pages made for that search
+   (`winners_kind: dedicated`) or broad tool and home pages (`general`): site-batch makes a combination
+   a page of its own only for the first. When most queries are named checks
    and we are not on the shortlist, the assistant answers from memory: that cell's lever is off-site
    (lists, communities, reviews), not pages; agents, API and MCP (first-party search logs, zero-result queries, tool directory and
    registry presence). Write what was looked at and what was not; "not measured" is a valid cell.

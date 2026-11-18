@@ -171,12 +171,13 @@ class GeoIdeaTest(unittest.TestCase):
         run(self.root, "queries")
         kept = next(r for r in gi.read_jsonl(self.root / "geo/gap/queries.jsonl") if r["key"] == heic["key"])
         self.assertEqual(kept["rank"]["ours"], 3)            # filled ranks survive a rerun
-        rows_q[i]["rank"] = {"engine": "bing", "ours": 0}
+        rows_q[i]["rank"] = {"engine": "bing", "ours": 0, "winners_kind": "big"}
         gi.write_jsonl(self.root / "geo/gap/queries.jsonl", rows_q)
         code, out = run(self.root, "check")
         self.assertEqual(code, 1)
         self.assertIn("rank needs date", out)
         self.assertIn("rank.ours is our position", out)
+        self.assertIn("winners_kind is dedicated", out)
 
     def test_sample_refuses_to_overwrite(self):
         run(self.root, "sample", "--n", "4")

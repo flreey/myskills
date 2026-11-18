@@ -182,10 +182,13 @@ reruns by `key`:
 ```json
 {"id": "f2", "kind": "find", "key": "4k free no upscaler video watermark", "n": 2,
  "rank": {"engine": "bing", "date": "2026-11-19", "ours": null, "url": null,
-          "winners": ["4kvideoupscaler.com", "upscaler.video"], "source": "bing.com, logged out, US"}}
+          "winners": ["4kvideoupscaler.com", "upscaler.video"], "winners_kind": "dedicated",
+          "source": "bing.com, logged out, US"}}
 ```
 
-`ours` is our best position, or null when we are not in the results looked at.
+`ours` is our best position, or null when we are not in the results looked at. `winners_kind` is
+`dedicated` (pages made for this exact search win), `general` (broad tool or home pages win) or
+`mixed`; site-batch requires `dedicated` before a combination of two dimensions becomes a page.
 
 ## gap/runs.jsonl
 

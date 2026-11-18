@@ -113,6 +113,7 @@ class State:
         self.waves = self.geo / "waves.json"
         self.snapshots = self.geo / "measure" / "snapshots.jsonl"
         self.samples = self.geo / "gap" / "samples.jsonl"
+        self.queries = self.geo / "gap" / "queries.jsonl"
         self.data = self.root / "data"
 
     def load(self):
@@ -237,6 +238,9 @@ def lint_templates(templates, dims, errs, warns):
             errs.append(f"{w}: min_own_evidence is a whole number, 0 or more")
         elif t.get("min_own_evidence", 1) == 0 and not t.get("min_own_evidence_why"):
             errs.append(f"{w}: min_own_evidence 0 turns the own-evidence gate off: say why in min_own_evidence_why")
+        for flag in ("require_demand", "require_dedicated_winner"):
+            if t.get(flag) is False and not t.get(f"{flag}_why"):
+                errs.append(f"{w}: {flag} false turns that gate off: say why in {flag}_why")
         col = t.get("collection", {})
         if is_adopt(t) and col.get("groups"):
             warns.append(f"{w}: adopt templates keep the site's own group pages; collection.groups is ignored")
@@ -475,6 +479,65 @@ def evidence_items(row, cid, t, facts):
     return items
 
 
+DEMAND_KEYS = re.compile(r"search|landing|fetch|referr|download|play|take", re.I)
+
+
+def needs_evidence(st, proj):
+    """`<need_id>#e<N>` -> True for every evidence row of the demand map (shared with --needs-from folders)."""
+    nf = proj.get("needs_from")
+    path = (st.root / nf / "needs.jsonl") if nf else (st.geo / "needs.jsonl")
+    refs = set()
+    for n in read_jsonl(path):
+        for i, _ in enumerate(n.get("evidence") or [], 1):
+            refs.add(f"{n.get('id')}#e{i}")
+    return refs
+
+
+def demand_check(row, t, need_refs, queries):
+    """Who asks for this page, and whether a page of its own is what wins the search. Returns
+    (demand problems, split problems)."""
+    items = row.get("demand") or []
+    dem, split = [], []
+    ok, dedicated = False, False
+    if not isinstance(items, list):
+        return ["demand is a list of evidence items"], []
+    for x in items:
+        if not isinstance(x, dict):
+            dem.append("demand items are objects: {need_ref}, {query}, {source, ref, q|n} or {url, quote}")
+            continue
+        if x.get("need_ref"):
+            if x["need_ref"] in need_refs:
+                ok = True
+            else:
+                dem.append(f"demand need_ref {x['need_ref']!r} is not an evidence row in needs.jsonl (<need_id>#e<N>)")
+        elif x.get("query"):
+            q = queries.get(x["query"])
+            if not q:
+                dem.append(f"demand query {x['query']!r} is not a cluster id or key in gap/queries.jsonl")
+                continue
+            ok = True
+            if q.get("kind") == "find" and (q.get("rank") or {}).get("winners_kind") == "dedicated":
+                dedicated = True
+        elif x.get("url") and x.get("quote"):
+            ok = True
+        elif x.get("source") and x.get("ref") and (x.get("q") or x.get("quote") or x.get("n")):
+            ok = True
+        else:
+            dem.append(f"demand item {json.dumps(x)[:80]} is none of {{need_ref}}, {{query}}, {{source, ref, q|n}}, {{url, quote}}")
+    base = row.get("baseline") or {}
+    if any(DEMAND_KEYS.search(str(k)) and isinstance(v, (int, float)) and v > 0 for k, v in base.items()):
+        ok = True   # first-party numbers already on the row (searches, AI landings, fetches)
+    if t.get("require_demand", True) and not ok:
+        dem.append("no demand evidence: nobody shown asking for this page (demand: need_ref, query cluster, "
+                   "first-party record or off-site quote; or baseline searches/landings); make it a section of the parent")
+    multi = len(t.get("dimensions", []) or []) > 1 and not is_adopt(t)
+    if multi and t.get("require_dedicated_winner", True) and not dedicated:
+        split.append("no find-query cluster where dedicated pages win (gap/queries.jsonl rank.winners_kind "
+                     "dedicated): a combination of two dimensions is a section of its parent page unless the "
+                     "search it answers is won by pages of its own")
+    return dem, split
+
+
 def related_slugs(rows_by_cid, me, dims_order, limit=6):
     """Built siblings that differ from me in exactly one dimension, in dimension order."""
     out = []
@@ -505,6 +568,12 @@ def evaluate(st):
     lab = labels(dims)
     decision = proj.get("decision")
     rel = released_map(waves)
+    need_refs = needs_evidence(st, proj)
+    queries = {}
+    for q in read_jsonl(st.queries):
+        for k in (q.get("id"), q.get("key")):
+            if k:
+                queries[k] = q
     ctl = {(tid, cid): w["id"] for w in waves.get("waves", []) for tid, ids in (w.get("control") or {}).items() for cid in ids}
     result = {}
     for tid, t in templates.items():
@@ -547,6 +616,11 @@ def evaluate(st):
                 e["failed"].append(f"unique ratio {e['unique']} < {minu}")
             w = rel.get((tid, e["cid"]))
             e["wave"], e["released"], e["released_on"], e["deployed_on"] = (w if w else (None, False, None, None))
+            dem, split = demand_check(e["row"], t, need_refs, queries)
+            # Rows released before these rules stay live; lint and status list them for a decision.
+            e["legacy"] = (dem + split) if e["released"] else []
+            if not e["released"]:
+                e["failed"] += dem + split
             e["control_of"] = ctl.get((tid, e["cid"]))
         result[tid] = {"template": t, "items": evald}
     return proj, dims, facts, templates, waves, result
@@ -575,6 +649,11 @@ def cmd_lint(st, a):
             warns.append(f"combos/{tid}.jsonl: no rows")
         elif bad:
             warns.append(f"combos/{tid}.jsonl: {n - bad}/{n} rows pass the gate (status shows why)")
+        legacy = [e["cid"] for e in r["items"] if e.get("legacy")]
+        if legacy:
+            warns.append(f"combos/{tid}.jsonl: {len(legacy)} released rows have no demand or dedicated-winner "
+                         f"evidence (e.g. {legacy[0]}): kept live; add the evidence, or decide with the owner "
+                         "to fold them into their parent pages")
     for e in errs:
         print(f"ERROR  {e}")
     for w in warns:
@@ -990,6 +1069,7 @@ def cmd_status(st, a):
             "released": sum(1 for e in r["items"] if e["released"] and not e["failed"]),
             "control": sum(1 for e in r["items"] if e["control_of"] is not None),
             "assets_pending": len(pending_assets(r["items"])),
+            "released_without_demand": sum(1 for e in r["items"] if e.get("legacy")),
             "failed_by_reason": dict(reasons.most_common()),
         }
     out["waves"] = [{"id": w["id"], "status": w["status"], "planned": w.get("planned"), "released": w.get("released"),
