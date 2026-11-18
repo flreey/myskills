@@ -1550,7 +1550,9 @@ def cmd_queries(st, a):
     show its shortlist."""
     proj = read_json(st.project)
     by_sample = {s["combo_id"]: s for s in read_jsonl(st.samples)}
-    brands = [b.lower() for b in brand_terms(proj, read_jsonl(st.competitors)) if b]
+    # Our own names only: brand_terms also holds competitors' names (for the probe-question check).
+    brands = sorted({str(b).lower() for b in [proj.get("name", ""), registrable((proj.get("site") or {}).get("origin", ""))]
+                     + list(proj.get("brands") or []) if b and len(str(b)) > 2})
     items = []
     for path in [st.runs] + list(st.extra_runs):
         for r in read_jsonl(path):

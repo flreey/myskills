@@ -146,10 +146,12 @@ class GeoIdeaTest(unittest.TestCase):
                 "free online heic to jpg converter no upload 2026", "heic to jpg converter free no upload browser",
                 "Convert heic limits pricing"]},
             {**base, "combo_id": rows[1]["combo_id"], "own": "absent", "search_queries": [
-                "CloudConvert heic jpg free limits", "site:cloudconvert.com heic to jpg", "iPhone Photos export JPG official"]},
+                "CloudConvert heic jpg free limits", "site:cloudconvert.com heic to jpg", "iPhone Photos export JPG official",
+                "Zamzar heic converter pricing"]},
         ])
         gi.write_jsonl(self.root / "geo/gap/runs-website.jsonl", [
             {**base, "combo_id": rows[2]["combo_id"], "own": "absent", "search_queries": ["batch pdf to png converter offline"]}])
+        gi.write_jsonl(self.root / "geo/competitors.jsonl", [{"id": "zamzar", "name": "Zamzar", "domain": "zamzar.com", "kind": "tool"}])
         code, out = run(self.root, "queries")
         self.assertEqual(code, 0, out)
         q = gi.read_jsonl(self.root / "geo/gap/queries.jsonl")
@@ -162,6 +164,7 @@ class GeoIdeaTest(unittest.TestCase):
         self.assertEqual(named["Convert"]["kind"], "own")    # the project name: the assistant checking us
         self.assertEqual(named["CloudConvert"]["n"], 2)      # CloudConvert and cloudconvert.com are one
         self.assertIn("Photos", named)                       # iPhone is a platform word, not a candidate
+        self.assertEqual(named["Zamzar"]["kind"], "named")   # a listed competitor is not us
         self.assertIn("Named checks", (self.root / "geo/gap/queries.md").read_text())
         rows_q = gi.read_jsonl(self.root / "geo/gap/queries.jsonl")
         i = next(n for n, r in enumerate(rows_q) if r["key"] == heic["key"])
