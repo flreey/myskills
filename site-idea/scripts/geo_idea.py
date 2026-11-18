@@ -1102,7 +1102,10 @@ def subspace_arg(st, a):
     if a.verdict == "narrow" and not sub:
         die("narrow needs --subspace, e.g. '{\"source\": [\"heic\", \"png\"]}'")
     if sub:
-        dims = {d["id"]: {v["id"] for v in d["values"]} for d in read_json(st.dimensions)["dimensions"]}
+        dims = {d["id"]: {v["id"] for v in d["values"]} for d in read_json(st.dimensions, {"dimensions": []})["dimensions"]}
+        # The bank route narrows by need (and optionally angle) instead of by a task-space dimension.
+        dims.setdefault("need", {n.get("id") for n in read_jsonl(st.needs)})
+        dims.setdefault("angle", set(ANGLES))
         for k, vs in sub.items():
             if k not in dims or not set(vs) <= dims[k]:
                 die(f"subspace names unknown dimension or values: {k}={vs}")
@@ -1187,8 +1190,10 @@ def cmd_check(st, a):
     if proj.get("stage") not in STAGES + ["blueprint", "pages"]:
         errs.append(f"project.json: unknown stage {proj.get('stage')!r}")
     dims = read_json(st.dimensions, {"dimensions": [], "exclude": []})
-    # Before the task space exists (demand map and question bank only), empty dimensions are fine.
-    if dims.get("dimensions") or proj.get("stage") not in ("idea", "needs"):
+    # Before the task space exists (demand map and question bank only), empty dimensions are fine;
+    # so is a project that sampled its question bank instead of combinations (the bank route).
+    bank_route = st.bank.exists() and any(s.get("question_id") for s in read_jsonl(st.samples))
+    if dims.get("dimensions") or (proj.get("stage") not in ("idea", "needs") and not bank_route):
         derr, _ = validate_dimensions(dims)
         errs += [f"dimensions.json: {e}" for e in derr]
     values = {d["id"]: {v["id"] for v in d.get("values", [])} for d in dims.get("dimensions", [])}

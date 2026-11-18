@@ -332,6 +332,21 @@ class DemandAndBankTest(unittest.TestCase):
         code, out = run(self.root, "sample", "--n", "3", "--ids", "c1")
         self.assertNotEqual(code, 0)  # --ids needs --from-questions
 
+    def test_bank_route_checks_and_narrows_by_need(self):
+        gi.write_jsonl(self.root / "geo/needs.jsonl", NEEDS)
+        gi.write_jsonl(self.root / "geo/questions.jsonl", BANK)
+        run(self.root, "sample", "--n", "4", "--from-questions")
+        base = {"platform": "ChatGPT", "date": "2026-11-18", "mode": "browser", "web_search": True, "own": "absent"}
+        gi.write_jsonl(self.root / "geo/gap/runs.jsonl", [{**base, "combo_id": q, "gap": "generic"} for q in ("q1", "q2", "q3", "q4")])
+        self.assertEqual(run(self.root, "report")[0], 0)
+        code, out = run(self.root, "check")
+        self.assertEqual(code, 0, out)  # no task-space dimensions on the bank route
+        code, out = run(self.root, "decide", "--verdict", "narrow", "--by", "user", "--subspace", '{"need": ["n-nope"]}')
+        self.assertNotEqual(code, 0)
+        code, out = run(self.root, "decide", "--verdict", "narrow", "--by", "user", "--subspace", '{"need": ["n-safe"]}')
+        self.assertEqual(code, 0, out)
+        self.assertEqual(gi.read_json(self.root / "geo/project.json")["decision"]["subspace"], {"need": ["n-safe"]})
+
     def test_report_presence_lever_and_notes(self):
         gi.write_jsonl(self.root / "geo/needs.jsonl", NEEDS)
         gi.write_jsonl(self.root / "geo/questions.jsonl", BANK)
