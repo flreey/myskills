@@ -70,6 +70,7 @@ under that folder.
   "audience": ["people with photos from an iPhone", "office workers"],
   "market": {"countries": ["US"], "languages": ["en"]},
   "platforms": ["ChatGPT", "Perplexity", "Google AI Mode"],
+  "probe_platforms": ["ChatGPT"],
   "north_star": "AI-referred visits that finish a conversion",
   "site": {"live": false, "origin": ""},
   "brands": ["file convert"],
@@ -88,6 +89,9 @@ under that folder.
 name and the site domain's name part count already. `allowed_names` (optional): platforms or
 products whose name changes the answer (Steam, YouTube, Godot, itch.io), so the brand check lets them
 through.
+
+`platforms` are the target platforms and may be free text. `probe_platforms` (optional) are the ones
+probed this round; `probes` uses it, else `platforms`, and turns each name into a safe file-name slug.
 
 ## dimensions.json
 
@@ -135,6 +139,9 @@ through.
 (`source`, `ref`, `q` or `quote`, `n`), as in [demand-map.md](demand-map.md). Empty when none was found.
 Older samples may carry first-party rows as `site_signals`.
 
+`sample --from-questions` fills `signals` from the question's `evidence`: a `<need_id>#e<N>` reference
+copies that evidence row from `needs.jsonl`; a URL or search-log string becomes `{"ref": "<string>"}`.
+
 Samples from the question bank also carry `question_id`, `need_id`, `angle`, `conditions` and
 `evidence_level`, and use the question id as `combo_id`; samples from a pool carry `url` and `stratum`.
 The report groups results by each of these when present.
@@ -151,13 +158,19 @@ The report groups results by each of these when present.
  "judged_by": "model"}
 ```
 
+- `slice`: optional string naming the model slice of the run, e.g. `chatgpt-instant`; `report --where
+  slice=chatgpt-instant` reads only those runs. Any run field works with `--where KEY=VALUE`.
+- Extra run sets: optional `gap/runs-*.jsonl` files (e.g. `runs-captured.jsonl`, search queries
+  captured apart from the answers) use the same fields. `check` validates them; `report` lists them in
+  their own section and adds them to the main numbers only with `--include-extra`.
 - `mode`: `manual` (the user ran it and pasted), `browser` (driven in the user's logged-in browser with
   their go-ahead), `api`.
 - `gap`: one of `generic`, `outdated`, `unmet_constraint`, `no_resource` (high opportunity),
   `weak_sources`, `self_made` (medium), `good` (low), or `null` before judging. Rubric: [gap-rubric.md](gap-rubric.md).
 - `own`: `absent`, `mentioned`, `listed`, `first`, `excluded`, or `null` when not judged.
   `search_queries`: list, or `null` when not captured. `outcome`: competitor probes only
-  ([competitor-probes.md](competitor-probes.md)).
+  ([competitor-probes.md](competitor-probes.md)): `competitor_page`, `constraint_unmet`, `lists_forums`,
+  `no_search`, `own_recommended`, `generic_rules`, `other`.
 - `cited[].type`: `brand`, `competitor`, `list`, `forum`, `video`, `docs`, `news`, `other`.
 
 ## Blueprint and pages files

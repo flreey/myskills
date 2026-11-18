@@ -495,6 +495,65 @@ class DemandAndBankTest(unittest.TestCase):
         self.assertTrue((self.root / "geo-families/project.json").exists())
         self.assertEqual(json.loads((self.root / "geo/project.json").read_text())["name"], "Mint")
 
+    def test_probes_use_probe_platforms_and_safe_slugs(self):
+        gi.write_jsonl(self.root / "geo/needs.jsonl", NEEDS)
+        gi.write_jsonl(self.root / "geo/questions.jsonl", BANK)
+        run(self.root, "sample", "--n", "2", "--from-questions")
+        pj = self.root / "geo/project.json"
+        proj = json.loads(pj.read_text())
+        proj["platforms"] = ["coding agents via API/MCP (Claude Code, Codex)", "ChatGPT"]
+        pj.write_text(json.dumps(proj))
+        run(self.root, "probes")
+        self.assertIn("coding-agents-via-api-mcp-claude-code-codex--1.md", (self.root / "geo/gap/probes.md").read_text())
+        proj["probe_platforms"] = ["ChatGPT Instant"]
+        pj.write_text(json.dumps(proj))
+        run(self.root, "probes")
+        md = (self.root / "geo/gap/probes.md").read_text()
+        self.assertIn("--chatgpt-instant--1.md", md)
+        self.assertNotIn("coding-agents", md)
+
+    def test_sample_copies_evidence_into_signals(self):
+        gi.write_jsonl(self.root / "geo/needs.jsonl", NEEDS)
+        bank = [q("q1", "n-safe", "recommend", "Where do I get gun sounds for Steam?", "quoted", evidence=["n-safe#e1"]),
+                q("q2", "n-safe", "problem", "My trailer got a claim, what now?",
+                  evidence=["n-safe#e2", "https://x.example/p"])]
+        gi.write_jsonl(self.root / "geo/questions.jsonl", bank)
+        run(self.root, "sample", "--n", "2", "--from-questions")
+        by = {r["combo_id"]: r for r in gi.read_jsonl(self.root / "geo/gap/samples.jsonl")}
+        self.assertEqual(by["q1"]["signals"], [{"url": "https://www.reddit.com/r/gamedev/x",
+                                                "quote": "100% copyright free sounds"}])
+        self.assertEqual(by["q2"]["signals"][0], {"source": "site_search", "ref": "search_log 2026-09-18..11-17",
+                                                  "q": "cc0 gunshot", "n": 9})
+        self.assertEqual(by["q2"]["signals"][1], {"ref": "https://x.example/p"})
+        self.assertEqual(run(self.root, "check")[0], 0)
+
+    def test_report_where_extra_sets_slice_and_generic_rules(self):
+        gi.write_jsonl(self.root / "geo/needs.jsonl", NEEDS)
+        gi.write_jsonl(self.root / "geo/questions.jsonl", BANK)
+        run(self.root, "sample", "--n", "4", "--from-questions")
+        base = {"platform": "ChatGPT", "date": "2026-11-18", "mode": "browser", "own": "absent"}
+        gi.write_jsonl(self.root / "geo/gap/runs.jsonl", [
+            {**base, "combo_id": "q1", "gap": "generic", "slice": "chatgpt-instant", "outcome": "generic_rules"},
+            {**base, "combo_id": "q2", "gap": "good", "slice": "chatgpt-thinking"}])
+        gi.write_jsonl(self.root / "geo/gap/runs-captured.jsonl", [
+            {**base, "combo_id": "q3", "gap": "generic", "slice": "chatgpt-instant", "search_queries": ["a b"]}])
+        self.assertEqual(run(self.root, "check")[0], 0)
+        run(self.root, "report", "--where", "slice=chatgpt-instant")
+        rep = json.loads((self.root / "geo/gap/report.json").read_text())
+        self.assertEqual(rep["probed"], 1)
+        self.assertEqual(rep["presence"]["outcomes"], {"generic_rules": 1})
+        self.assertEqual(rep["extra_sets"]["runs-captured"]["runs"], 1)
+        self.assertIn("Extra run sets", (self.root / "geo/gap/report.md").read_text())
+        run(self.root, "report", "--where", "slice=chatgpt-instant", "--include-extra")
+        rep = json.loads((self.root / "geo/gap/report.json").read_text())
+        self.assertEqual(rep["probed"], 2)
+        self.assertNotIn("extra_sets", rep)
+        gi.write_jsonl(self.root / "geo/gap/runs-captured.jsonl", [{**base, "combo_id": "zz", "gap": "good"}])
+        code, out = run(self.root, "check")
+        self.assertEqual(code, 1)
+        self.assertIn("runs-captured:1", out)
+        self.assertNotEqual(run(self.root, "report", "--where", "oops")[0], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

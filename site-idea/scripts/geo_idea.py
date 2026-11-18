@@ -13,7 +13,10 @@ Commands
            [--from-questions [--include-hypothesis]]   ... or of question-bank rows, spread over needs and angles
            [--pool FILE]                    ... or of candidate rows (existing pages), spread over their strata
   probes                                    render geo/gap/probes.md from filled samples
-  report   [--threshold 0.33]               aggregate judged runs -> geo/gap/report.json + report.md
+  report   [--threshold 0.33] [--where KEY=VALUE]... [--include-extra]
+                                            aggregate judged runs -> geo/gap/report.json + report.md;
+                                            --where filters runs by a field (slice=chatgpt-instant);
+                                            gap/runs-*.jsonl are extra sets, reported apart unless --include-extra
   decide   --verdict go|narrow|stop --by user [--subspace JSON] [--note TEXT] [--without-probes]
   extend   --dimension D --values a,b --by user   open more values of a validated dimension (long tail)
   check                                     validate every geo/ file this skill owns
@@ -60,7 +63,8 @@ FIRST_PARTY_SOURCES = {"site_search", "api_search", "mcp_search", "search_miss",
 COMPETITOR_KINDS = {"library", "video", "game", "generator", "list", "marketplace", "tool", "other"}
 # Probe runs: where the project stands in the answer, and what the competitor-probe outcome was.
 OWN_STATUS = {"absent", "mentioned", "listed", "first", "excluded"}
-OUTCOMES = {"competitor_page", "constraint_unmet", "lists_forums", "no_search", "own_recommended", "other"}
+OUTCOMES = {"competitor_page", "constraint_unmet", "lists_forums", "no_search", "own_recommended",
+            "generic_rules", "other"}
 IN_ANSWER = {"mentioned", "listed", "first"}
 TOKEN = re.compile(r"[a-z0-9]+")
 NEAR_DUP = 0.8
@@ -117,6 +121,7 @@ class State:
         self.competitors = self.dir / "competitors.jsonl"
         self.samples = self.dir / "gap" / "samples.jsonl"
         self.runs = self.dir / "gap" / "runs.jsonl"
+        self.extra_runs = sorted((self.dir / "gap").glob("runs-*.jsonl"))
         self.raw = self.dir / "gap" / "raw"
         self.probes = self.dir / "gap" / "probes.md"
         self.report_json = self.dir / "gap" / "report.json"
@@ -165,6 +170,8 @@ def signal_errors(sig, where):
     """Sample signals: legacy rows are off-site {url, quote}; rows with a first-party source follow evidence rules."""
     if isinstance(sig, dict) and sig.get("source") in FIRST_PARTY_SOURCES:
         return evidence_errors(sig, where)
+    if isinstance(sig, dict) and sig.get("ref") and not sig.get("url") and not sig.get("source"):
+        return []  # a bare reference to evidence checked elsewhere (from `sample --from-questions`)
     if not str((sig or {}).get("url", "")).startswith("http"):
         return [f"{where}: signal without a URL (first-party signals need a source from {sorted(FIRST_PARTY_SOURCES)})"]
     return []
@@ -177,7 +184,8 @@ def first_party(s):
 
 
 def offsite(s):
-    return [x for x in s.get("signals", []) if not (isinstance(x, dict) and x.get("source") in FIRST_PARTY_SOURCES)]
+    return [x for x in s.get("signals", []) if not (isinstance(x, dict) and (
+        x.get("source") in FIRST_PARTY_SOURCES or (x.get("ref") and not x.get("url"))))]
 
 
 def validate_needs(needs):
@@ -646,6 +654,29 @@ def spread(groups, n, rng):
     return out
 
 
+def need_evidence(st):
+    """{need_id: [evidence rows]} from needs.jsonl, for `<need_id>#e<N>` references."""
+    return {n.get("id"): n.get("evidence") or [] for n in read_jsonl(st.needs)} if st.needs.exists() else {}
+
+
+def question_signals(q, evidence):
+    """A sample's signals: the evidence rows a question rests on, copied from the demand map."""
+    out = []
+    for ref in q.get("evidence") or []:
+        if not isinstance(ref, str):
+            continue
+        m = re.fullmatch(r"(.+)#e(\d+)", ref)
+        rows = evidence.get(m.group(1)) if m else None
+        if m and rows and 1 <= int(m.group(2)) <= len(rows):
+            row = rows[int(m.group(2)) - 1]
+            if isinstance(row, dict):
+                keep = ("url", "quote", "date") if row.get("url") else ("source", "ref", "q", "quote", "n")
+                out.append({k: row[k] for k in keep if k in row})
+                continue
+        out.append({"ref": ref})
+    return out
+
+
 def sample_from_questions(st, a, dims):
     """Samples are bank questions, spread over needs and angles, real wording first."""
     bank = read_jsonl(st.bank)
@@ -680,13 +711,14 @@ def sample_from_questions(st, a, dims):
             for q in ordered:
                 groups[(q.get("need_id"), q.get("angle"))].append(q)
             picked = spread(groups, a.n, rng)
+    evidence = need_evidence(st)
     rows = []
     for q in picked:
         rows.append({"combo_id": q["id"], "combo": q.get("combo") or {}, "question_id": q["id"],
                      "need_id": q.get("need_id"), "angle": q.get("angle"), "persona": q.get("persona", ""),
                      "opening": q.get("question", ""), "opening_scope": q.get("scope"),
                      "follow_ups": q.get("follow_ups") or [], "conditions": q.get("conditions") or [],
-                     "evidence_level": q.get("evidence_level"), "signals": []})
+                     "evidence_level": q.get("evidence_level"), "signals": question_signals(q, evidence)})
     for r, q in zip(rows, picked):
         r["origin"] = q.get("origin", "model")
         if q.get("competitor"):
@@ -818,6 +850,10 @@ def cmd_sample(st, a):
     print(json.dumps(out, ensure_ascii=False, indent=2))
 
 
+def slug(text):
+    return re.sub(r"[^a-z0-9]+", "-", str(text).lower()).strip("-") or "platform"
+
+
 def cmd_probes(st, a):
     rows = read_jsonl(st.samples)
     if not rows:
@@ -826,7 +862,8 @@ def cmd_probes(st, a):
     if empty:
         die(f"{len(empty)} samples have no opening yet (first: {empty[0]}); write the conversations first")
     proj = read_json(st.project)
-    platforms = proj.get("platforms") or ["ChatGPT"]
+    # `platforms` are the targets and may be free text; `probe_platforms` are the ones probed this round.
+    platforms = proj.get("probe_platforms") or proj.get("platforms") or ["ChatGPT"]
     lines = [
         f"# Probe sheet: {proj.get('name', '')}", "",
         f"Platforms: {', '.join(platforms)}. Each conversation in a new chat, memory off where possible.",
@@ -841,7 +878,7 @@ def cmd_probes(st, a):
         for i, f in enumerate(r.get("follow_ups", []), 1):
             f = f.get("q", "") if isinstance(f, dict) else f
             lines += [f"Follow-up {i}: {f}", ""]
-        files = ", ".join(f"`{st.rel}/gap/raw/{r['combo_id']}--{p.lower().replace(' ', '-')}--1.md`" for p in platforms)
+        files = ", ".join(f"`{st.rel}/gap/raw/{r['combo_id']}--{slug(p)}--1.md`" for p in platforms)
         lines += [f"Save as: {files}", ""]
     st.probes.write_text("\n".join(lines))
     print(json.dumps({"file": str(st.probes), "conversations": len(rows), "platforms": platforms}, ensure_ascii=False))
@@ -1009,6 +1046,8 @@ def report_md(rep, proj):
          f"{rep['with_first_party']} have first-party evidence.", "",
          f"Runs by platform: {', '.join(f'{k} {v}' for k, v in rep['platform_runs'].items()) or 'none'}. "
          f"Dates: {', '.join(rep['dates']) or 'none'}. AI answers are samples, not rankings.", ""]
+    if rep.get("where"):
+        L += ["Runs filtered by " + ", ".join(f"{k}={v}" for k, v in rep["where"].items()) + ".", ""]
     p = rep.get("presence") or {}
     L += ["## Is the site in the answer", ""]
     if p.get("measured"):
@@ -1028,6 +1067,13 @@ def report_md(rep, proj):
         L += ["Competitor-probe outcomes: " + ", ".join(f"{k} {v}" for k, v in p["outcomes"].items()) + ".", ""]
     L += [f"Search queries captured in {p.get('queries_captured', 0)} runs" +
           (": " + "; ".join(f"`{q}` ({n})" for q, n in p["top_queries"]) if p.get("top_queries") else "") + ".", ""]
+    if rep.get("extra_sets"):
+        L += ["## Extra run sets (not in the numbers above; `--include-extra` adds them)", ""]
+        for name, e in rep["extra_sets"].items():
+            share = f"{e['in_answer_share']:.0%}" if e.get("in_answer_share") is not None else "not recorded"
+            L.append(f"- `{name}`: {e['runs']} runs; site in answer {share}; "
+                     f"search queries captured in {e.get('queries_captured', 0)}.")
+        L.append("")
     if rep.get("notes"):
         L += ["## Read before deciding", ""] + [f"- {n}" for n in rep["notes"]] + [""]
     for key, title in (("need_id", "By need"), ("angle", "By angle"), ("stratum", "By stratum")):
@@ -1055,11 +1101,36 @@ def report_md(rep, proj):
     return "\n".join(L) + "\n"
 
 
+def parse_where(items):
+    out = []
+    for it in items or []:
+        k, sep, v = it.partition("=")
+        if not sep or not k:
+            die(f"--where needs KEY=VALUE, got {it!r}")
+        out.append((k, v))
+    return out
+
+
+def filter_runs(runs, where):
+    return [r for r in runs if all(str(r.get(k)) == v for k, v in where)]
+
+
 def cmd_report(st, a):
-    samples, runs = read_jsonl(st.samples), read_jsonl(st.runs)
+    samples = read_jsonl(st.samples)
     if not samples:
         die("no samples")
+    where = parse_where(a.where)
+    runs = filter_runs(read_jsonl(st.runs), where)
+    extra = {p.stem: filter_runs(read_jsonl(p), where) for p in st.extra_runs}
+    if a.include_extra:
+        runs = runs + [r for rows in extra.values() for r in rows]
     rep = build_report(samples, runs, a.threshold)
+    if where:
+        rep["where"] = dict(where)
+    if extra and not a.include_extra:
+        keep = ("measured", "in_answer_share", "first_share", "queries_captured", "outcomes")
+        rep["extra_sets"] = {name: {"runs": len(rows), **{k: v for k, v in build_presence(rows).items() if k in keep}}
+                             for name, rows in extra.items()}
     proj = read_json(st.project)
     write_json(st.report_json, rep)
     st.report_md.write_text(report_md(rep, proj))
@@ -1233,8 +1304,9 @@ def cmd_check(st, a):
     for s in samples:
         if need_ids and s.get("need_id") is not None and s["need_id"] not in need_ids:
             errs.append(f"samples: {s.get('combo_id')}: need_id {s['need_id']!r} is not in needs.jsonl")
-    for i, r in enumerate(read_jsonl(st.runs), 1):
-        where = f"runs:{i}"
+    run_sets = [(st.runs.name, read_jsonl(st.runs))] + [(p.name, read_jsonl(p)) for p in st.extra_runs]
+    for set_name, i, r in [(n, i, r) for n, rows in run_sets for i, r in enumerate(rows, 1)]:
+        where = f"{set_name.removesuffix('.jsonl')}:{i}"
         if r.get("combo_id") not in sample_ids:
             errs.append(f"{where}: combo_id {r.get('combo_id')!r} is not a sample")
         if r.get("gap") is not None and r.get("gap") not in GAPS:
@@ -1246,6 +1318,8 @@ def cmd_check(st, a):
         sq = r.get("search_queries")
         if sq is not None and not (isinstance(sq, list) and all(isinstance(q, str) for q in sq)):
             errs.append(f"{where}: search_queries is a list of strings, or null when not captured")
+        if r.get("slice") is not None and not (isinstance(r["slice"], str) and r["slice"]):
+            errs.append(f"{where}: slice is a non-empty string, or absent")
         for k in ("platform", "date", "mode"):
             if not r.get(k):
                 errs.append(f"{where}: {k} is required")
@@ -1289,6 +1363,10 @@ def main(argv=None):
     sub.add_parser("probes")
     s = sub.add_parser("report")
     s.add_argument("--threshold", type=float, default=0.33)
+    s.add_argument("--where", action="append", metavar="KEY=VALUE",
+                   help="only runs whose field equals VALUE, e.g. slice=chatgpt-instant (repeatable)")
+    s.add_argument("--include-extra", action="store_true",
+                   help="count the runs-*.jsonl sets in the main numbers (default: reported separately)")
     s = sub.add_parser("decide")
     s.add_argument("--verdict", required=True)
     s.add_argument("--by", required=True)
