@@ -24,6 +24,9 @@ contract: [../site-idea/references/state.md](../site-idea/references/state.md). 
 
 ## Iron rules
 
+0. **The goal card comes first.** Read `geo/goal.md` before anything else (the `site` skill writes it
+   with the owner); pages serve the needs and channels it names. End every report with what this step
+   dropped compared with the card, or "nothing"; dropping anything is the owner's call.
 1. **No decision, no pages.** `project.json.decision.verdict` must be `go` or `narrow`; rows stay in
    the decided subspace and use only dimensions the gap check covered (`lint` and the gate enforce it).
    More values of a covered dimension: the owner runs site-idea `extend`. A new dimension or task
@@ -56,7 +59,8 @@ contract: [../site-idea/references/state.md](../site-idea/references/state.md). 
 
 ## Blueprint
 
-1. **Read the decision.** `geo/project.json` (verdict, subspace), `geo/gap/report.md` (which gaps
+1. **Read the decision.** `geo/goal.md`, `geo/gap/channels.md` (which need × channel cells the pages
+   are for, and which cells another lever owns), `geo/project.json` (verdict, subspace), `geo/gap/report.md` (which gaps
    dominate, whether the site is in the answers, the lever hint and the captured search queries),
    `geo/needs.md` and `geo/bank.md` when present, `geo/gap/samples.jsonl` (follow-ups, signals, what
    assistants recommend). When the report's notes say the answers rest on lists, forums or no search,
@@ -122,7 +126,7 @@ contract: [../site-idea/references/state.md](../site-idea/references/state.md). 
 Mode and stage → templates (task, required fields, approval) and facts (count, oldest `checked`) →
 rows per template: total, gated, top failure reasons, rows waiting for assets → waves (planned, released, sizes) → checks and
 deploy stages, each separately → funnel per template with page counts and window → decisions → MANUAL
-items for the owner → what was not verified.
+items for the owner → what was not verified → what this step dropped compared with the goal card.
 
 ## Premises
 

@@ -23,8 +23,8 @@
 | [ai-feature-delivery](./ai-feature-delivery) | 把业务级功能修改请求变成受控交付流程：先只读识别影响面、验收场景、non-goals 和验证计划，确认后再实现，最后输出验证证据与剩余风险。 |
 | [chatgpt-pro-engineering-loop](./chatgpt-pro-engineering-loop) | Codex Desktop 通过已登录的 ChatGPT Pro 委派复杂仓库任务：优先用独立 GitHub 任务分支 + Draft PR 交换代码，以持久 conversation ID 恢复中断任务，并在本地隔离验收；GitHub 不可用或源码不能发布时回退到安全源码包。 |
 | [project-truth](./project-truth) | 让 AI 从经过校验的 Capability、Receipt 和 Git 状态驱动实现：只读获取紧凑真相上下文，通过固定版本 CLI 记录真实证据，重建离线 Dashboard，并停在人工验收和外部动作边界。 |
-| [site](./site) | site-* 系列的总入口：读项目里的 `seo/`、`.sitekit.json`、`umami.config.json` 判断建站阶段（找词 → 定页 → 建站 → 验收 → 统计 → GSC 回看），说明下一步该用哪个 skill、跑哪条命令；页面 SEO 验收按 kit 站和非 kit 站分别给出检查方式。只读不写。 |
-| [site-idea](./site-idea) | 新想法验证（批量页面之前）：把想法拆成任务空间（只保留会改变答案的维度），分层抽样写成真实对话，在 ChatGPT 等助手上看答案缺口（笼统、过时、不满足条件、没有资源），找外部真实提问，由站长决定做、缩小范围还是放弃；之后用 `extend` 给已验证维度补长尾取值。状态在项目的 `geo/`（`scripts/geo_idea.py`）。 |
+| [site](./site) | GEO 总入口：和站长写目标卡（`geo/goal.md`：目标、北极星、服务的需求和人群、渠道、不做什么、现状），判断项目在 GEO 循环的哪一步（0 目标卡 → 1 需求和问法 → 2 需求 × 渠道的机会 → 3 先做一小批改动 → 4 复测），说明下一步用哪个 skill；规定目标卡随每次交接传递、按渠道分别决定、放下任何需求或渠道要站长确认。关键词 SEO 不经过这里，直接用 site-research → site-plan。 |
+| [site-idea](./site-idea) | GEO 需求和机会：从真实数据画需求地图、展开问题库（每条标依据）、拆任务空间（能做多少页、每页要什么资产）、在 ChatGPT 等助手上探测答案缺口和我们是否出现、补搜索引擎和 agent/API 两个渠道的证据，写“需求 × 渠道”表，由站长决定哪些格子做页面、哪些走站外或产品文档；之后用 `extend` 给已验证维度补长尾取值。状态在项目的 `geo/`（`scripts/geo_idea.py`）。 |
 | [site-offsite](./site-offsite) | 站外建设，两种模式：SEO 模式做新站外链（先定目标再按 T1–T4 分层选渠道，竞品外链缺口、目录与发布平台、专题资源页；要大量外链时用 Common Crawl 域名级链接图挖同类站的全部引荐域名，`scripts/cc_*`；素材包投稿、独立核验、台账、28 天回收）；GEO 模式让 AI 助手引用产品：`scripts/cited_sources.py` 汇总项目 `geo/` 里记录的 AI 回答实际引用的来源，先进入产品缺席的榜单、社区、目录和工具注册表，保持各渠道事实一致，再复测是否被引用。默认不做付费买链和博客评论。 |
 | [site-batch](./site-batch) | 批量页面（程序化 GEO / 长尾页）：盘点资产、写有来源的事实库、设计 2–5 个页面模板（站长批准）、填组合数据，过质量门槛（必填字段、数字必须来自事实、不重复度）后输出 site-kit directory 数据或通用 JSON；分波次发布，按模板看抓取、收录、AI 抓取、引用漏斗，扩量、暂停或修剪（`scripts/geo_engine.py`）。 |
 | [site-research](./site-research) | 选词和扩词（SEO 路线），两种模式：新站选词（原 keyword-radar / site-radar：新词抢先、新站反推、弱 SERP 长尾三入口，意图、需求、可排名三关快筛，词站互找并把同类站记进 `seo/radar/sites.md`，输出新域名 1–2 个月能排上去的短名单和 GSC 第 7/14/28 天回收规则）；扩词（从联想词、Keyword Planner、Trends、Search Console、SERP、竞品 sitemap 等免费来源建证据化的关键词池，`scripts/discovery.py`，按产出判断饱和）。 |
@@ -93,7 +93,7 @@ https://github.com/flreey/myskills/tree/main/prompt-builder
 
 `site-research`（找词）和 `site-plan`（定页面）是一组，按顺序配合使用，共用项目根目录下的 `seo/`：site-research 写关键词池，site-plan 读它并写需求簇和页面注册表。平时只用两个斜杠命令或自然语言，引擎子命令由 agent 按流程调用。
 
-site-* skill 分 GEO 和 SEO 两条路线，入口 `/site` 先问模式再给下一步。每个事实只有一个主人。site-idea 管想法、答案缺口和做不做的决定，site-batch 管模板、组合数据和发布波次（两者共用项目根目录下的 `geo/`）；site-research 管外部需求证据（关键词池）；site-plan 管需求簇、页面归属、页面已覆盖的细分需求（`covered_attributes`）和 GSC 数据（唯一入口）；site-kit 的构建产物管页面实际状态（标题、可索引）；site-measure 管 Umami 报表；site-check 只做页面验收，不持有数据。同类站名单 `seo/radar/sites.md` 和 `site_keywords` 原始结果归 site-research 的新站选词模式；扩词模式导入这些结果、site-offsite 从名单挑对照站，两者只读。GEO 路线的 AI 回答记录在 `geo/`（site-idea 的 `gap/`、site-geo 的 `optimize/`），site-offsite 的 GEO 模式只读。交接都落成文件：词池 → 注册表和需求单 → 建页 → `sync-check` 回读构建产物 → GSC 回看，未归类查询经 `seo/work/unmapped-queries.json` 回到词池。节奏、队列和授权留在各项目里。
+site-* skill 以 GEO 为主：入口 `/site` 先写目标卡，再按 GEO 循环给下一步；关键词 SEO 是独立路线，直接用 `/site-research` → `/site-plan`，不经过 `/site`。每个事实只有一个主人。site-idea 管想法、答案缺口和做不做的决定，site-batch 管模板、组合数据和发布波次（两者共用项目根目录下的 `geo/`）；site-research 管外部需求证据（关键词池）；site-plan 管需求簇、页面归属、页面已覆盖的细分需求（`covered_attributes`）和 GSC 数据（唯一入口）；site-kit 的构建产物管页面实际状态（标题、可索引）；site-measure 管 Umami 报表；site-check 只做页面验收，不持有数据。同类站名单 `seo/radar/sites.md` 和 `site_keywords` 原始结果归 site-research 的新站选词模式；扩词模式导入这些结果、site-offsite 从名单挑对照站，两者只读。GEO 路线的 AI 回答记录在 `geo/`（site-idea 的 `gap/`、site-geo 的 `optimize/`），site-offsite 的 GEO 模式只读。交接都落成文件：词池 → 注册表和需求单 → 建页 → `sync-check` 回读构建产物 → GSC 回看，未归类查询经 `seo/work/unmapped-queries.json` 回到词池。节奏、队列和授权留在各项目里。
 
 ```text
 /site-research   给 ~/Projects/xxx 做关键词挖掘

@@ -1,0 +1,63 @@
+# Goal card (`geo/goal.md`)
+
+One page, written at step 0 with the owner and kept in the GEO folder (`geo/` or the `--geo-dir`
+folder). Every later step reads it first; every brief to another thread or agent includes it as
+written. Change it only with the owner, and keep a dated line in "Changes" for each change.
+
+## How to write it
+
+1. Ask the owner for the goal in their words, and what they would count as success. Fill the rest
+   from the project's files and data; ask only for what is missing and changes the work.
+2. Fill "Current state" from facts, each with a source and date: existing pages and their traffic by
+   channel, AI referrals, agent/API/MCP usage, what assistants say today (if probes exist), and
+   experiments still running (their pages, window and read date). Missing data is written as missing.
+3. Show the card to the owner and get a yes before step 1. A card the owner has not seen is a draft.
+
+## Template
+
+```markdown
+# Goal card: <project>
+
+Updated <date> · confirmed by owner <date>
+
+## Goal
+<one or two sentences in the owner's words: who should be recommended by whom, for what>
+
+## North star
+<one measurable outcome, e.g. "sessions from AI referrals that end in a download, per week">
+Secondary: <presence and first-pick rate in retests; index and rank under the assistants' rewritten queries>
+
+## Who and what we serve
+| Audience | Needs (ids once the demand map exists) | Why |
+
+## Channels
+| Channel | In scope? | How we will see it |
+| Assistant chat (ChatGPT, Claude, Perplexity, Gemini) | yes/no | probes, AI referrals |
+| Search engines (assistants search before answering) | yes/no | index, rank under rewritten queries |
+| Agents, API, MCP, tool directories | yes/no | API/MCP search logs, installs |
+
+## Levers allowed
+Pages / off-site / product and docs / generating missing assets: <which, with limits such as budget>
+
+## Not doing
+| What | Cost of dropping it | Owner's yes (date) |
+
+## Current state (facts, each with source and date)
+- Pages: <count by type, what each serves>
+- Traffic by channel: <search, AI referral, agent/API>
+- What assistants do today: <presence, who they pick; or "not probed">
+- Running experiments: <name, pages, window, read date> — do not overlap them
+- Assets: <what we have that others do not>
+
+## Constraints
+<budget, time, accounts the owner allows, site rules (e.g. docs/page-rules.md)>
+
+## Changes
+- <date>: <what changed, why, owner's yes>
+```
+
+## At each hand-off
+
+End every step's report with: "Compared with the goal card, this step dropped: …" (needs,
+audiences, channels or levers), or "nothing". Anything dropped goes to the owner before the next step
+(rule 3 in the site skill).

@@ -1,4 +1,4 @@
 interface:
-  display_name: "Site"
-  short_description: "Find a website project's stage and route to the right site-* skill"
-  default_prompt: "Use $site to read this project's seo/ and site files, report its stage, name the next site-* skill and command, and say how to check page SEO for this kind of site."
+  display_name: "Site (GEO)"
+  short_description: "GEO 总入口：写目标卡，判断项目在循环的哪一步，指向下一个 site-* skill"
+  default_prompt: "Use $site on this project: read or write the goal card (geo/goal.md) with the current state, find which step of the GEO loop the project is at, name the next site-* skill and command, and say what this step answers."

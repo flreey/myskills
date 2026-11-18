@@ -32,6 +32,8 @@ under that folder.
 | `gap/raw/*.md` | site-idea (user pastes) | implemented | full AI answers, one file per run |
 | `gap/runs.jsonl` | site-idea | implemented | one row per AI run with the gap judgement |
 | `gap/probes.md`, `gap/report.json`, `gap/report.md` | site-idea (generated) | implemented | probe sheet and gap report |
+| `gap/channels.md` | site-idea (written with the owner) | convention | need × channel table: evidence or "not measured", who wins, whether we appear, what only we have, lever (pages, off-site, product and docs, not now) |
+| `goal.md` | site (written with the owner) | convention | goal card: goal, north star, needs and audiences served, channels, levers, not doing, current state, constraints |
 | `facts.jsonl` | site-batch | implemented | product facts with source and checked date |
 | `assets/` | site-batch | implemented | test outputs and data the facts cite |
 | `templates/<id>.json` | site-batch | implemented | template spec = one site-kit directory collection |

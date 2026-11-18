@@ -30,7 +30,8 @@ Optimize engine (Python stdlib), `python3 <skill-dir>/scripts/geo_optimize.py --
 | **Optimize** | A live site wants more AI recommendations and citations over time: which tasks, why assistants pick others, what to change, did it work | G5 below, then the loop in [references/optimize.md](references/optimize.md) (O1–O8) |
 | **Retrofit** | Existing pages should become GEO pages without losing search traffic | [references/retrofit.md](references/retrofit.md): single pages step by step; families of similar pages through site-batch adopt mode, only after O4–O5 show the pages are the bottleneck |
 
-Optimize starts from tasks, not keywords; Google keyword data is context only. New sites with no
+Read the project's goal card (`geo/goal.md`, written by the `site` skill) first when it exists; when
+it does not, a check needs none, but optimize starts with the `site` skill's step 0. Optimize starts from tasks, not keywords; Google keyword data is context only. New sites with no
 traffic start in site-idea instead, and so does a new space of pages on a live site (`init --live`).
 When a site-idea demand map exists (`geo/needs.jsonl`), O1 starts from it rather than collecting the
 same sources again.
