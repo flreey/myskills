@@ -182,6 +182,35 @@ class GeoIdeaTest(unittest.TestCase):
         self.assertIn("rank.ours is our position", out)
         self.assertIn("winners_kind is dedicated", out)
 
+    def test_slots_counts_dimension_values_and_unassigned_words(self):
+        export = self.root / "search.csv"
+        export.write_text("query,count\nheic to jpg,30\nheic to jpg batch,10\npng to pdf,5\n"
+                          "heic to jpg keep date,8\nwebp to jpg,4\n")
+        gi.write_jsonl(self.root / "geo/needs.jsonl", [{"id": "n-a", "evidence": [
+            {"source": "site_search", "ref": "log 28d", "q": "heic to jpg offline", "n": 6},
+            {"source": "ai_referral", "ref": "umami", "q": "ChatGPT sessions landing on heic page: 1,546"},
+            {"url": "https://forum.example/t/1", "quote": "need to convert heic to jpg without uploading"}]}])
+        run(self.root, "sample", "--n", "4")
+        cid = gi.read_jsonl(self.root / "geo/gap/samples.jsonl")[0]["combo_id"]
+        gi.write_jsonl(self.root / "geo/gap/runs.jsonl", [{"combo_id": cid, "platform": "ChatGPT", "date": "2026-11-18",
+            "mode": "browser", "gap": "generic", "search_queries": ["CloudConvert heic jpg official documentation"]}])
+        code, out = run(self.root, "slots", "--from", str(export))
+        self.assertEqual(code, 0, out)
+        rep = gi.read_json(self.root / "geo/gap/slots.json")
+        self.assertEqual(rep["sources"], {"search.csv": 5, "assistant searches": 1, "demand map searches": 1,
+                                          "demand map quotes": 1})          # the analytics row is not a search
+        dims = {d["id"]: d for d in rep["dimensions"]}
+        src = {v["id"]: v["n"] for v in dims["source"]["values"]}
+        self.assertEqual(src["heic"], 30 + 10 + 8 + 6 + 1 + 1)              # weighted by the export's count
+        self.assertIn("pdf", dims["target"]["never"] + [v["id"] for v in dims["target"]["values"] if v["n"]])
+        words = {x["word"]: x for x in rep["unassigned_words"]}
+        self.assertIn("keep", words)                                      # a slot no dimension holds yet
+        self.assertIn("source=heic", words["keep"]["with"])
+        self.assertNotIn("documentation", words)                          # lookup wording
+        self.assertNotIn("cloudconvert", words)                           # a name, listed apart
+        self.assertIn("cloudconvert", [x["word"] for x in rep["names"]])
+        self.assertIn("Frequent words no dimension holds", (self.root / "geo/gap/slots.md").read_text())
+
     def test_sample_refuses_to_overwrite(self):
         run(self.root, "sample", "--n", "4")
         code, _ = run(self.root, "sample", "--n", "4")

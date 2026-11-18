@@ -21,6 +21,7 @@ Commands
   extend   --dimension D --values a,b --by user   open more values of a validated dimension (long tail)
   check                                     validate every geo/ file this skill owns
   queries                                   group the assistants' search queries -> geo/gap/queries.jsonl / .md
+  slots    [--from <export>]...             search words against the dimensions -> geo/gap/slots.md / .json
 
 State lives in <project>/geo/ (contract: references/state.md); --geo-dir names another folder when one
 repository holds several GEO projects. This script never contacts an AI service or the web; the model
@@ -28,6 +29,7 @@ writes needs, questions, conversations, signals and judgements, the script check
 Python stdlib only.
 """
 import argparse
+import csv
 import hashlib
 from collections import Counter, defaultdict
 from datetime import date
@@ -61,7 +63,9 @@ TOOL_SHARE = 0.33
 TOOL_SHARE_CAPABILITY = 0.67
 # Words that do not separate one search from another when grouping the assistants' queries.
 QUERY_STOP = {"a", "an", "the", "for", "to", "of", "in", "on", "and", "or", "with", "how", "my", "is", "can",
-              "i", "you", "best", "top", "vs", "what", "which", "do", "does", "it", "that", "your", "online"}
+              "i", "you", "best", "top", "vs", "what", "which", "do", "does", "it", "that", "your", "online",
+              # added by assistants when they look a product up, not by the person
+              "official", "documentation", "docs", "help", "center", "site", "support"}
 
 VALUE_ID = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 # What a follow-up asks decides where a page answers it (site-batch references/question-mapping.md).
@@ -150,6 +154,8 @@ class State:
         self.channels = self.dir / "gap" / "channels.md"
         self.queries = self.dir / "gap" / "queries.jsonl"
         self.queries_md = self.dir / "gap" / "queries.md"
+        self.slots_json = self.dir / "gap" / "slots.json"
+        self.slots_md = self.dir / "gap" / "slots.md"
         self.goal = self.root / GOAL_FILE
         # A second need space on the same site shares the first one's demand map (init --needs-from).
         nf = read_json(self.project, {}).get("needs_from") if self.project.exists() else None
@@ -1629,6 +1635,170 @@ def cmd_queries(st, a):
                       "ranked": sum(1 for r in find if r["rank"]), "file": str(st.queries)}, ensure_ascii=False))
 
 
+Q_FIELDS = ("q", "query", "term", "search", "keyword", "quote")
+N_FIELDS = ("n", "count", "searches", "volume", "hits")
+
+
+def read_query_file(path):
+    """Real searches from an export: CSV or JSONL with a query column (q, query, term, search, keyword) and an
+    optional count (n, count, searches, volume, hits); plain text is one query per line, optionally `query<TAB>n`."""
+    p = Path(path)
+    if not p.exists():
+        die(f"--from {path}: no such file")
+    out = []
+
+    def num(v):
+        try:
+            return max(float(v), 0.0)
+        except (TypeError, ValueError):
+            return 1.0
+
+    if p.suffix.lower() == ".csv":
+        with p.open(newline="", encoding="utf-8", errors="replace") as fh:
+            for r in csv.DictReader(fh):
+                low = {str(k).strip().lower(): v for k, v in r.items() if k}
+                q = next((low[k] for k in Q_FIELDS if low.get(k)), None)
+                n = next((low[k] for k in N_FIELDS if low.get(k) not in (None, "")), 1)
+                if q:
+                    out.append((q.strip(), num(n)))
+    elif p.suffix.lower() in (".jsonl", ".ndjson"):
+        for r in read_jsonl(p):
+            q = next((r[k] for k in Q_FIELDS if r.get(k)), None)
+            n = next((r[k] for k in N_FIELDS if r.get(k) not in (None, "")), 1)
+            if isinstance(q, str) and q.strip():
+                out.append((q.strip(), num(n)))
+    else:
+        for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
+            q, _, n = line.partition("\t")
+            if q.strip():
+                out.append((q.strip(), num(n) if n.strip() else 1.0))
+    return out
+
+
+SEARCH_SOURCES = {"site_search", "api_search", "mcp_search", "search_miss"}
+
+
+def word_list(text):
+    return [w for w in re.findall(r"[a-z0-9][a-z0-9'+.-]*", str(text).lower())
+            if w not in QUERY_STOP and not re.fullmatch(r"[\d.,]+", w)]
+
+
+def value_tokens(v):
+    """The words a value is searched by: its id split on - and _, or a short label."""
+    ids = set(word_list(re.sub(r"[-_]+", " ", v.get("id", ""))))
+    lab = set(word_list(v.get("label", "")))
+    return [t for t in (ids, lab if 0 < len(lab) <= 3 else set()) if t]
+
+
+def cmd_slots(st, a):
+    """Which words real searches use, against the task space: per dimension, how often its values are
+    searched; and the frequent words no dimension holds yet, with the values they come with. It counts;
+    the owner and the model decide what each word is (a dimension, a variant, a page fact, wording)."""
+    dims = read_json(st.dimensions, {"dimensions": []})
+    items = []                          # (query, weight, origin)
+    for path in a.from_ or []:
+        items += [(q, n, Path(path).name) for q, n in read_query_file(path)]
+    for path in [st.runs] + list(st.extra_runs):
+        for r in read_jsonl(path):
+            for q in r.get("search_queries") or []:
+                if isinstance(q, str) and q.strip():
+                    items.append((q.strip(), 1.0, "assistant searches"))
+    if st.needs.exists():
+        # Only what people typed: search records (weighted by their count) and off-site quotes. Analytics
+        # rows in the demand map describe behaviour, not wording.
+        for n in read_jsonl(st.needs):
+            for e in n.get("evidence") or []:
+                if e.get("source") in SEARCH_SOURCES and isinstance(e.get("q"), str) and e["q"].strip():
+                    w = e.get("n")
+                    items.append((e["q"].strip(), float(w) if isinstance(w, (int, float)) and w > 0 else 1.0,
+                                  "demand map searches"))
+                elif e.get("url") and isinstance(e.get("quote"), str) and e["quote"].strip():
+                    items.append((e["quote"].strip(), 1.0, "demand map quotes"))
+    if not items:
+        die("no queries: pass --from <site search export>, or capture search_queries in runs, or fill needs.jsonl evidence")
+    total = sum(w for _, w, _ in items)
+    toks = [(set(word_list(q)), w) for q, w, _ in items]
+
+    def mentions(v, t):
+        return any(vt <= t for vt in value_tokens(v))
+
+    dim_rows, owned = [], {}
+    for d in dims.get("dimensions", []):
+        counts = Counter()
+        hit = 0.0
+        for t, w in toks:
+            m = [v["id"] for v in d.get("values", []) if mentions(v, t)]
+            for vid in m:
+                counts[vid] += w
+            hit += w if m else 0
+        for v in d.get("values", []):
+            for vt in value_tokens(v):
+                for word in vt:
+                    owned.setdefault(word, d["id"])
+        dim_rows.append({"id": d["id"], "kind": d.get("kind"), "generating": bool(d.get("changes_answer")),
+                         "share": round(hit / total, 3) if total else 0.0,
+                         "values": [{"id": v["id"], "n": round(counts[v["id"]], 1)} for v in d.get("values", [])],
+                         "never": [v["id"] for v in d.get("values", []) if not counts[v["id"]]]})
+    gen_vals = [(d["id"], v) for d in dims.get("dimensions", []) if d.get("changes_answer") for v in d.get("values", [])]
+    words, pairs, co = Counter(), Counter(), defaultdict(Counter)
+    # A word written as a proper name in most of its uses (Topaz, CapCut), or a listed competitor, is a
+    # candidate the assistant checks, not a slot of the task.
+    cased, seen = Counter(), Counter()
+    for q, _, _ in items:
+        for raw in re.findall(r"[A-Za-z0-9][A-Za-z0-9'+.-]*", q):
+            seen[raw.lower()] += 1
+            if NAME_RE.match(raw) and raw not in NOT_NAMES:
+                cased[raw.lower()] += 1
+    names = {x for x in seen if cased[x] * 2 > seen[x]}
+    names |= {str(c.get("name", "")).lower() for c in read_jsonl(st.competitors)}
+    for (q, w, _), (t, _) in zip(items, toks):
+        seq = word_list(q)
+        for x in set(seq):
+            words[x] += w
+        for x, y in set(zip(seq, seq[1:])):
+            pairs[f"{x} {y}"] += w
+        vals = [f"{did}={v['id']}" for did, v in gen_vals if mentions(v, t)]
+        for x in set(seq):
+            if x not in owned:
+                for vv in vals:
+                    co[x][vv] += w
+    free = [{"word": x, "n": round(n, 1), "share": round(n / total, 3),
+             "with": [k for k, _ in co[x].most_common(3)]}
+            for x, n in words.most_common() if x not in owned and x not in names][: a.top]
+    named = [{"word": x, "n": round(n, 1)} for x, n in words.most_common() if x in names and x not in owned][: a.top // 2]
+    free_pairs = [{"words": x, "n": round(n, 1)} for x, n in pairs.most_common()
+                  if not all(y in owned for y in x.split())][: a.top // 2]
+    rep = {"date": date.today().isoformat(), "queries": len(items), "weight": round(total, 1),
+           "sources": dict(Counter(o for _, _, o in items)), "dimensions": dim_rows,
+           "unassigned_words": free, "unassigned_pairs": free_pairs, "names": named}
+    write_json(st.slots_json, rep)
+    proj = read_json(st.project)
+    L = [f"# Search words against the task space: {proj.get('name', '')}", "",
+         f"{len(items)} queries (weight {total:g}) from " + ", ".join(f"{k} {v}" for k, v in rep["sources"].items())
+         + f"; {rep['date']}. Counts are weighted by each query's count where the export has one.", "",
+         "Read with site-idea `references/dimensions.md`: a dimension real searches never name is a guess; a "
+         "frequent word no dimension holds is a missing dimension, a variant of a value, a fact every page "
+         "states, or wording. The counts do not decide which.", "",
+         "## Dimensions", "", "| Dimension | Generates pages | Share of searches naming a value | Top values | Never searched |",
+         "| --- | --- | --- | --- | --- |"]
+    for d in dim_rows:
+        top = sorted(d["values"], key=lambda v: -v["n"])[:5]
+        L.append(f"| {d['id']} ({d['kind']}) | {'yes' if d['generating'] else 'no'} | {d['share']:.0%} | "
+                 + ", ".join(f"{v['id']} {v['n']:g}" for v in top if v["n"]) + f" | {len(d['never'])}: "
+                 + ", ".join(d["never"][:6]) + (" …" if len(d["never"]) > 6 else "") + " |")
+    L += ["", "## Frequent words no dimension holds", "",
+          "| Word | Weight | Share of searches | Comes with |", "| --- | --- | --- | --- |"]
+    L += [f"| {x['word']} | {x['n']:g} | {x['share']:.0%} | {', '.join(x['with'])} |" for x in free]
+    L += ["", "## Names in the searches (sites and products checked, not slots)", "",
+          ", ".join(f"{x['word']} {x['n']:g}" for x in named) or "none"]
+    L += ["", "## Frequent word pairs with an unassigned word", "", "| Words | Weight |", "| --- | --- |"]
+    L += [f"| {x['words']} | {x['n']:g} |" for x in free_pairs]
+    st.slots_md.write_text("\n".join(L) + "\n")
+    print(json.dumps({"queries": len(items), "file": str(st.slots_md),
+                      "dimensions": {d["id"]: d["share"] for d in dim_rows},
+                      "top_unassigned": [x["word"] for x in free[:10]]}, ensure_ascii=False))
+
+
 def rank_errors(rk, where):
     if rk is None:
         return []
@@ -1818,9 +1988,13 @@ def main(argv=None):
     s.add_argument("--note")
     sub.add_parser("check")
     sub.add_parser("queries")
+    s = sub.add_parser("slots")
+    s.add_argument("--from", dest="from_", action="append", metavar="FILE",
+                   help="real searches: CSV/JSONL with q|query|term and n|count, or text, one per line (repeatable)")
+    s.add_argument("--top", type=int, default=40, help="how many unassigned words to list")
     a = p.parse_args(argv)
     st = State(a.root, a.geo_dir)
-    {"init": cmd_init, "needs": cmd_needs, "bank": cmd_bank, "space": cmd_space, "sample": cmd_sample, "queries": cmd_queries,
+    {"init": cmd_init, "needs": cmd_needs, "bank": cmd_bank, "space": cmd_space, "sample": cmd_sample, "queries": cmd_queries, "slots": cmd_slots,
      "probes": cmd_probes, "report": cmd_report, "channels": cmd_channels, "decide": cmd_decide, "extend": cmd_extend,
      "check": cmd_check}[a.cmd](st, a)
 

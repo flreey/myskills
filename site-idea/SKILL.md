@@ -12,7 +12,7 @@ on their own, so this skill finds out what people are trying to do and whether s
 before anyone writes a template.
 
 Engine (Python stdlib): `python3 <skill-dir>/scripts/geo_idea.py --root <project> [--geo-dir geo] <command>`
-with `init`, `needs`, `bank`, `space`, `sample`, `probes`, `report`, `queries`, `decide`, `extend`, `check`. State is
+with `init`, `needs`, `bank`, `space`, `sample`, `probes`, `report`, `queries`, `slots`, `decide`, `extend`, `check`. State is
 `<project>/geo/` (or `--geo-dir` when one repository holds several GEO projects); its contract, shared
 with the later geo stages, is [references/state.md](references/state.md).
 
@@ -102,7 +102,11 @@ the shape decides how the pages are cut. A site can hold both, one GEO folder ea
    fix what it flags. In a crowded market, add questions reverse-engineered from competitors
    ([references/competitor-probes.md](references/competitor-probes.md)).
 2. **Task space.** Pick the shape first (above): on a live product whose AI landings are people
-   looking for a tool, file or service, start with capability × condition. Write `geo/dimensions.json`
+   looking for a tool, file or service, start with capability × condition. Find the dimensions in
+   real searches, not in a plan: run `slots --from <site search export>` (it also reads the runs'
+   captured searches and the demand map's searches and quotes), sort each frequent word as a
+   dimension, a variant, a fact every page states, wording or a name, and test each candidate
+   ([references/dimensions.md](references/dimensions.md)). Write `geo/dimensions.json`
    (shape in references/state.md) from the needs: capability, entity, task and constraint dimensions
    whose values change the answer, each value with a source, excludes
    for combinations that make no sense or that the product will not serve. Run `space`; fix every
@@ -220,4 +224,6 @@ ToHD's 129 captured queries were 6 find searches and 123 checks of named product
 ChatGPT landings went to the home page, while SFXMint's main line (`geo-find`: sound × variant, with
 format and licence written on every page) already had that shape and its landings went to matching
 single-sound pages. `kind: capability`, the space shape and `queries` were added for that; the
-capability default (two thirds tool-seeking openings) is a starting value.
+capability default (two thirds tool-seeking openings) is a starting value. `slots` and references/dimensions.md were added after: SFXMint's 672
+slices had been split out of site searches by a one-off script, and ToHD's situation dimensions
+left its most searched words (upscale, 4k, enhancer, 1080p) in no dimension.

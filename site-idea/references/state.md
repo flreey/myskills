@@ -33,6 +33,7 @@ under that folder.
 | `gap/runs.jsonl` | site-idea | implemented | one row per AI run with the gap judgement |
 | `gap/probes.md`, `gap/report.json`, `gap/report.md` | site-idea (generated) | implemented | probe sheet and gap report |
 | `gap/queries.jsonl`, `gap/queries.md` | site-idea `queries` (generated; `rank` filled by hand and kept) | implemented | the assistants' captured search queries: find clusters with our rank, and named checks (its shortlist) |
+| `gap/slots.json`, `gap/slots.md` | site-idea `slots` (generated) | implemented | real search words against the dimensions: share of searches naming each dimension, never-searched values, frequent words no dimension holds, names checked ([dimensions.md](dimensions.md)) |
 | `gap/channels.md` | site-idea (written with the owner) | convention | need × channel table: evidence or "not measured", who wins, whether we appear, what only we have, lever (pages, off-site, product and docs, not now) |
 | `<root>/geo-goal.md` (project root, one per site, shared by every GEO folder) | site (written with the owner) | convention | goal card: goal, north star, needs and audiences served, channels, levers, not doing, current state, constraints |
 | `facts.jsonl` | site-batch | implemented | product facts with source and checked date |
