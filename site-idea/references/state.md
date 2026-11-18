@@ -244,9 +244,12 @@ scope; `decide` reads only the Lever column.
 ```markdown
 | Need | Assistant chat | Search engines | Agents / API / MCP | Lever | Owner's note |
 | --- | --- | --- | --- | --- | --- |
-| n-safe: ship sounds without credit | 12 runs; high gap 50%; site in answer 1/12 | asked there; index and rank not measured | volume: licence words 23 | pages+offsite | |
-| n-find: find one specific sound | 4 runs (thin); high gap 50%; site in answer 0/4 | not measured | volume: api search 94,823 | product | search quality first |
+| n-safe: ship sounds without credit | picked: 12 runs; high gap 50%; site in answer 1/12 · after landing: not measured | asked there; index and rank not measured | volume: licence words 23 | pages+offsite | |
+| n-find: find one specific sound | picked: 4 runs (thin); site in answer 0/4; 17,877 landings · after landing: 30% take | not measured | volume: api search 94,823 | pages+product | |
 ```
+
+Each evidence cell has two parts, `picked:` (the assistant finds and chooses us) and `after landing:`
+(people take something); page levers rest on the first (site skill rule 2).
 
 Levers: `pages`, `offsite`, `product` (API, MCP, docs, tool listings, search quality), `not-now`;
 several joined by `+`. `?` means not chosen yet, and `decide` refuses while any row has it.

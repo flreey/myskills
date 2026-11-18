@@ -27,6 +27,13 @@ Updated <date> · confirmed by owner <date>
 ## Goal
 <one or two sentences in the owner's words: who should be recommended by whom, for what>
 
+## Main bet
+<the approach this round tests, in the owner's words, e.g. "pages built from real demand, one per
+specific need, with the real wording in title, H1, text and FAQ">
+Stop or change it when: <the result that would show it does not work, and by when>
+Setting the main bet aside (no pages this round, a different lever as the main one) is a drop: it goes
+to the owner as its own question, never as a row in a table.
+
 ## North star
 <one measurable outcome, e.g. "sessions from AI referrals that end in a download, per week">
 Secondary: <presence and first-pick rate in retests; index and rank under the assistants' rewritten queries>
@@ -64,5 +71,6 @@ Pages / off-site / product and docs / generating missing assets: <which, with li
 ## At each hand-off
 
 End every step's report with: "Compared with the goal card, this step dropped: …" (needs,
-audiences, channels or levers), or "nothing". Anything dropped goes to the owner before the next step
+audiences, channels, levers, or any part of the main bet), or "nothing". A step that leaves the main
+bet without work says so in that line, even when no need was dropped. Anything dropped goes to the owner before the next step
 (rule 3 in the site skill).

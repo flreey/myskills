@@ -602,7 +602,8 @@ class GatesTest(unittest.TestCase):
         self.assertTrue(rep["notes"][0].startswith("thin sample"))
         table = (self.root / "geo/gap/channels.md").read_text()
         self.assertIn("| n-safe: ", table)
-        self.assertIn("1 runs (thin)", table)
+        self.assertIn("picked: 1 runs (thin)", table)
+        self.assertIn("after landing: not measured", table)
         self.assertIn("| ? |", table)
         self.assertEqual(run(self.root, "channels")[0], 2)          # never overwritten by accident
 
@@ -669,6 +670,7 @@ class GatesTest(unittest.TestCase):
         (self.root / "geo/gap/channels.md").unlink()
         _, out = run(self.root, "check")
         self.assertIn("north_star differs", out)
+        self.assertIn("no 'Main bet' section", out)
         self.assertIn("predates the need × channel table", out)
 
 

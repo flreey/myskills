@@ -1206,11 +1206,11 @@ def cmd_report(st, a):
 def chat_cell(rep, nid):
     g = ((rep or {}).get("groups") or {}).get("need_id", {}).get(nid)
     if not g or not g.get("runs"):
-        return "not probed"
+        return "picked: not probed · after landing: not measured"
     thin = " (thin)" if g["runs"] < THIN_NEED_RUNS else ""
     sh = f"{g['share_high']:.0%}" if g.get("share_high") is not None else "—"
     oa = f"{g['in_answer']}/{g['own_measured']}" if g.get("own_measured") else "not recorded"
-    return f"{g['runs']} runs{thin}; high gap {sh}; site in answer {oa}"
+    return f"picked: {g['runs']} runs{thin}; high gap {sh}; site in answer {oa} · after landing: not measured"
 
 
 def agent_cell(n):
@@ -1534,6 +1534,8 @@ def goal_warnings(st, proj):
     if not st.goal.exists():
         warns.append(f"no goal card {GOAL_FILE} at the project root: the site skill's step 0 writes it with the owner")
     else:
+        if not goal_section(st.goal.read_text(), "Main bet"):
+            warns.append(f"{GOAL_FILE} has no 'Main bet' section: write the approach this round tests, with the owner")
         star = goal_section(st.goal.read_text(), "North star")
         mine = (proj.get("north_star") or "").strip()
         norm = lambda t: re.sub(r"[\W_]+", " ", t).strip().lower()

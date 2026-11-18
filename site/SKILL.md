@@ -46,21 +46,34 @@ GEO mode); the others point here instead of repeating them. Where an engine can 
 unapproved templates, `check` warns when the goal card is missing or project.json drifts from it.
 
 1. **The goal card travels.** Every step, and every brief handed to another thread or agent, starts
-   from `geo-goal.md` (project root) as written, not from the previous step's summary. Every hand-off ends with one
-   line: what this step dropped compared with the card (needs, audiences, channels, levers), or
-   "nothing".
-2. **One channel never decides for all.** Evidence and decisions are per need × channel (assistant
-   chat, search engines, agents/API/MCP). An assistant probe that shows no room says nothing about
-   search or agent demand for the same need.
+   from `geo-goal.md` (project root) as written, not from the previous step's summary, and the card's
+   **main bet** (the approach the owner wants tested) stays the default plan until the owner sets it
+   aside. Every hand-off ends with one line: what this step dropped compared with the card (needs,
+   audiences, channels, levers, any part of the main bet), or "nothing".
+2. **One channel never decides for all, and evidence matches the question.** Evidence and decisions
+   are per need × channel (assistant chat, search engines, agents/API/MCP). An assistant probe that
+   shows no room says nothing about search or agent demand for the same need. Within a channel, keep
+   two kinds apart: **picked** (does the assistant find and choose us: probe presence, its fetches of
+   our pages, landings) and **after landing** (do people take something: take rate, downloads). Levers
+   that change what assistants find, pages above all, are decided on picked evidence; after-landing
+   evidence decides what the page or product must hold. Never infer "pages will not help" from a
+   take rate.
 3. **Dropping is the owner's call.** Dropping a need, an audience, a channel or a lever needs the
    owner's yes in chat, with what it costs (volume, evidence) stated; record it under "Not doing" in
    the card.
 4. **Small first.** Step 3 starts with tens of pages or a few changes, with a control where possible.
    A probe is not a substitute for shipping and measuring.
+4b. **Overlap means the same thing.** A running experiment blocks changes to its own URLs, their
+   content and links added from them, nothing wider. New URLs for the same need do not overlap; keep
+   links from the experiment's pages out of them and say so in the plan.
 5. **Tools get one hour.** A tool or automation problem that is not solved in about an hour gets a
    simpler path or is skipped and reported; it never drives the plan.
 6. **Say where we are.** Before each step, tell the owner which step this is, what it answers and how
    far the project is from the card's goal.
+7. **Direction is asked on its own.** A choice that changes the main bet, the channels or the scale
+   (no pages, a different main lever, a much smaller batch) is put to the owner as a separate
+   question with what it gives up, never bundled into "as recommended". Numbers that drive such a
+   choice are checked at the method, not only the total, before they are relayed.
 
 ## Find the step
 

@@ -109,8 +109,10 @@ with the later geo stages, is [references/state.md](references/state.md).
    Console); agents, API and MCP (first-party search logs, zero-result queries, tool directory and
    registry presence). Write what was looked at and what was not; "not measured" is a valid cell.
 7. **Decide.** Complete `gap/channels.md`: drop the columns the goal card keeps out of scope, fill each
-   cell with evidence or `not measured` (who wins, whether we appear, what only we have), and propose
-   a Lever per need. Show it with `gap/report.md`: the share of high-opportunity combinations or
+   cell with evidence or `not measured`, in two parts: `picked:` (whether the assistant finds and
+   chooses us: probe presence, its fetches, landings, who wins) and `after landing:` (take rate,
+   downloads), and propose a Lever per need. Page levers rest on the picked part (site rule 2); a
+   proposal that leaves the goal card's main bet without work is asked on its own (site rule 7). Show it with `gap/report.md`: the share of high-opportunity combinations or
    questions, where gaps concentrate (by value, need, angle, stratum), whether the site is in the
    answers, the sources behind answers without it and the lever hint, the captured queries, and the
    notes. Offer `go` (whole space), `narrow` (the subspace of strong values), `stop` (or change the idea
