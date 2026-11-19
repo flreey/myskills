@@ -34,8 +34,16 @@ I want to <the user's task, e.g. generate a strong random password without insta
 Which websites or tools would you recommend? Give me the top 5 with one line each on why.
 ```
 
-Record: is the site named, is it linked (a clickable link, not just the name), is it the first
-recommendation, what is said about it, which sites appear instead and why they were chosen.
+Then, in the same chat, the verification turn with the user's hardest condition:
+
+```text
+Which one would you pick for me, and is it really <free / without upload / usable on my phone>?
+```
+
+Record for both turns: is the site named, is it linked (a clickable link, not just the name), is it the
+first recommendation, what is said about it, which sites appear instead and why they were chosen. A
+site first in the opening and dropped on the verification turn lost on its own pages: note which of
+our pages it opened (stream URLs, section D) and what it read there.
 
 Report named, linked and first as counts over runs in one mode, such as linked 3/9, with the dates.
 Do not compare counts across different prompts, accounts or modes as if they were a trend. Do not use

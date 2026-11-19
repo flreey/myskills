@@ -19,7 +19,7 @@ page `url` and its `stratum`; write their conversations from the demand map and 
 
 `kind` is one of `constraint` (can it, does it, is it allowed), `howto` (steps), `why` (reason,
 explanation), `compare` (versus another option), `resource` (where to get it, a file, a tool),
-`other`. Kinds and scope decide later where a page answers the turn: site-batch
+`pick` (which one would you choose for me, and does it really meet the condition), `other`. Kinds and scope decide later where a page answers the turn: site-batch
 `references/question-mapping.md`.
 
 Rules:
@@ -35,6 +35,11 @@ Rules:
   whether the assistant searches and picks a tool, and which. On ToHD (2026-11-18) 70 problem
   openings searched 28 times and never named the site; 15 tool openings searched every time and named
   it 7 times.
+- A `recommend` conversation ends with a `pick` turn that names the hardest condition: "Which one
+  would you pick for me, and is it really free?" / "…does it really work on my phone?". That is when
+  the assistant opens the candidates' own pricing, limits and FAQ pages and changes its mind: on ToHD
+  two first picks flipped to a competitor on that turn. `check` warns about recommend samples without
+  one.
 - Match real wording when a signal has it: length, words, level of detail. Do not polish it.
 - Persona is a dimension marked `changes_answer: false` or a plausible person; it adds realism, never
   a new combination.

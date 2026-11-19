@@ -197,7 +197,8 @@ reruns by `key`:
 {"combo_id": "heic__jpg__batch", "platform": "ChatGPT", "model": "as shown in the app", "mode": "manual",
  "date": "2026-11-18", "run": 1, "web_search": true, "raw": "geo/gap/raw/heic__jpg__batch--chatgpt--1.md",
  "cited": [{"url": "https://...", "type": "forum"}], "recommended": ["Tool A", "Tool B"],
- "own": "absent", "cited_own": false, "own_urls": [],
+ "own": "absent", "own_opening": "listed", "cited_own": false, "own_urls": [],
+ "own_read": ["https://example.com/pricing"], "read": ["https://list.example/best-converters"],
  "search_queries": ["batch convert heic to jpg without upload"], "outcome": null,
  "gap": "unmet_constraint", "gap_note": "both tools upload files; user asked for no upload",
  "judged_by": "model"}
@@ -212,7 +213,12 @@ reruns by `key`:
   their go-ahead), `api`.
 - `gap`: one of `generic`, `outdated`, `unmet_constraint`, `no_resource` (high opportunity),
   `weak_sources`, `self_made` (medium), `good` (low), or `null` before judging. Rubric: [gap-rubric.md](gap-rubric.md).
-- `own`: `absent`, `mentioned`, `listed`, `first`, `excluded`, or `null` when not judged.
+- `own`: `absent`, `mentioned`, `listed`, `first`, `excluded`, or `null` when not judged; at the end of
+  the conversation. `own_opening`: the same scale for the first answer, or `null`.
+- `own_read`, `read`: filled by `reads` from the raw file's `=== STREAM URLS ===` (utm parameters,
+  images and the assistant's own assets dropped): our pages the assistant opened, and all others.
+  `null` or absent when the stream was not captured. Our domains come from `reads --own`, else
+  project.json `own_domains` (optional list) or `site`, else URLs judged `brand`.
   `search_queries`: list, or `null` when not captured. `outcome`: competitor probes only
   ([competitor-probes.md](competitor-probes.md)): `competitor_page`, `constraint_unmet`, `lists_forums`,
   `no_search`, `own_recommended`, `generic_rules`, `other`.

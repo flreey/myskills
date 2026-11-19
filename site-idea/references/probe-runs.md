@@ -43,11 +43,18 @@ minutes. It also captures the search queries for every run.
    triggers one JSON download (T3: `preview_status` lists the download path).
 5. Convert it with a script, so answers never pass through the model:
    `python3 site-idea/scripts/probe_run_to_raw.py <download>.json --out geo/gap/raw`. It writes
-   `<id>--chatgpt-instant--1.md` (header, STATUS line, `=== TURN n USER/ASSISTANT ===` blocks,
+   `<id>--chatgpt-instant--1.md` (`--run 2`, `3` for repeats; header, STATUS line, `=== TURN n USER/ASSISTANT ===` blocks,
    `=== SEARCH QUERIES ===`, `=== STREAM URLS ===`), never overwrites a file and prints one status line
    per conversation. Rerun any conversation whose STATUS is not `ok`.
 6. Record `slice: chatgpt-instant` and `platform: ChatGPT` in the run rows; `report --where
    slice=chatgpt-instant` then reads only those.
+7. After judging, run `geo_idea.py reads`: it fills `own_read` and `read` from the stream URLs, so the
+   report can tell "never opened our pages" from "opened them and picked another".
+
+**Repeats.** Recommend conversations (angle `recommend`) run 3 times each, in fresh chats, with
+`run` 1–3 and files `<id>--chatgpt-instant--<run>.md`: one run's pick is a sample. Problem
+conversations run once unless a decision rests on them. The report notes recommend conversations
+with fewer than 3 runs.
 
 ### With ego-browser
 

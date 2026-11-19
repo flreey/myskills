@@ -34,6 +34,8 @@ class ConvertTest(unittest.TestCase):
             (Path(d) / "q1--chatgpt-instant--1.md").write_text("keep")
             self.assertIn("skipped", mod.convert(DATA, d, "2026-11-18")[0])
             self.assertEqual((Path(d) / "q1--chatgpt-instant--1.md").read_text(), "keep")
+            self.assertIn("q1: 2 turns", mod.convert(DATA, d, "2026-11-18", run=2)[0])
+            self.assertIn("run: 2", (Path(d) / "q1--chatgpt-instant--2.md").read_text())
 
 
 if __name__ == "__main__":

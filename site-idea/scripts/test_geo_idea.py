@@ -526,6 +526,60 @@ class DemandAndBankTest(unittest.TestCase):
         self.assertIn("own must be one of", out)
         self.assertIn("search_queries is a list", out)
 
+    def test_reads_split_never_found_from_read_and_dropped(self):
+        gi.write_jsonl(self.root / "geo/needs.jsonl", NEEDS)
+        gi.write_jsonl(self.root / "geo/questions.jsonl", BANK)
+        run(self.root, "sample", "--n", "4", "--from-questions")
+        samples = gi.read_jsonl(self.root / "geo/gap/samples.jsonl")
+        for s in samples:
+            s["angle"] = "recommend"
+        samples[0]["follow_ups"] = [{"q": "Which would you pick, is it really free?", "kind": "pick"}]
+        gi.write_jsonl(self.root / "geo/gap/samples.jsonl", samples)
+        raw = self.root / "geo/gap/raw"
+        raw.mkdir(parents=True, exist_ok=True)
+        stream = {"q1": ["https://mint.example/pricing?utm_source=chatgpt.com", "https://list.example/best/"],
+                  "q2": ["https://other.example/", "https://images.openai.com/x.png"],
+                  "q3": ["https://mint.example/"], "q4": []}
+        for cid, urls in stream.items():
+            (raw / f"{cid}.md").write_text("=== TURN 1 ASSISTANT ===\nx\n=== SEARCH QUERIES ===\nnull\n\n"
+                                           "=== STREAM URLS ===\n" + "\n".join(urls) + "\n")
+        base = {"platform": "ChatGPT", "date": "2026-11-18", "mode": "browser", "web_search": True, "gap": "good"}
+        runs = [
+            {**base, "combo_id": "q1", "own": "absent", "raw": "geo/gap/raw/q1.md"},
+            {**base, "combo_id": "q2", "own": "absent", "raw": "geo/gap/raw/q2.md"},
+            {**base, "combo_id": "q3", "own": "listed", "own_opening": "first", "raw": "geo/gap/raw/q3.md"},
+            {**base, "combo_id": "q4", "own": "first", "raw": "geo/gap/raw/q4.md"},
+        ]
+        gi.write_jsonl(self.root / "geo/gap/runs.jsonl", runs)
+        code, out = run(self.root, "check")
+        self.assertEqual(code, 0)
+        self.assertIn("2 runs marked absent have stream URLs but no own_read", out)
+        self.assertIn("3 recommend samples end without a `pick` follow-up", out)
+        code, out = run(self.root, "reads", "--own", "mint.example")
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out)["stages"], {"picked": 1, "named": 1, "read_dropped": 1, "unseen": 1})
+        rows = gi.read_jsonl(self.root / "geo/gap/runs.jsonl")
+        self.assertEqual(rows[0]["own_read"], ["https://mint.example/pricing"])
+        self.assertEqual(rows[0]["read"], ["https://list.example/best"])
+        self.assertEqual(rows[1]["read"], ["https://other.example"])
+        code, _ = run(self.root, "report")
+        self.assertEqual(code, 0)
+        rep = json.loads((self.root / "geo/gap/report.json").read_text())
+        p = rep["presence"]
+        self.assertEqual(p["loss_hint"], "selection")
+        self.assertEqual(p["dropped_after_follow_up"], ["q3"])
+        self.assertTrue(any("lost the choice, not the search" in n for n in rep["notes"]))
+        self.assertTrue(any("dropped it after a follow-up (q3)" in n for n in rep["notes"]))
+        self.assertTrue(any("ran 1 time(s) each" in n for n in rep["notes"]))
+        md = (self.root / "geo/gap/report.md").read_text()
+        self.assertIn("opened a page, not named 1 · never opened a page 1", md)
+        self.assertIn("Loss hint: **selection**", md)
+        gi.write_jsonl(self.root / "geo/gap/runs.jsonl", [{**runs[0], "own_opening": "top", "own_read": "x"}])
+        code, out = run(self.root, "check")
+        self.assertEqual(code, 1)
+        self.assertIn("own_opening must be one of", out)
+        self.assertIn("own_read is a list of URLs", out)
+
     def test_low_presence_note_when_lever_is_offsite(self):
         gi.write_jsonl(self.root / "geo/needs.jsonl", NEEDS)
         gi.write_jsonl(self.root / "geo/questions.jsonl", BANK)

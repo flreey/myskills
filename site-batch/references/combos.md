@@ -43,7 +43,7 @@ out, not filled with guesses.
 | --- | --- |
 | `combo_id`, `combo` | Value ids joined with `__` in the template's dimension order. |
 | `core_answer` | The first paragraph: yes/no or how, the key number, the main limit. One to three sentences, inline markdown, stands alone. |
-| `constraint_results` | `status` is `met`, `conditional` or `unmet`. `unknown` fails the gate: find out or drop the constraint. A row may carry `slot` to answer a `constraint` question slot here instead of in the FAQ. |
+| `constraint_results` | `status` is `met`, `conditional` or `unmet`; `conditional` names the mode or device that meets it (the assistant's `pick` turn checks exactly this). `unknown` fails the gate: find out or drop the constraint. A row may carry `slot` to answer a `constraint` question slot here instead of in the FAQ. |
 | `key_facts` | Each has `fact_id` (from facts.jsonl) or `source` (e.g. `"computed from test run 12"`). |
 | `follow_ups` | One entry per required question slot (`slot`), plus row-specific questions without a slot. Answers are specific to the combination and follow the same fact rule. |
 | `resource` | `url` is a site path or URL that exists when the wave ships (kit:check reports broken links). |

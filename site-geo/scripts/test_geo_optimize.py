@@ -157,6 +157,34 @@ class OptimizeTest(unittest.TestCase):
         rep = json.loads(run(self.root, "experiment", "--id", "e1")[1])
         self.assertTrue(rep["verdict"].startswith("insufficient"))
 
+    def test_reads_and_selection_losses(self):
+        raw = self.root / "geo/optimize/raw"
+        raw.mkdir(parents=True)
+        (raw / "v1.md").write_text("=== TURN 1 ASSISTANT ===\nx\n=== STREAM URLS ===\n"
+                                   "https://www.example.com/pricing?utm_source=chatgpt.com\n"
+                                   "https://list.example/top-10/\nhttps://images.openai.com/a.png\n")
+        (raw / "v2.md").write_text("no stream here\n")
+        go.write_jsonl(self.st.conversations, [{"id": "v1", "cluster": "k1", "opening": "x"}])
+        base = {"conversation_id": "v1", "platform": "ChatGPT", "mode": "browser", "date": "2026-11-19"}
+        go.write_jsonl(self.st.runs, [
+            {**base, "status": "absent", "raw": "geo/optimize/raw/v1.md"},
+            {**base, "status": "listed", "status_opening": "first", "raw": "geo/optimize/raw/v2.md"},
+        ])
+        code, out = run(self.root, "reads", "--own", "example.com")
+        self.assertEqual(code, 0)
+        res = json.loads(out)
+        self.assertEqual((res["filled"], res["no_stream"], res["opened_not_named"]), (1, 1, 1))
+        rows = go.read_jsonl(self.st.runs)
+        self.assertEqual(rows[0]["own_read"], ["https://www.example.com/pricing"])
+        self.assertEqual(rows[0]["read"], ["https://list.example/top-10"])
+        r = go.rates(rows)
+        self.assertEqual((r["opened_not_named"], r["dropped_after_follow_up"]), (1, 1))
+        go.write_jsonl(self.st.runs, [{**base, "status": "absent", "status_opening": "maybe", "own_read": "x"}])
+        code, out = run(self.root, "check")
+        self.assertEqual(code, 1)
+        self.assertIn("status_opening must be one of", out)
+        self.assertIn("own_read is a list of URLs", out)
+
 
 if __name__ == "__main__":
     unittest.main()

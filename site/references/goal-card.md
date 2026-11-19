@@ -39,9 +39,12 @@ to the owner as its own question, never as a row in a table.
 Secondary: <presence and first-pick rate in retests; index and rank under the assistants' rewritten queries>
 
 ## Capabilities (what the product does, under which conditions, with proof)
-| Capability | Conditions met (free tier, no upload, devices, limits, licence, …) | Proof (test, file, measurement, date) |
+| Capability | Conditions met (free tier, no upload, devices, limits, licence, …) | Proof (test, file, measurement, date) | Where stated publicly (URLs) |
 Write it before any page space: assistants pick by "capability + conditions" and check them on our
-pages. A capability without proof is not claimed on a page. New products: write it before the site
+pages. A capability without proof is not claimed on a page. The card is for us; assistants read only
+the site. The last column names the pages that state each row's conditions in plain text, by mode or
+device where they differ: at least the capability's own page, and home and pricing when the row says
+free or paid. site-check 1G (`--capabilities`) compares those pages with this table. New products: write it before the site
 exists, and prefer capabilities whose conditions set the product apart.
 
 ## Who and what we serve

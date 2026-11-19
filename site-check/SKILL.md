@@ -28,6 +28,10 @@ Engine (Python stdlib, read-only), `python3 <skill-dir>/scripts/page_check.py`:
 - `--url <url> --geo-brief geo/optimize/briefs/<page>.json`: GEO mode coverage against a site-geo page
   brief: openings vs the first paragraph, each brief question vs visible questions and page text, each
   condition vs page text (lexical pre-sort; judge every line).
+- `--url <url> --capabilities geo-goal.md`: GEO mode, verification pages: lists the goal card's
+  Capabilities rows next to the page's sentences that state a condition (price, credits, limits,
+  upload, signup, watermark, devices), each marked first screen or with its word position. The card may
+  be in another language than the page; compare row by row yourself.
 
 Both take `--format json`. `--retired` lists product names and positioning the site no longer uses
 (after a pivot or rename); the sweep finds every page that still says them.
@@ -120,8 +124,18 @@ Assistants quote passages, not pages, and filter options by the conditions the p
   pricing` before picking and picked the sites that stated these on the page. Missing or only behind a
   click is a fix.
 - **Constraints stated.** Each condition people state for this task (from the row's
-  `constraint_results`, the gap samples or the brief's `conditions`) has its own sentence or table row
-  with met, with conditions, or not met, including the unmet ones. A missing or vague condition is a fix.
+  `constraint_results`, the gap samples or the brief's `conditions`) has its own sentence or table row,
+  written per mode or device where they differ ("on a computer: free, any length, up to 4K; on a phone:
+  Fast mode free, AI enhance 1 credit per second"); `not met` only when no mode meets it. A missing or
+  vague condition is a fix, and so is a bare "free" that is true for one mode only.
+- **Verification pages agree with the Capabilities.** Before it picks, the assistant opens the site's
+  own home, pricing, credits or FAQ pages ("is it really free?"); run `reads` in site-idea or site-geo,
+  and every page in the runs' `own_read` is in scope, with home and pricing always. Check each with
+  `--capabilities geo-goal.md`: every condition the goal card's Capabilities table states for the
+  capabilities that page serves appears there with the same numbers, the free path is on the first
+  screen of the pricing page next to the paid one, and nothing contradicts the card. On ToHD
+  (2026-11-19) `/pricing` opened with credit packs only, and two first picks flipped to "genuinely
+  free" competitors after ChatGPT read it.
 - **Questions in their place.** Every required question slot (batch pages) or brief question (live
   pages) is answered once, in the section the mapping gives it (site-batch
   `references/question-mapping.md`): conditions in the table, how and why in the visible FAQ, comparisons

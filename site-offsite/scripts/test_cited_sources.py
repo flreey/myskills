@@ -39,6 +39,20 @@ class CitedSourcesTest(unittest.TestCase):
             self.assertEqual(out[-1]["domain"], "list.example")
             self.assertIn("| reddit.com | 2 | 2 | forum |", cs.to_md(out, 3))
 
+    def test_opened_pages_count_where_we_were_never_opened(self):
+        rows = [
+            {"combo_id": "a", "platform": "ChatGPT", "gap": "good", "own_read": [],
+             "cited": [{"url": "https://winner.example/", "type": "competitor"}],
+             "read": ["https://winner.example", "https://blog.example/best-tools", "https://blog.example/other"]},
+            {"combo_id": "b", "platform": "ChatGPT", "gap": "good", "own_read": ["https://mysite.com/pricing"],
+             "cited": [], "read": ["https://blog.example/best-tools"]},
+        ]
+        by = {x["domain"]: x for x in cs.aggregate(rows, ["mysite.com"])}
+        self.assertEqual((by["blog.example"]["runs"], by["blog.example"]["opened"], by["blog.example"]["opened_we_unseen"]), (0, 2, 1))
+        self.assertEqual(by["blog.example"]["tasks"], 2)
+        self.assertEqual((by["winner.example"]["runs"], by["winner.example"]["opened"]), (1, 1))
+        self.assertEqual(by["blog.example"]["examples"], ["https://blog.example/best-tools"])
+
     def test_geo_dirs_and_extra_run_sets(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

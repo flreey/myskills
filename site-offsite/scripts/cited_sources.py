@@ -8,8 +8,12 @@ repeatable for a site with several, e.g. geo-longtail): gap/runs.jsonl and gap/r
 gap check, extra run sets included) and optimize/runs.jsonl (site-geo optimize), each row with combo_id or cluster, platform, date, gap,
 cited [{url, type}] and recommended [names]. Groups the cited URLs by domain and reports, per domain:
 how many runs and tasks cite it, its source types, the platforms, whether the project's own domains
-were cited in the same answers, and how many of those answers had a high-opportunity gap. Domains
-cited where the project is absent come first: they are where the assistants already look.
+were cited in the same answers, and how many of those answers had a high-opportunity gap. Runs that
+also carry `read` (every page the assistant opened; site-idea / site-geo `reads` fill it from the stream
+URLs) add the domains it read without citing: `opened` counts those runs, and `opened_we_unseen` the
+runs where it opened none of our pages (`own_read` empty), i.e. the lists and sites it builds its
+candidates from while we are not found. Domains cited where the project is absent come first, then the
+ones it opens while never opening us: they are where the assistants already look.
 Read-only; Python stdlib only.
 """
 import argparse
@@ -54,12 +58,30 @@ def read_runs(root, geo_dirs=("geo",)):
 def aggregate(rows, own):
     own = {d.lower().removeprefix("www.") for d in own}
     agg = defaultdict(lambda: {"runs": 0, "tasks": set(), "types": set(), "platforms": set(),
-                               "with_own": 0, "high_gap": 0, "examples": []})
+                               "with_own": 0, "high_gap": 0, "examples": [], "opened": 0, "opened_unseen": 0})
     for r in rows:
         cited = r.get("cited") or []
         doms = {domain(c.get("url", "")) for c in cited if c.get("url")}
         own_cited = bool(doms & own)
         task = r.get("combo_id") or r.get("cluster") or "?"
+        unseen = isinstance(r.get("own_read"), list) and not r["own_read"]
+        read = {}
+        for u in r.get("read") or []:
+            read.setdefault(domain(u), u)
+        for d, u in read.items():
+            if not d or d in own or d in doms:
+                continue
+            a = agg[d]
+            a["opened"] += 1
+            a["opened_unseen"] += unseen
+            a["tasks"].add(task)
+            a["platforms"].add(r.get("platform", "?"))
+            if len(a["examples"]) < 3 and u not in a["examples"]:
+                a["examples"].append(u)
+        for d in doms - own:
+            if d in read:
+                agg[d]["opened"] += 1
+                agg[d]["opened_unseen"] += unseen
         for c in cited:
             d = domain(c.get("url", ""))
             if not d or d in own:
@@ -78,19 +100,23 @@ def aggregate(rows, own):
     for d, a in agg.items():
         out.append({"domain": d, "runs": a["runs"], "tasks": len(a["tasks"]), "types": sorted(a["types"]),
                     "platforms": sorted(a["platforms"]), "own_also_cited": a["with_own"],
-                    "high_gap_runs": a["high_gap"], "examples": a["examples"]})
-    # Where the assistants look but the project is absent first, then by reach.
-    out.sort(key=lambda x: (x["own_also_cited"] > 0, -x["tasks"], -x["runs"], x["domain"]))
+                    "high_gap_runs": a["high_gap"], "opened": a["opened"], "opened_we_unseen": a["opened_unseen"],
+                    "examples": a["examples"]})
+    # Where the assistants look but the project is absent first, then where it reads while never
+    # opening us, then by reach.
+    out.sort(key=lambda x: (x["own_also_cited"] > 0, -x["opened_we_unseen"], -x["tasks"], -x["runs"], x["domain"]))
     return out
 
 
 def to_md(out, n_runs):
-    lines = [f"{n_runs} recorded AI runs. Domains cited, project-absent first.", "",
-             "| Domain | Tasks | Runs | Types | Own site also cited | High-gap runs | Example |",
-             "| --- | --- | --- | --- | --- | --- | --- |"]
+    lines = [f"{n_runs} recorded AI runs. Domains cited or opened, project-absent first. Runs: answers citing it. "
+             "Opened: runs that opened it (from `read`); we unseen: of those, runs that opened none of our pages.", "",
+             "| Domain | Tasks | Runs | Types | Own site also cited | High-gap runs | Opened | Opened, we unseen | Example |",
+             "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
     for x in out:
         lines.append(f"| {x['domain']} | {x['tasks']} | {x['runs']} | {', '.join(x['types']) or '?'} | "
-                     f"{x['own_also_cited']} | {x['high_gap_runs']} | {x['examples'][0] if x['examples'] else ''} |")
+                     f"{x['own_also_cited']} | {x['high_gap_runs']} | {x['opened']} | {x['opened_we_unseen']} | "
+                     f"{x['examples'][0] if x['examples'] else ''} |")
     return "\n".join(lines) + "\n"
 
 

@@ -51,7 +51,7 @@ import sys
 
 STATUSES = {"met": "Yes", "conditional": "With conditions", "unmet": "No"}
 # Follow-up kinds from site-idea samples; they decide the page section (references/question-mapping.md).
-TURN_KINDS = {"constraint", "howto", "why", "compare", "resource", "other"}
+TURN_KINDS = {"constraint", "howto", "why", "compare", "resource", "pick", "other"}
 # Section headings the geo overrides add; the kit's own headings come from its i18n messages.
 LABELS = {"chooser": "Which one fits", "alternatives": "Other ways to do it"}
 TEXT_FIELDS = ("core_answer", "headline")

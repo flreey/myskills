@@ -12,6 +12,8 @@ Commands
                                 rates per set and per cluster with 95% Wilson intervals
   experiment --id ID            treatment vs control, before vs after: difference in differences,
                                 with the sentinel set's drift over the same dates
+  reads --own DOMAIN [--force]  fill own_read (our pages the assistant opened) and read (other pages) in
+                                runs.jsonl from each raw file's stream URLs (same rules as site-idea reads)
   brief --page PATH [--force]   page brief skeleton for one page: the clusters it owns, their
                                 conversation turns routed to sections, the constraints it must state
 
@@ -27,7 +29,9 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import re
 import sys
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 QUERY_TYPES = {"recommend", "problem", "constraint", "compare", "howto", "integrate"}
 LEVERS = {"offsite", "onsite", "docs", "tools"}
@@ -39,7 +43,10 @@ CONSTRAINT = {"met", "conditional", "unmet", "unknown"}
 SETS = ("optimize", "holdout", "sentinel")
 # Where a turn is answered on the page (same table as site-batch references/question-mapping.md).
 SECTION_BY_KIND = {"constraint": "conditions", "howto": "faq_or_resource", "why": "faq",
-                   "compare": "alternatives", "resource": "resource", "other": "review"}
+                   "compare": "alternatives", "resource": "resource", "pick": "conditions", "other": "review"}
+RANK = {"first": 3, "listed": 2, "mentioned": 1, "excluded": 0, "absent": 0}
+ASSET_HOSTS = ("images.openai.com", "oaiusercontent.com", "cdn.openai.com")
+ASSET_PATH = re.compile(r"\.(jpe?g|png|gif|webp|avif|svg|ico|mp4|webm|css|js)$", re.I)
 MIN_N = 30
 
 
@@ -95,6 +102,9 @@ def rates(runs):
     acc_c = sum(int((r.get("accuracy") or {}).get("correct", 0)) for r in runs)
     acc_t = acc_c + sum(int((r.get("accuracy") or {}).get(k, 0)) for r in runs for k in ("wrong", "stale"))
     excl = [r for r in runs if r.get("status") == "excluded"]
+    # Absent although it opened one of our pages: lost the choice, not the search (fix the pages it read).
+    opened = sum(1 for r in runs if r.get("status") == "absent" and r.get("own_read"))
+    dropped = sum(1 for r in runs if dropped_after_follow_up(r))
     wrong_excl = sum(1 for r in excl if (r.get("exclusion") or {}).get("true_reason") is False)
     return {
         "n": n,
@@ -103,8 +113,69 @@ def rates(runs):
         "cited": round(cited / n, 3) if n else None, "cited_ci": wilson(cited, n),
         "accuracy": round(acc_c / acc_t, 3) if acc_t else None, "facts_checked": acc_t,
         "wrong_exclusions": wrong_excl, "exclusions": len(excl),
+        "opened_not_named": opened, "dropped_after_follow_up": dropped,
+        "reads_captured": sum(1 for r in runs if isinstance(r.get("own_read"), list)),
         "thin": n < MIN_N,
     }
+
+
+def dropped_after_follow_up(r):
+    a, b = r.get("status_opening"), r.get("status")
+    return a in ("first", "listed") and b in RANK and RANK[b] < RANK[a]
+
+
+def norm_url(u):
+    p = urlsplit(str(u).strip().rstrip(".,;)\"'"))
+    q = [(k, v) for k, v in parse_qsl(p.query, keep_blank_values=True) if not k.lower().startswith("utm_")]
+    return urlunsplit((p.scheme.lower(), p.netloc.lower(), p.path.rstrip("/"), urlencode(q), ""))
+
+
+def url_host(u):
+    return urlsplit(u if "://" in str(u) else "https://" + str(u)).netloc.lower().removeprefix("www.")
+
+
+def host_in(u, hosts):
+    h = url_host(u)
+    return any(h == o or h.endswith("." + o) for o in hosts)
+
+
+def stream_urls(path):
+    lines = Path(path).read_text().splitlines()
+    if "=== STREAM URLS ===" not in lines:
+        return None
+    out = []
+    for line in lines[lines.index("=== STREAM URLS ===") + 1:]:
+        if line.startswith("=== "):
+            break
+        for u in re.findall(r"https?://\S+", line):
+            n = norm_url(u)
+            if n not in out and not host_in(n, ASSET_HOSTS) and not ASSET_PATH.search(urlsplit(n).path):
+                out.append(n)
+    return out
+
+
+def cmd_reads(st, a):
+    hosts = {url_host(d) for d in a.own}
+    rows = read_jsonl(st.runs)
+    out = {"own": sorted(hosts), "filled": 0, "kept": 0, "no_stream": 0, "no_raw": 0, "opened_not_named": 0}
+    for r in rows:
+        raw = st.dir.parent.parent / r["raw"] if r.get("raw") else None
+        if isinstance(r.get("own_read"), list) and not a.force:
+            out["kept"] += 1
+        elif not raw or not raw.exists():
+            out["no_raw"] += 1
+        else:
+            urls = stream_urls(raw)
+            if urls is None:
+                out["no_stream"] += 1
+            else:
+                r["own_read"] = [u for u in urls if host_in(u, hosts)]
+                r["read"] = [u for u in urls if not host_in(u, hosts)]
+                out["filled"] += 1
+        out["opened_not_named"] += r.get("status") == "absent" and bool(r.get("own_read"))
+    if out["filled"]:
+        write_jsonl(st.runs, rows)
+    print(json.dumps(out, ensure_ascii=False, indent=2))
 
 
 def in_window(r, since, until):
@@ -170,6 +241,12 @@ def cmd_check(st, a):
                 errs.append(f"{w}: {k} is required")
         if r.get("status") not in STATUS:
             errs.append(f"{w}: status must be one of {STATUS}")
+        if r.get("status_opening") is not None and r.get("status_opening") not in STATUS:
+            errs.append(f"{w}: status_opening must be one of {STATUS} or null")
+        for k in ("own_read", "read"):
+            v = r.get(k)
+            if v is not None and not (isinstance(v, list) and all(isinstance(u, str) for u in v)):
+                errs.append(f"{w}: {k} is a list of URLs, or null when not captured")
         if r.get("role", None) not in ROLES:
             errs.append(f"{w}: role must be tool, evidence, step, called or null")
         if r.get("status") == "excluded" and not (r.get("exclusion") or {}).get("reason"):
@@ -245,10 +322,14 @@ def cmd_report(st, a):
     pct = lambda v: "—" if v is None else f"{v:.0%}"
     ci = lambda v: "" if not v else f" ({v[0]:.0%}–{v[1]:.0%})"
     L = [f"Runs: {len(runs)}. Window: {a.since or 'start'} → {a.until or 'now'}. Report the holdout set as the result; "
-         "rates with n < 30 are marked thin.", "", "| Set | n | In answer | First | Cited | Accuracy |", "| --- | --- | --- | --- | --- | --- |"]
+         "rates with n < 30 are marked thin. \"Opened, not named\": absent although it opened one of our pages "
+         "(a selection loss: fix the pages it read). \"Dropped\": named in the opening, lower after a follow-up.", "",
+         "| Set | n | In answer | First | Cited | Accuracy | Opened, not named | Dropped |",
+         "| --- | --- | --- | --- | --- | --- | --- | --- |"]
     for s, r in out["sets"].items():
         L.append(f"| {s}{' (thin)' if r['thin'] else ''} | {r['n']} | {pct(r['in_answer'])}{ci(r['in_answer_ci'])} | "
-                 f"{pct(r['first'])} | {pct(r['cited'])}{ci(r['cited_ci'])} | {pct(r['accuracy'])} |")
+                 f"{pct(r['first'])} | {pct(r['cited'])}{ci(r['cited_ci'])} | {pct(r['accuracy'])} | "
+                 f"{r['opened_not_named'] if r['reads_captured'] else 'not captured'} | {r['dropped_after_follow_up']} |")
     L += ["", "| Cluster | Set | Type | Lever | n | In answer | Cited | Wrong exclusions | Page |", "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
     for c in out["clusters"]:
         L.append(f"| {c['id']} | {c['set']} | {c['query_type']} | {c['lever']} | {c['n']} | {pct(c['in_answer'])} | "
@@ -375,13 +456,16 @@ def main(argv=None):
     s.add_argument("--format", choices=["md", "json"], default="md")
     s = sub.add_parser("experiment")
     s.add_argument("--id", required=True)
+    s = sub.add_parser("reads")
+    s.add_argument("--own", action="append", required=True, metavar="DOMAIN", help="our domain (repeatable)")
+    s.add_argument("--force", action="store_true", help="refill runs that already have own_read")
     s = sub.add_parser("brief")
     s.add_argument("--page", required=True)
     s.add_argument("--force", action="store_true")
     a = p.parse_args(argv)
     st = State(a.root)
     {"init": cmd_init, "check": cmd_check, "sets": cmd_sets, "report": cmd_report,
-     "experiment": cmd_experiment, "brief": cmd_brief}[a.cmd](st, a)
+     "experiment": cmd_experiment, "brief": cmd_brief, "reads": cmd_reads}[a.cmd](st, a)
 
 
 if __name__ == "__main__":

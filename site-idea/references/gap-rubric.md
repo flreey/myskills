@@ -39,8 +39,10 @@ are sent to, and why not:
 
 | Field | Write |
 | --- | --- |
-| `own` | `absent`, `mentioned` (named in passing), `listed` (offered as an option), `first` (the main recommendation), `excluded` (named and ruled out; say why in `gap_note`) |
-| `cited_own`, `own_urls` | whether a page of the site was opened or linked, and which |
+| `own` | where the site stands at the end of the conversation: `absent`, `mentioned` (named in passing), `listed` (offered as an option), `first` (the main recommendation), `excluded` (named and ruled out; say why in `gap_note`) |
+| `own_opening` | the same scale for the first answer, or `null` for one-turn conversations; a lower `own` at the end is "dropped after a follow-up" (name the turn and the page it read in `gap_note`) |
+| `cited_own`, `own_urls` | whether the answer cited or linked a page of the site, and which |
+| `own_read`, `read` | written by `reads`, not by hand: our pages the assistant opened, and every other page it opened (stream URLs); `null` when not captured. `absent` with a non-empty `own_read` means it found us and chose another |
 | `recommended` | names in the order given, the site included |
 | `cited[]` | every source URL with its type: `brand` (the site), `competitor`, `list`, `forum`, `video`, `docs`, `news`, `other` |
 | `web_search` | `true` when the assistant searched; `false` answers come from the model alone |
@@ -48,4 +50,6 @@ are sent to, and why not:
 | `outcome` | competitor probes only: `competitor_page`, `constraint_unmet`, `lists_forums`, `no_search`, `own_recommended`, `generic_rules`, `other` ([competitor-probes.md](competitor-probes.md)) |
 
 `report` turns these into the presence section: share of answers with the site, first
-recommendations, the source mix behind answers without it and a lever hint.
+recommendations, where it was lost (picked / named, not first / excluded / opened a page, not named /
+never opened / no search) with a loss hint, the runs dropped after a follow-up, the source mix behind
+answers without it and a lever hint.

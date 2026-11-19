@@ -346,6 +346,41 @@ def geo_brief_report(path, page, text, opening):
     return out
 
 
+# Words that carry the terms an assistant checks before it picks a site (price, limits, upload, signup,
+# watermark, devices): sentences with them are the page's stated conditions.
+CONDITION_TERMS = re.compile(
+    r"\b(free|paid|price|pricing|cost|costs|\$\s?\d|credits?|per (second|minute|month)|subscription|trial|"
+    r"watermarks?|sign[- ]?ups?|sign in|account|log ?in|uploads?|no upload|on (your|the) device|locally|offline|"
+    r"limits?|unlimited|max(imum)?|up to|minutes?|seconds?|mb|gb|length|720p|1080p|4k|8k|60 ?fps|"
+    r"iphone|android|phone|mobile|computer|desktop|laptop|browser|gpu|mac|windows)\b", re.I)
+FIRST_SCREEN_WORDS = 120   # about one phone screen of text after the H1
+
+
+def capability_rows(path):
+    """Rows of the goal card's Capabilities table: capability, conditions met, proof (site references/goal-card.md)."""
+    text = Path(path).read_text(encoding="utf-8")
+    m = re.search(r"^##\s+Capabilities\b.*?$(.*?)(?=^##\s|\Z)", text, re.M | re.S)
+    rows = []
+    for line in (m.group(1) if m else "").splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if not line.lstrip().startswith("|") or len(cells) < 2 or set(cells[0]) <= set("-: ") or cells[0] == "Capability":
+            continue
+        rows.append({"capability": cells[0], "conditions": cells[1], "public": cells[3] if len(cells) > 3 else None})
+    return rows
+
+
+def condition_sentences(text, limit=40):
+    """Sentences of the server text that state a condition, with their word position (first screen or not)."""
+    out, pos = [], 0
+    for s in re.split(r"(?<=[.!?])\s+|\s+[·•|]\s+", text):
+        n = len(s.split())
+        terms = sorted({t.group(0).lower() for t in CONDITION_TERMS.finditer(s)})
+        if terms and n <= 60:
+            out.append({"at_word": pos, "first_screen": pos < FIRST_SCREEN_WORDS, "terms": terms, "text": s.strip()})
+        pos += n
+    return out[:limit]
+
+
 def pool_questions(path, keywords, limit=40):
     """Question-form queries from a site-research pool that share a subject word with the keywords."""
     subject = set().union(*(tokens(k) for k in keywords)) - GENERIC - STOPWORDS if keywords else set()
@@ -459,7 +494,7 @@ def fact_issues(f):
     return issues
 
 
-def check(url, keywords, brief_path=None, pool_path=None, retired=(), geo_brief_path=None):
+def check(url, keywords, brief_path=None, pool_path=None, retired=(), geo_brief_path=None, capabilities_path=None):
     brief = load_brief(brief_path) if brief_path else None
     if brief and not keywords:
         keywords = brief["phrasings"]
@@ -499,6 +534,8 @@ def check(url, keywords, brief_path=None, pool_path=None, retired=(), geo_brief_
         report["geo_brief"] = geo_brief_report(geo_brief_path, page, text, " ".join(words[:60]))
     if pool_path:
         report["pool_questions"] = match_questions(pool_questions(pool_path, keywords), on_page)
+    if capabilities_path:
+        report["capabilities"] = {"rows": capability_rows(capabilities_path), "on_page": condition_sentences(text)}
     report["rendering"] = {
         "server_text_words": len(words), "h1_in_server_html": bool(h1),
         "verdict": rendering_verdict(len(words), page.scripts),
@@ -548,6 +585,17 @@ def render(r):
         out += [f"  [{c['hint']}] condition ({c['status']}): {c['constraint']}" for c in g["conditions"]]
         if g["unknown_constraints"]:
             out.append(f"  unknown, do not claim: {', '.join(g['unknown_constraints'])}")
+    if "capabilities" in r:
+        cp = r["capabilities"]
+        out.append(f"  1G conditions vs the goal card's Capabilities ({len(cp['rows'])} rows) — compare each row with the "
+                   "page; the same numbers, \"free\" tied to its mode or device, the conditions an assistant checks "
+                   f"on the first screen (~{FIRST_SCREEN_WORDS} words):")
+        out += [f"  card: {c['capability']} — {c['conditions']}" for c in cp["rows"]]
+        for s in cp["on_page"]:
+            where = "first screen" if s["first_screen"] else f"word {s['at_word']}"
+            out.append(f"  page [{where}]: {s['text']}")
+        if not cp["on_page"]:
+            out.append("  page: no sentence states a price, limit, upload, signup, watermark or device")
     if "brief" in r:
         out.append(f"  brief questions ({r['brief']['page']}):")
         out += [f"  [{q['hint']}] {q['question']}  ~ {q['closest_on_page']}" for q in r["brief"]["questions"]]
@@ -917,6 +965,8 @@ def main(argv=None):
     ap.add_argument("--keyword", action="append", default=[], help="target phrase; repeatable")
     ap.add_argument("--brief", help="site-plan brief JSON (seo/work/briefs/<slug>.json)")
     ap.add_argument("--geo-brief", help="site-geo page brief JSON (geo/optimize/briefs/<page>.json): GEO mode coverage")
+    ap.add_argument("--capabilities", help="goal card (geo-goal.md): list its Capabilities rows next to the page's "
+                                           "condition sentences, for verification pages (home, pricing, FAQ, pages assistants opened)")
     ap.add_argument("--pool", help="site-research pool (seo/discovery/observations.jsonl): question queries for check 2")
     ap.add_argument("--retired", action="append", default=[],
                     help="product name or phrase the site no longer uses; repeatable")
@@ -926,7 +976,7 @@ def main(argv=None):
         r = sweep(a.sitemap, a.base, a.limit, a.retired)
         print(json.dumps(r, ensure_ascii=False, indent=2) if a.format == "json" else render_sweep(r))
         return 0
-    r = check(a.url, a.keyword, a.brief, a.pool, a.retired, a.geo_brief)
+    r = check(a.url, a.keyword, a.brief, a.pool, a.retired, a.geo_brief, a.capabilities)
     print(json.dumps(r, ensure_ascii=False, indent=2) if a.format == "json" else render(r))
     return 0 if r["fetch"].get("ok") else 1
 

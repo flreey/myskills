@@ -12,7 +12,7 @@ on their own, so this skill finds out what people are trying to do and whether s
 before anyone writes a template.
 
 Engine (Python stdlib): `python3 <skill-dir>/scripts/geo_idea.py --root <project> [--geo-dir geo] <command>`
-with `init`, `needs`, `bank`, `space`, `sample`, `probes`, `report`, `queries`, `slots`, `decide`, `extend`, `check`. State is
+with `init`, `needs`, `bank`, `space`, `sample`, `probes`, `reads`, `report`, `queries`, `slots`, `decide`, `extend`, `check`. State is
 `<project>/geo/` (or `--geo-dir` when one repository holds several GEO projects); its contract, shared
 with the later geo stages, is [references/state.md](references/state.md).
 
@@ -130,10 +130,13 @@ the shape decides how the pages are cut. A site can hold both, one GEO folder ea
    Browser runs follow [references/probe-runs.md](references/probe-runs.md): a page script in a
    logged-in browser tab first, in ego-browser by default (it also captures the assistant's search
    queries); a Grok Bot via `gbot` only as a fallback. The one-hour tool rule (site skill rule 5) applies to both. Save every answer under `geo/gap/raw/` and add a row to
-   `geo/gap/runs.jsonl` with `gap: null`.
+   `geo/gap/runs.jsonl` with `gap: null`. Recommend conversations end with a `pick` turn and run
+   3 times each in fresh chats; problem conversations once.
 5. **Judge.** Label every run with [references/gap-rubric.md](references/gap-rubric.md): `gap`,
-   `gap_note`, `own`, `cited`, `recommended`, `search_queries`, and `outcome` for competitor probes.
-   Then `check`, then `report`; on its first run `report` also writes the skeleton of
+   `gap_note`, `own` (at the end) and `own_opening` (in the first answer), `cited`, `recommended`,
+   `search_queries`, and `outcome` for competitor probes. Run `reads`: it fills `own_read` (our pages
+   the assistant opened) and `read` (every other page) from the raw files' stream URLs, so `absent`
+   splits into never opened and opened but not named. Then `check`, then `report`; on its first run `report` also writes the skeleton of
    `gap/channels.md` (`channels` writes it on demand, e.g. for `--without-probes`).
 6. **Other channels.** Probes cover assistant chat. For the same needs, collect what is cheap and
    real: search engines — run `queries`: it splits the captured queries into **find searches**
@@ -189,6 +192,17 @@ space (above): sample and probe it (20–30 combinations are enough for one dime
   (GEO mode) with the pages, or instead of them.
 - `lever_hint` follows site-geo's source diagnosis: `onsite` when competitor pages win, `offsite` when
   lists and forums do, `consensus` when the assistant answers without searching.
+- **Where it was lost** (`loss_hint`, from `own`, `own_opening` and `own_read`) comes before the
+  lever: `selection` when most runs without a first pick had opened or named the site (it found us and
+  chose another: fix the conditions on the pages it opened — home, pricing, FAQ, capability pages —
+  against the goal card's Capabilities; more pages will not help), `retrieval` when most never opened
+  a page of ours (rank under the captured queries, indexing, the lists in `read`), `consensus` when
+  most answered without searching, `capture` when the pages opened are not recorded (run `reads`).
+  "Dropped after a follow-up" lists the runs where the site was named in the opening answer and lost
+  on a later turn: answer that turn on the pages opened in it. On ToHD (2026-11-18), 8 of 12 website
+  answers without a ToHD pick had opened or named ToHD, and two first picks flipped after "is it really
+  free?" once ChatGPT read the pricing and credits pages.
+- Recommend conversations run once each are a sample of one; the report says so until each has 3.
 - High share with no signals: the gap may be real but nobody asks. Say so; it argues for narrowing
   to the values that have both.
 - What assistants recommend and cite is the competition; in high-gap answers it is the list of

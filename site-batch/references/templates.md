@@ -81,7 +81,7 @@ The gaps the assistants left are what the page must fill:
 | Dominant gap in `geo/gap/report.md` | Make required |
 | --- | --- |
 | `no_resource` | `resource` (a tool, file, dataset or exact steps for this combination) |
-| `unmet_constraint` | `constraint_results` covering the constraints people state, including `unmet` |
+| `unmet_constraint` | `constraint_results` covering the constraints people state, written per mode or device ("on a computer: free, any length; on a phone: Fast mode free, AI enhance N credits/s"); `unmet` only when no mode meets it |
 | `generic` | `key_facts` specific to the combination (measured, computed or looked up) |
 | `outdated` | facts with a recent `checked` date; `updated` on every row |
 | `weak_sources` | facts with first-hand sources (own tests, official docs) |

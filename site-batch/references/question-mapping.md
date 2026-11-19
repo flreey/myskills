@@ -36,6 +36,7 @@ site-offsite GEO mode. Do not build a page per "best X for Y" wording.
 | `why` (reason, explanation) | FAQ entry | FAQ entry |
 | `compare` (versus another option) | `alternatives`, honest about when the other is better | chooser |
 | `resource` (where, which file, which tool) | the resource button | chooser rows to the items |
+| `pick` (which would you choose, is it really free / does it really work on X) | the conditions block on the first screen, by mode or device, with the same numbers as the pricing and FAQ pages | the group answer's conditions line |
 | `other` | decide case by case; often a different template or off-site | — |
 
 One question, one place. The same question is never answered in the answer paragraph, the table and the

@@ -111,8 +111,15 @@ the user's go-ahead for their accounts (iron rule 3). Browser runs follow
  "status": "listed", "role": "tool", "cited_own": true, "own_urls": ["https://example.com/sounds/ui-click"],
  "cited": [{"url": "https://...", "type": "list"}], "recommended": ["A", "B"],
  "accuracy": {"correct": 3, "wrong": 1, "stale": 0}, "accuracy_note": "says downloads need signup",
- "exclusion": null, "gap": "generic", "raw": "geo/optimize/raw/v12--chatgpt--1.md"}
+ "exclusion": null, "gap": "generic", "raw": "geo/optimize/raw/v12--chatgpt--1.md",
+ "status_opening": "first", "own_read": ["https://example.com/pricing"], "read": ["https://list.example/best"]}
 ```
+
+- `status_opening`: the same scale for the first answer, or null; a lower `status` at the end counts as
+  "dropped after a follow-up".
+- `own_read`, `read`: written by `geo_optimize.py reads --own <domain>` from the raw file's stream URLs:
+  our pages the assistant opened, and every other page. `absent` with a non-empty `own_read` is a
+  selection loss (it found us and chose another); `report` counts it as "Opened, not named".
 
 - `status`: `absent`, `mentioned`, `listed` (offered as an option), `first` (the main recommendation),
   `excluded` (named and ruled out; then `exclusion: {"reason": "<its words>", "true_reason": true|false|null}`
@@ -173,7 +180,8 @@ own workflow and approvals; this skill writes only `geo/optimize/`.
 | Excluded for an untrue reason | State that condition plainly on the main page and fact pages |
 | Excluded for a true reason | `NOT_FIT`, or a product request to the owner |
 | Our page cited, another product recommended | Off-site: the consensus is lost (site-offsite GEO mode) |
-| Listed in the opening, dropped after a follow-up | Answer that follow-up on the page |
+| Listed in the opening, dropped after a follow-up | Answer that follow-up on the pages it opened in that turn (often pricing or FAQ) |
+| Absent, but it opened our pages (`own_read`) | Selection loss: compare those pages with the goal card's Capabilities and state the conditions it checks on their first screen (site-check 1G, verification pages); not a new page |
 | Never present in answers without web search | Long-term consensus work; not a page problem |
 | Recommended, few referrals | Brand landing and first screen; check referral tracking |
 | Referrals, no action | Landing page versus the task; next step on the page |

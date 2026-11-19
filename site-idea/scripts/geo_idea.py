@@ -20,6 +20,8 @@ Commands
   decide   --verdict go|narrow|stop --by user [--subspace JSON] [--note TEXT] [--without-probes]
   extend   --dimension D --values a,b --by user   open more values of a validated dimension (long tail)
   check                                     validate every geo/ file this skill owns
+  reads    [--own DOMAIN]... [--force]      fill own_read / read in the runs from the raw files' stream URLs
+                                            (our pages the assistant opened; every other page it opened)
   queries                                   group the assistants' search queries -> geo/gap/queries.jsonl / .md
   slots    [--from <export>]...             search words against the dimensions -> geo/gap/slots.md / .json
 
@@ -39,6 +41,7 @@ from pathlib import Path
 import random
 import re
 import sys
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 SCHEMA = 1
 KINDS = {"capability", "entity", "task", "constraint"}
@@ -69,7 +72,10 @@ QUERY_STOP = {"a", "an", "the", "for", "to", "of", "in", "on", "and", "or", "wit
 
 VALUE_ID = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 # What a follow-up asks decides where a page answers it (site-batch references/question-mapping.md).
-TURN_KINDS = {"constraint", "howto", "why", "compare", "resource", "other"}
+# `pick` is the verification turn that ends a recommend conversation ("which one would you pick for me,
+# and is it really free?"): on ToHD (2026-11-18) two first picks flipped to a competitor on that turn,
+# after the assistant read the site's pricing and credits pages.
+TURN_KINDS = {"constraint", "howto", "why", "compare", "resource", "pick", "other"}
 STAGES = ["idea", "needs", "space", "gap", "decided"]
 ENUM_LIMIT = 200_000
 SPACE_WARN = 50_000
@@ -91,6 +97,19 @@ OWN_STATUS = {"absent", "mentioned", "listed", "first", "excluded"}
 OUTCOMES = {"competitor_page", "constraint_unmet", "lists_forums", "no_search", "own_recommended",
             "generic_rules", "other"}
 IN_ANSWER = {"mentioned", "listed", "first"}
+# Where the site was lost, read together with the pages the assistant opened (`own_read`, filled by
+# `reads` from the raw file's stream URLs). `own` alone mixes "never found" with "read and dropped":
+# on ToHD (2026-11-18) 4 of the 8 website answers marked absent had opened a ToHD page.
+OWN_RANK = {"first": 3, "listed": 2, "mentioned": 1, "excluded": 0, "absent": 0}
+STAGES_OWN = ["picked", "named", "excluded", "read_dropped", "unseen", "no_search", "not_captured"]
+# Selection losses are fixed on the pages the assistant read; retrieval losses by rank, indexing and the
+# lists it reads; answers without a search only by model memory and off-site consensus.
+LOSS_KIND = {"named": "selection", "excluded": "selection", "read_dropped": "selection",
+             "unseen": "retrieval", "no_search": "consensus"}
+# Stream URLs that are the assistant's own assets, not pages it read.
+ASSET_HOSTS = ("images.openai.com", "oaiusercontent.com", "cdn.openai.com")
+ASSET_PATH = re.compile(r"\.(jpe?g|png|gif|webp|avif|svg|ico|mp4|webm|css|js)$", re.I)
+REPEATS = 3
 TOKEN = re.compile(r"[a-z0-9]+")
 NEAR_DUP = 0.8
 SEARCH_PAGE = re.compile(r"/search\b|/tags?/|[?&](q|query|s|search|term)=", re.I)
@@ -979,6 +998,117 @@ def cmd_probes(st, a):
 
 # ---------- report ----------
 
+def norm_url(u):
+    """Drop utm_* parameters, the fragment and a trailing slash, so one page counts once."""
+    p = urlsplit(str(u).strip().rstrip(".,;)\"'"))
+    q = [(k, v) for k, v in parse_qsl(p.query, keep_blank_values=True) if not k.lower().startswith("utm_")]
+    return urlunsplit((p.scheme.lower(), p.netloc.lower(), p.path.rstrip("/"), urlencode(q), ""))
+
+
+def url_host(u):
+    return urlsplit(u if "://" in str(u) else "https://" + str(u)).netloc.lower().removeprefix("www.")
+
+
+def is_own(u, hosts):
+    h = url_host(u)
+    return any(h == o or h.endswith("." + o) for o in hosts)
+
+
+def stream_urls(path):
+    """Pages the assistant opened, from the raw file's `=== STREAM URLS ===` section; None without one."""
+    lines = Path(path).read_text().splitlines()
+    if "=== STREAM URLS ===" not in lines:
+        return None
+    out, seen = [], set()
+    for line in lines[lines.index("=== STREAM URLS ===") + 1:]:
+        if line.startswith("=== "):
+            break
+        for u in re.findall(r"https?://\S+", line):
+            n = norm_url(u)
+            if (n in seen or ASSET_PATH.search(urlsplit(n).path)
+                    or any(url_host(n) == h or url_host(n).endswith("." + h) for h in ASSET_HOSTS)):
+                continue
+            seen.add(n)
+            out.append(n)
+    return out
+
+
+def own_hosts(proj, runs, given=None):
+    """Our domains: --own, else project.json `own_domains` and `site`, else the URLs judged `brand`."""
+    hosts = {url_host(g) for g in given or [] if g}
+    if hosts:
+        return hosts
+    site = proj.get("site")
+    origin = site.get("origin") if isinstance(site, dict) else site
+    hosts |= {url_host(u) for u in re.findall(r"https?://[^\s,;)]+", str(origin or ""))}
+    hosts |= {url_host(d) for d in proj.get("own_domains") or [] if d}
+    if not hosts:
+        for r in runs:
+            hosts |= {url_host(c["url"]) for c in r.get("cited") or [] if (c or {}).get("type") == "brand" and c.get("url")}
+            hosts |= {url_host(u) for u in r.get("own_urls") or [] if u}
+    return {h for h in hosts if h}
+
+
+def own_stage(r):
+    """picked / named (not first) / excluded / read_dropped (opened a page of ours, did not name us) /
+    unseen (opened none) / no_search / not_captured (absent, pages opened not recorded)."""
+    o = r.get("own")
+    if o not in OWN_STATUS:
+        return None
+    if o == "first":
+        return "picked"
+    if o in ("listed", "mentioned"):
+        return "named"
+    if o == "excluded":
+        return "excluded"
+    if r.get("own_read") or r.get("own_urls") or r.get("cited_own"):
+        return "read_dropped"
+    if r.get("web_search") is False:
+        return "no_search"
+    if isinstance(r.get("own_read"), list):
+        return "unseen"
+    return "not_captured"
+
+
+def dropped_after_follow_up(r):
+    """Named in the opening answer, lower at the end (a first pick lost counts)."""
+    a, b = r.get("own_opening"), r.get("own")
+    return a in ("first", "listed") and b in OWN_STATUS and OWN_RANK[b] < OWN_RANK[a]
+
+
+def cmd_reads(st, a):
+    """Fill `own_read` (our pages the assistant opened) and `read` (everyone else's) from the raw files."""
+    proj = read_json(st.project)
+    sets = [st.runs] + list(st.extra_runs)
+    hosts = own_hosts(proj, [r for p in sets for r in read_jsonl(p)], a.own)
+    if not hosts:
+        die("no own domain: pass --own example.com, or set own_domains or site.origin in project.json")
+    out = {"own": sorted(hosts), "filled": 0, "kept": 0, "no_stream": 0, "no_raw": 0}
+    stages = Counter()
+    for p in sets:
+        rows, changed = read_jsonl(p), False
+        for r in rows:
+            raw = r.get("raw")
+            if isinstance(r.get("own_read"), list) and not a.force:
+                out["kept"] += 1
+            elif not raw or not (st.root / raw).exists():
+                out["no_raw"] += 1
+            else:
+                urls = stream_urls(st.root / raw)
+                if urls is None:
+                    out["no_stream"] += 1
+                else:
+                    r["own_read"] = [u for u in urls if is_own(u, hosts)]
+                    r["read"] = [u for u in urls if not is_own(u, hosts)]
+                    out["filled"] += 1
+                    changed = True
+            stages[own_stage(r)] += 1
+        if changed:
+            write_jsonl(p, rows)
+    out["stages"] = {k: stages[k] for k in STAGES_OWN if stages[k]}
+    print(json.dumps(out, ensure_ascii=False, indent=2))
+
+
 def combo_level(levels):
     if not levels:
         return "unprobed"
@@ -1032,7 +1162,8 @@ def build_report(samples, runs, threshold):
     presence = build_presence(runs)
     groups = {}
     for key in ("need_id", "stratum", "angle"):
-        g = defaultdict(lambda: {"probed": 0, "high": 0, "runs": 0, "in_answer": 0, "own_measured": 0})
+        g = defaultdict(lambda: {"probed": 0, "high": 0, "runs": 0, "in_answer": 0, "own_measured": 0,
+                                 "read_dropped": 0, "unseen": 0})
         for s in samples:
             if s.get(key) is None or level_of.get(s["combo_id"], "unprobed") == "unprobed":
                 continue
@@ -1048,6 +1179,8 @@ def build_report(samples, runs, threshold):
             if r.get("own") in OWN_STATUS:
                 row["own_measured"] += 1
                 row["in_answer"] += r["own"] in IN_ANSWER
+                row["read_dropped"] += own_stage(r) == "read_dropped"
+                row["unseen"] += own_stage(r) == "unseen"
         if g:
             groups[key] = {k: {**v, "share_high": round(v["high"] / v["probed"], 2) if v["probed"] else None,
                                "own_in_answer": round(v["in_answer"] / v["own_measured"], 2) if v["own_measured"] else None}
@@ -1056,12 +1189,21 @@ def build_report(samples, runs, threshold):
     if probed and (len(probed) < THIN_TOTAL or len(platforms) <= 1):
         notes.append(f"thin sample: {len(probed)} probed on {len(platforms)} platform(s) "
                      f"({', '.join(platforms) or 'none'}); read it as one channel's sample, not a measurement")
+    notes += loss_notes(presence)
+    rec = [s["combo_id"] for s in samples if s.get("angle") == "recommend"]
+    own_runs = Counter(r.get("combo_id") for r in runs if r.get("gap") in GAPS and r.get("own") in OWN_STATUS)
+    rec_runs = [own_runs[c] for c in rec if own_runs[c]]
+    if rec_runs and min(rec_runs) < REPEATS:
+        times = f"{min(rec_runs)}" if min(rec_runs) == max(rec_runs) else f"{min(rec_runs)}–{max(rec_runs)}"
+        notes.append(f"recommend conversations ran {times} time(s) each: one run's pick is "
+                     f"a sample; rerun each {REPEATS} times in fresh chats (references/probe-runs.md) before a "
+                     "decision rests on who gets picked")
     if presence["measured"]:
         if presence["in_answer_share"] < 0.25 and presence["lever_hint"] in ("offsite", "consensus"):
             notes.append(f"own site in {presence['in_answer_share']:.0%} of answers and the answers rest on "
                          f"{presence['lever_hint']} sources: pages alone are unlikely to change who gets "
                          "recommended; plan site-offsite (GEO mode) alongside or instead")
-        elif presence["in_answer_share"] < 0.25:
+        elif presence["in_answer_share"] < 0.25 and presence.get("loss_hint") != "selection":
             notes.append(f"own site in {presence['in_answer_share']:.0%} of answers: a gap is an opening for "
                          "the content, not proof the assistant will find the pages; check the captured "
                          "search queries against where the site ranks")
@@ -1087,6 +1229,41 @@ def build_report(samples, runs, threshold):
         "hint": hint, "strong_values": strong, "values": values, "combos": combos,
         "presence": presence, "groups": groups, "notes": notes,
     }
+
+
+def loss_notes(p):
+    """Where the site was lost decides the step to go back to (site skill, step 4)."""
+    st, lost, hint = p.get("stages") or {}, p.get("lost") or 0, p.get("loss_hint")
+    notes = []
+    if not lost:
+        return notes
+    sel = st.get("named", 0) + st.get("excluded", 0) + st.get("read_dropped", 0)
+    if hint == "capture":
+        notes.append(f"{st.get('not_captured', 0)} of {lost} runs without a first pick do not record the pages the "
+                     "assistant opened: run `reads` (stream URLs in the raw files) before reading where the site "
+                     "lost; without them `absent` mixes never-found with read-and-dropped")
+    elif hint == "selection":
+        notes.append(f"{sel} of {lost} runs without a first pick had opened or named the site (named, not first "
+                     f"{st.get('named', 0)}; opened a page, not named {st.get('read_dropped', 0)}; excluded "
+                     f"{st.get('excluded', 0)}): it lost the choice, not the search. More pages will not fix that: "
+                     "compare the pages it opened (`own_read`: home, pricing, FAQ, capability pages) with the goal "
+                     "card's Capabilities and state the conditions it checks (site-check 1G, verification pages)")
+    elif hint == "retrieval":
+        notes.append(f"{st.get('unseen', 0)} of {lost} runs without a first pick never opened a page of the site: "
+                     "retrieval. Check where it ranks under the captured queries (`queries`), indexing, and the "
+                     "lists the assistant read (`read`; site-offsite cited_sources)")
+    elif hint == "consensus":
+        notes.append(f"{st.get('no_search', 0)} of {lost} runs without a first pick answered without searching: "
+                     "only model memory and off-site consensus change these")
+    elif hint == "mixed":
+        notes.append(f"losses split: selection {sel}, never opened {st.get('unseen', 0)}, no search "
+                     f"{st.get('no_search', 0)} of {lost}; route each need by its own row")
+    flips = p.get("dropped_after_follow_up") or []
+    if flips:
+        notes.append(f"{len(flips)} runs named the site in the opening answer and dropped it after a follow-up "
+                     f"({', '.join(map(str, flips[:6]))}): answer that follow-up on the pages the assistant opened "
+                     "in that turn (site-geo optimize O8)")
+    return notes
 
 
 def build_presence(runs):
@@ -1122,8 +1299,24 @@ def build_presence(runs):
         lever = {"competitor": "onsite", "lists_forums": "offsite", "none": "consensus", "other": "mixed"}[top]
         if n * 2 < total:
             lever = "mixed"
+    stages = Counter(own_stage(r) for r in own)
+    flipped = [r.get("combo_id") for r in own if dropped_after_follow_up(r)]
+    kinds = Counter()
+    for s, n in stages.items():
+        if s in LOSS_KIND:
+            kinds[LOSS_KIND[s]] += n
+    lost = sum(n for s, n in stages.items() if s != "picked")
+    loss = None
+    if lost and stages["not_captured"] * 2 > lost:
+        loss = "capture"
+    elif kinds:
+        (top, n), = kinds.most_common(1)
+        loss = top if n * 2 >= sum(kinds.values()) else "mixed"
     return {
         "measured": len(own), "status": dict(status),
+        "stages": {k: stages[k] for k in STAGES_OWN if stages[k]}, "lost": lost, "loss_hint": loss,
+        "dropped_after_follow_up": flipped,
+        "reads_captured": sum(1 for r in own if isinstance(r.get("own_read"), list)),
         "in_answer_share": round(sum(status[s] for s in IN_ANSWER) / len(own), 2) if own else None,
         "first_share": round(status["first"] / len(own), 2) if own else None,
         "cited_own_share": round(cited_own / len(own), 2) if own else None,
@@ -1134,6 +1327,21 @@ def build_presence(runs):
         "outcomes": dict(Counter(r.get("outcome") for r in judged if r.get("outcome"))),
         "self_made": sum(1 for r in judged if r.get("gap") == "self_made"),
     }
+
+
+STAGE_LABEL = {"picked": "picked", "named": "named, not first", "excluded": "excluded",
+               "read_dropped": "opened a page, not named", "unseen": "never opened a page",
+               "no_search": "answered without searching", "not_captured": "pages opened not recorded"}
+
+
+def stage_line(p):
+    st = p.get("stages") or {}
+    flips = p.get("dropped_after_follow_up") or []
+    return ("Where it was lost (pages opened, from `reads`): "
+            + " · ".join(f"{STAGE_LABEL[k]} {st[k]}" for k in STAGES_OWN if st.get(k))
+            + f". Dropped after a follow-up: {len(flips)}"
+            + (f" ({', '.join(map(str, flips[:6]))})" if flips else "")
+            + f". Loss hint: **{p.get('loss_hint') or 'none'}**.")
 
 
 def report_md(rep, proj):
@@ -1156,6 +1364,7 @@ def report_md(rep, proj):
         L += [f"Over {p['measured']} judged runs with `own` recorded: in the answer {p['in_answer_share']:.0%} "
               f"(first {p['first_share']:.0%}, own page cited {p['cited_own_share']:.0%}); "
               + ", ".join(f"{k} {st.get(k, 0)}" for k in ("first", "listed", "mentioned", "excluded", "absent")) + ".", ""]
+        L += [stage_line(p), ""]
     else:
         L += ["Not recorded: add `own` to each run (gap-rubric.md, presence).", ""]
     if p.get("recommended"):
@@ -1173,7 +1382,7 @@ def report_md(rep, proj):
         for name, e in rep["extra_sets"].items():
             share = f"{e['in_answer_share']:.0%}" if e.get("in_answer_share") is not None else "not recorded"
             L.append(f"- `{name}`: {e['runs']} runs; site in answer {share}; "
-                     f"search queries captured in {e.get('queries_captured', 0)}.")
+                     f"search queries captured in {e.get('queries_captured', 0)}. " + stage_line(e))
         L.append("")
     if rep.get("notes"):
         L += ["## Read before deciding", ""] + [f"- {n}" for n in rep["notes"]] + [""]
@@ -1181,13 +1390,13 @@ def report_md(rep, proj):
         g = (rep.get("groups") or {}).get(key)
         if not g:
             continue
-        L += [f"## {title}", "", "| Value | Probed | Runs | High | Share high | Site in answer |",
-              "| --- | --- | --- | --- | --- | --- |"]
+        L += [f"## {title}", "", "| Value | Probed | Runs | High | Share high | Site in answer | Opened, not named | Never opened |",
+              "| --- | --- | --- | --- | --- | --- | --- | --- |"]
         for k, v in g.items():
             sh = f"{v['share_high']:.0%}" if v["share_high"] is not None else "—"
             oa = f"{v['own_in_answer']:.0%} of {v['own_measured']}" if v["own_in_answer"] is not None else "—"
             runs = f"{v['runs']} (thin)" if v["runs"] < THIN_NEED_RUNS else str(v["runs"])
-            L.append(f"| {k} | {v['probed']} | {runs} | {v['high']} | {sh} | {oa} |")
+            L.append(f"| {k} | {v['probed']} | {runs} | {v['high']} | {sh} | {oa} | {v.get('read_dropped', 0)} | {v.get('unseen', 0)} |")
         L.append("")
     if rep["values"]:
         L += ["## By dimension value", "", "| Value | Probed | High | Share high | With signals |",
@@ -1231,7 +1440,8 @@ def cmd_report(st, a):
     if where:
         rep["where"] = dict(where)
     if extra and not a.include_extra:
-        keep = ("measured", "in_answer_share", "first_share", "queries_captured", "outcomes")
+        keep = ("measured", "in_answer_share", "first_share", "queries_captured", "outcomes",
+                "stages", "loss_hint", "dropped_after_follow_up")
         rep["extra_sets"] = {name: {"runs": len(rows), **{k: v for k, v in build_presence(rows).items() if k in keep}}
                              for name, rows in extra.items()}
     proj = read_json(st.project)
@@ -1244,7 +1454,8 @@ def cmd_report(st, a):
         write_channels(st, proj, rep)
     out = {k: rep[k] for k in ("probed", "high", "share_high", "hint", "strong_values", "notes")}
     out["channels"] = str(st.channels)
-    out.update({k: rep["presence"][k] for k in ("in_answer_share", "first_share", "lever_hint", "queries_captured")})
+    out.update({k: rep["presence"][k] for k in ("in_answer_share", "first_share", "lever_hint", "queries_captured",
+                                                "stages", "loss_hint")})
     print(json.dumps(out, ensure_ascii=False, indent=2))
 
 
@@ -1255,7 +1466,8 @@ def chat_cell(rep, nid):
     thin = " (thin)" if g["runs"] < THIN_NEED_RUNS else ""
     sh = f"{g['share_high']:.0%}" if g.get("share_high") is not None else "—"
     oa = f"{g['in_answer']}/{g['own_measured']}" if g.get("own_measured") else "not recorded"
-    return f"picked: {g['runs']} runs{thin}; high gap {sh}; site in answer {oa} · after landing: not measured"
+    lost = f"; opened, not named {g.get('read_dropped', 0)}; never opened {g.get('unseen', 0)}" if g.get("own_measured") else ""
+    return f"picked: {g['runs']} runs{thin}; high gap {sh}; site in answer {oa}{lost} · after landing: not measured"
 
 
 def agent_cell(n):
@@ -1366,9 +1578,12 @@ def presence_gate(a, rep, pres):
         return
     by_angle = (rep.get("groups") or {}).get("angle") or {}
     angles = ", ".join(f"{k} {v['own_in_answer']:.0%}" for k, v in by_angle.items() if v.get("own_in_answer") is not None)
-    msg = (f"own site in {share:.0%} of answers (lever hint {pres.get('lever_hint') or 'none'}"
+    msg = (f"own site in {share:.0%} of answers (lever hint {pres.get('lever_hint') or 'none'}, "
+           f"lost at {pres.get('loss_hint') or 'unknown'}"
            + (f"; by angle: {angles}" if angles else "") + "): pages rest on whether the assistant picks the site "
            "(site rule 2), and these probes say it does not yet")
+    if pres.get("loss_hint") == "selection":
+        msg += "; most losses came after the assistant opened or named the site, which pages alone do not fix"
     if "recommend" not in by_angle:
         msg += "; no probed sample asked for a tool, site or app (angle recommend), so picking was not tested"
     if not (a.note or "").strip():
@@ -1876,6 +2091,12 @@ def cmd_check(st, a):
             errs.append(f"{where}: gap must be one of {sorted(GAPS)} or null")
         if r.get("own") is not None and r.get("own") not in OWN_STATUS:
             errs.append(f"{where}: own must be one of {sorted(OWN_STATUS)} or null")
+        if r.get("own_opening") is not None and r.get("own_opening") not in OWN_STATUS:
+            errs.append(f"{where}: own_opening must be one of {sorted(OWN_STATUS)} or null")
+        for k in ("own_read", "read"):
+            v = r.get(k)
+            if v is not None and not (isinstance(v, list) and all(isinstance(u, str) for u in v)):
+                errs.append(f"{where}: {k} is a list of URLs, or null when not captured")
         if r.get("outcome") is not None and r.get("outcome") not in OUTCOMES:
             errs.append(f"{where}: outcome must be one of {sorted(OUTCOMES)} or null")
         sq = r.get("search_queries")
@@ -1893,6 +2114,18 @@ def cmd_check(st, a):
         if row.get("kind") == "find":
             errs += rank_errors(row.get("rank"), f"queries:{row.get('id', i)}")
     warns = goal_warnings(st, proj)
+    unread = [r.get("combo_id") for _, rows in run_sets for r in rows
+              if r.get("own") == "absent" and r.get("own_read") is None and r.get("raw")
+              and (st.root / r["raw"]).exists() and stream_urls(st.root / r["raw"]) is not None]
+    if unread:
+        warns.append(f"{len(unread)} runs marked absent have stream URLs but no own_read (first: {unread[0]}): "
+                     "run `reads` so the report can tell never-found from read-and-dropped")
+    no_pick = [s["combo_id"] for s in samples if s.get("angle") == "recommend" and s.get("opening")
+               and not any(isinstance(f, dict) and f.get("kind") == "pick" for f in s.get("follow_ups") or [])]
+    if no_pick:
+        warns.append(f"{len(no_pick)} recommend samples end without a `pick` follow-up (first: {no_pick[0]}): add "
+                     "\"Which one would you pick for me, and does it really <the hardest condition>?\" as the last "
+                     "turn; that is where the assistant checks the site's own pages (references/conversations.md)")
     combo_rows = [s for s in samples if not s.get("question_id") and not s.get("url")]
     if combo_rows and not any(s.get("angle") == "recommend" for s in combo_rows):
         warns.append(f"none of the {len(combo_rows)} combination samples asks for a tool, site or app (angle "
@@ -1987,6 +2220,10 @@ def main(argv=None):
     s.add_argument("--by", required=True)
     s.add_argument("--note")
     sub.add_parser("check")
+    s = sub.add_parser("reads")
+    s.add_argument("--own", action="append", metavar="DOMAIN",
+                   help="our domain (repeatable); default: project.json own_domains or site, else URLs judged brand")
+    s.add_argument("--force", action="store_true", help="refill runs that already have own_read")
     sub.add_parser("queries")
     s = sub.add_parser("slots")
     s.add_argument("--from", dest="from_", action="append", metavar="FILE",
@@ -1996,7 +2233,7 @@ def main(argv=None):
     st = State(a.root, a.geo_dir)
     {"init": cmd_init, "needs": cmd_needs, "bank": cmd_bank, "space": cmd_space, "sample": cmd_sample, "queries": cmd_queries, "slots": cmd_slots,
      "probes": cmd_probes, "report": cmd_report, "channels": cmd_channels, "decide": cmd_decide, "extend": cmd_extend,
-     "check": cmd_check}[a.cmd](st, a)
+     "check": cmd_check, "reads": cmd_reads}[a.cmd](st, a)
 
 
 if __name__ == "__main__":

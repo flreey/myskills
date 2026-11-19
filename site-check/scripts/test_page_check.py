@@ -194,6 +194,25 @@ class PageCheckTest(unittest.TestCase):
         self.assertEqual(g["unknown_constraints"], ["FIPS certified"])
         self.assertIn("GEO brief", pc.render(r))
 
+    def test_capabilities_against_page_conditions(self):
+        card = ("# Goal card\n\n## Capabilities (what the product does)\n\n"
+                "| Capability | Conditions met | Proof | Where stated publicly |\n| --- | --- | --- | --- |\n"
+                "| Passwords | free in the browser, no account | test | /, /pricing |\n\n## Who and what we serve\n| x | y | z |\n")
+        with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as f:
+            f.write(card)
+        r = pc.check(self.base + "/random-password-generator", [], capabilities_path=f.name)
+        Path(f.name).unlink()
+        cp = r["capabilities"]
+        self.assertEqual(cp["rows"], [{"capability": "Passwords", "conditions": "free in the browser, no account",
+                                       "public": "/, /pricing"}])
+        self.assertTrue(cp["on_page"][0]["first_screen"])
+        self.assertIn("browser", cp["on_page"][0]["terms"])
+        self.assertFalse(cp["on_page"][-1]["first_screen"])
+        text = pc.render(r)
+        self.assertIn("card: Passwords — free in the browser, no account", text)
+        self.assertIn("page [first screen]:", text)
+        self.assertIn("page [word ", text)
+
     def test_sweep_groups_issues_by_pattern(self):
         r = pc.sweep(self.base + "/sitemap.xml", base=self.base)
         self.assertEqual(r["urls"], 9)

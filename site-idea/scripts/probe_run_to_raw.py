@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Convert the JSON that chatgpt_probe_runner.js (part B) downloads into gap/raw files.
 
-  python3 probe_run_to_raw.py chatgpt-probe-run.json --out <project>/geo/gap/raw [--date 2026-11-18]
+  python3 probe_run_to_raw.py chatgpt-probe-run.json --out <project>/geo/gap/raw [--date 2026-11-18] [--run 2]
 
 Input: {"turns": [{id, turn, q, answer}], "per": {id: {search_queries, stream_urls}}, "meta": {id: {...}}}.
-Output: one <id>--chatgpt-instant--1.md per conversation, so answers never pass through the model.
+Output: one <id>--chatgpt-instant--<run>.md per conversation (run 1 by default; repeats of the same
+conversations pass --run 2, 3), so answers never pass through the model.
 An existing file is never overwritten. Prints one status line per conversation.
 """
 import argparse
@@ -16,7 +17,7 @@ import sys
 SLICE = "chatgpt-instant"
 
 
-def render(cid, turns, per, meta, date):
+def render(cid, turns, per, meta, date, run=1):
     errs = []
     answered = [t for t in turns if t.get("answer")]
     if len(answered) != len(turns):
@@ -27,7 +28,7 @@ def render(cid, turns, per, meta, date):
         errs.append(f"mode {meta['unpers']}")
     status = "ok" if not errs else "check: " + "; ".join(errs)
     L = ["platform: ChatGPT via browser script", f"slice: {SLICE}", f"conversation: {cid}",
-         f"date: {date}", f"model: {meta.get('model') or 'not displayed'}",
+         f"date: {date}", f"run: {run}", f"model: {meta.get('model') or 'not displayed'}",
          f"mode: temporary chat, {meta.get('unpers') or 'mode not read'}", f"STATUS: {status}", ""]
     for t in turns:
         L += [f"=== TURN {t['turn']} USER ===", t.get("q", ""), "",
@@ -38,7 +39,7 @@ def render(cid, turns, per, meta, date):
     return "\n".join(L), status, sum(len(t.get("answer") or "") for t in turns)
 
 
-def convert(data, out, date):
+def convert(data, out, date, run=1):
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     by = defaultdict(list)
@@ -47,12 +48,12 @@ def convert(data, out, date):
     lines = []
     for cid, turns in by.items():
         turns.sort(key=lambda t: t["turn"])
-        path = out / f"{cid}--{SLICE}--1.md"
+        path = out / f"{cid}--{SLICE}--{run}.md"
         if path.exists():
             lines.append(f"{cid}: skipped, {path.name} exists")
             continue
         text, status, chars = render(cid, turns, (data.get("per") or {}).get(cid, {}),
-                                     (data.get("meta") or {}).get(cid, {}), date)
+                                     (data.get("meta") or {}).get(cid, {}), date, run)
         path.write_text(text)
         sq = ((data.get("per") or {}).get(cid) or {}).get("search_queries") or []
         lines.append(f"{cid}: {len(turns)} turns, {chars} chars, {len(sq)} queries, {status}")
@@ -64,10 +65,11 @@ def main(argv=None):
     p.add_argument("json_file")
     p.add_argument("--out", required=True, help="gap/raw folder")
     p.add_argument("--date", default=None, help="run date (default: today)")
+    p.add_argument("--run", type=int, default=1, help="repeat number of these conversations (default 1)")
     a = p.parse_args(argv)
     from datetime import date
     data = json.loads(Path(a.json_file).read_text())
-    for line in convert(data, a.out, a.date or date.today().isoformat()):
+    for line in convert(data, a.out, a.date or date.today().isoformat(), a.run):
         print(line)
 
 

@@ -25,6 +25,16 @@ research.
 | 3 | Make a small batch of changes | Pages, off-site entries, or product and docs changes, whichever the table points to | `site-batch` (pages), `site-offsite` GEO mode (lists, communities, directories), the product's own workflow (API, MCP, tool listings); `site-kit` builds, `site-check` GEO mode accepts |
 | 4 | Did it work? | Retest of the same questions, crawl, index, AI referrals, downloads; expand, change or stop | `site-batch` review, `site-geo` (check and optimize), `site-measure` |
 
+Step 4 first asks where the site was lost (site-idea `reads` and `report`, site-geo optimize O8), and
+that decides where to go back:
+
+| Lost at | Means | Back to |
+| --- | --- | --- |
+| Never opened a page of ours | retrieval | 3: indexing, rank under the assistants' rewritten queries, the lists it reads (site-offsite) |
+| Opened our pages or named us, picked another; or dropped after a follow-up | selection | 0: the Capabilities row and its public pages (home, pricing, FAQ, capability page; site-check 1G with `--capabilities`), then 3 for those pages; a product or pricing change goes to the owner |
+| Answered without searching | consensus | 3: off-site, long term |
+| Picked, few referrals or no action | landing | 3: the landing page's first screen and next step (site-measure) |
+
 Then back to step 1 (new needs) or 2 (same needs, new evidence). Steps 2 and 4 are where the method is
 least settled; run them small and let results correct the method, rather than designing everything
 before anything ships.
