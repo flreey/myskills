@@ -35,6 +35,7 @@
 | [site-measure](./site-measure) | 把已有网站从 Google Analytics 迁到自建 Umami：先只读盘点（加载代码、事件、排除规则、CSP、隐私文字、测试、GA4 报表脚本），再分两次发布：先和 GA 并行、事件两边都发并补等待队列，对完数再删 GA；另带只读的 Umami 报表脚本；按网站类型（tool / landing / directory / app / 内容站）给出埋点方案和标准漏斗，用只读审计脚本对照项目里的 `track(` 调用（缺失事件、命名、字段白名单、隐私说明覆盖），用漏斗脚本按会话算转化率和事件字段分布，并排除站长自测会话。开发完成后，把埋点方案里的漏斗和目标写成项目里的 `umami-reports.json`，同步成 Umami 后台保存的漏斗和目标（默认只预览，`--apply` 才写入，不删除），作为站点的衡量体系。依赖本机 `~/Projects/umami` 的 umami-connect 和自建 Umami 服务；迁移不用于 site-kit 建的站；报表脚本能读任何站点，包括 site-kit 站点。 |
 | [site-stripe](./site-stripe) | Stripe 从沙盒切到正式收款（site-kit app 站为主，也兼容非 kit 站）：分阶段清单覆盖沙盒价格和 webhook、正式账户激活（AI 只填非敏感项）、美元收款和结算币种、欧盟/英国增值税方案（Stripe Tax 自报或 Managed Payments）、kit 的 `taxBehavior` / `managedPayments` 配置及部署顺序；附带一个站长在自己终端运行的通用脚本，用来建价格、转移 lookup key、重建 webhook 和写入密钥，密钥不经过 AI。 |
 | [family-story-kit-design](./family-story-kit-design) | 设计和审查交付给家庭的可打印亲子场景游戏（寻宝、生日冒险、跨日节庆故事套装）：先写体验承诺，把剧情转成孩子真正要做的动作，闭合线索链与谜题唯一解，从玩法推导材料，再按家长布置与孩子游玩两条视角走查；纸面模拟、PDF 渲染与真实试玩分开记录。不负责生成器代码、网站或支付。 |
+| [ui](./ui) | UI 设计改进的中文入口：`/ui` 列出按顺序编号的 `/ui-0-*` 准备 → `/ui-1-*` 体检 → `/ui-2-*` 规划 → `/ui-3-*` 修改 → `/ui-4-polish` 收尾 → `/ui-5-extract` 沉淀，并按项目现状推荐下一步，也能用中文描述问题自动选命令。15 个 `ui-*` 都是 `impeccable` 命令的薄封装（`disable-model-invocation`，只供手动调用），依赖已安装的 impeccable。 |
 
 ## 📋 一键安装（直接复制粘贴）
 
