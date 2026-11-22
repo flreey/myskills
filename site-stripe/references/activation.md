@@ -6,7 +6,7 @@
 
 入口在后台顶部的激活提示（Activate payments），从沙盒切到正式账户后能看到。
 
-**可以沿用已验证账户的资料**：如果站长名下已经有一个验证过的 Stripe 账户（例如 sfxmint），向导会提供「Shared legal entity」，沿用它的主体、证件和负责人信息，省去重复验证。先告诉站长：**以后改这个实体的资料，会影响所有用这个实体的账户**。
+**先确认账户是按标准建的**：组织 flreey 下、国家香港、沿用共享主体（[standard.md](standard.md) §账户）。这样主体、证件和负责人都已验证，向导只剩业务和公开信息几步。账户国家是美国（在组织外单独建的账户默认如此）时，向导里 Business location 是灰的、也不提供共享主体，不要在这个账户上填资料，回到 standard.md 重建（MissedByAI 2026-11-22）。提醒站长：**改共享主体的资料会影响所有用它的账户**。
 
 各项谁来填：
 
@@ -17,8 +17,8 @@
 | 业务描述 | AI | 写真实业务：卖什么、怎么交付、怎么收费。例如“Online AI video upscaling. Customers upload videos in the browser and buy one-time credit packs; results are downloaded from the site.”。不要写泛泛的营销话 |
 | 网站 | AI | 正式域名 `https://<apex>` |
 | 账单显示名（statement descriptor） | AI | 域名大写，例如 `TOHD.VIDEO`；缩写（shortened descriptor）用站名大写，例如 `TOHD`。买家在信用卡账单上看到的就是这个，认得出来才能少一些拒付 |
-| 客服电话「显示在收据上」 | **问站长** | 默认是打开的；ToHD 选了关闭 |
-| Radar | **问站长** | 推荐免费的 Radar Lite；付费档要站长同意 |
+| 客服电话「显示在收据上」 | AI | 标准是关闭（ToHD） |
+| Radar | AI | Radar Lite（标准）；付费档要站长同意 |
 | 自动计税（Stripe Tax） | 先跳过 | 税务方案在 [tax.md](tax.md) 里单独定 |
 | Stripe Climate | AI 选 No thanks | 它是按收入比例付费的捐赠，站长主动要才开 |
 | 最后的「Agree and submit」 | **站长** | 这一步是同意条款，只能站长点 |

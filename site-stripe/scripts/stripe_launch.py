@@ -352,6 +352,7 @@ def main() -> None:
     ap.add_argument("--no-secrets", action="store_true", help="只处理价格和 webhook，不写密钥（webhook 也不重建）")
     ap.add_argument("--check", action="store_true", help="只读：报告价格和 webhook 状态，什么都不改")
     ap.add_argument("--yes", action="store_true", help="写 Worker 前不再询问")
+    ap.add_argument("--include-unoffered", action="store_true", help="目录里 offered=false 的产品也建价格（先上线不卖时用）")
     a = ap.parse_args()
 
     catalog, mp_declared = None, False
@@ -370,10 +371,11 @@ def main() -> None:
         items = products_from_prices(a.price, (a.currency or "USD").lower())
     elif pricing and os.path.exists(pricing):
         catalog = read_catalog(pricing)
-        items = [p for p in catalog.get("products", []) if p.get("offered", True)]
-        retired = [p["lookupKey"] for p in catalog.get("products", []) if not p.get("offered", True)]
+        keep = lambda p: a.include_unoffered or p.get("offered", True)
+        items = [p for p in catalog.get("products", []) if keep(p)]
+        retired = [p["lookupKey"] for p in catalog.get("products", []) if not keep(p)]
         if retired:
-            print(f"跳过已下架产品：{', '.join(retired)}")
+            print(f"跳过已下架产品（还没开卖、要先建价格时加 --include-unoffered）：{', '.join(retired)}")
     else:
         die("没有价格来源：传 --site（kit 站）或 --catalog，或用 --price")
     currency = (a.currency or (catalog or {}).get("currency") or "USD").lower()

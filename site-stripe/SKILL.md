@@ -1,11 +1,11 @@
 ---
 name: site-stripe
-description: 把一个站点的 Stripe 从沙盒配到正式收款，主要用于 site-kit app 站，也适用于非 kit 站。覆盖这些环节：沙盒价格和 webhook、正式账户激活向导、美元收款和银行账户、欧盟/英国增值税方案（Stripe Tax 自报或 Managed Payments）、kit 的 taxBehavior/managedPayments 配置、站长在自己的终端运行脚本切 live 密钥、部署后核对和真实付款加退款实测。站长说到 Stripe 正式收款、切正式、上线收款、开始收钱、激活 Stripe 账户、Managed Payments、记账商户、欧盟增值税 / EU VAT / OSS、收款币种、美元结算、结算币种、webhook 签名密钥，或者英文 go live with Stripe、switch Stripe to live mode、live keys、merchant of record、settlement currency，都要使用这个 skill；没提到 Stripe 但想让新站开始真实收款时也要用。不用于从零写 Stripe 接入代码（用 stripe-best-practices）、Connect 平台，也不用于只解释某个 Stripe 报错（用 stripe:explain-error）。
+description: 站长自己的 Stripe 上线标准：每个站在 Stripe 组织 flreey 下建独立的香港账户、沿用已验证的共享主体，按统一配置（美元、不含税、税码 txcd_10105001、欧盟/英国走 Managed Payments、Radar Lite、账单显示名=域名大写、汇丰美元结算）从沙盒走到正式收款。主要用于 site-kit app 站，也适用于非 kit 站。覆盖建账户、沙盒价格和 webhook、先上线不卖、激活向导、美元收款、Managed Payments、kit 的 taxBehavior/managedPayments 配置、站长在自己终端运行脚本切 live 密钥、部署后核对和真实付款加退款实测。站长说到 Stripe 正式收款、切正式、上线收款、开始收钱、新站的 Stripe 账户、激活 Stripe 账户、Managed Payments、记账商户、欧盟增值税 / EU VAT / OSS、收款币种、美元结算、webhook 签名密钥，或者英文 go live with Stripe、switch Stripe to live mode、live keys、merchant of record、settlement currency，都要使用这个 skill；没提到 Stripe 但想让新站开始真实收款时也要用。不用于从零写 Stripe 接入代码（用 stripe-best-practices）、Connect 平台，也不用于只解释某个 Stripe 报错（用 stripe:explain-error）。
 ---
 
-# Stripe 正式收款（site-stripe）
+# Stripe 上线标准（site-stripe）
 
-这个 skill 把站点从「沙盒能付款」推进到「正式账户真实收款，税务和结算都已定好」。流程来自 2026-11-08 ToHD（tohd.video，site-kit 2.4.0）切正式的完整过程，税务部分参考了 sfxmint 2026-10-31 的实测。
+这个 skill 把站点从「沙盒能付款」推进到「正式账户真实收款」，**每个站用同一套配置**：[references/standard.md](references/standard.md) 是站长定下的统一标准（来自 SFXMint、ToHD 两个正式账户的实际设置），照表配置，表里没写“问站长”的不再逐项问。流程来自 2026-11-08 ToHD 切正式和 2026-11-22 MissedByAI 上线，税务部分参考了 sfxmint 2026-10-31 的实测。
 
 ## 硬规则
 
@@ -22,7 +22,7 @@ description: 把一个站点的 Stripe 从沙盒配到正式收款，主要用�
 
 1. 站点类型：目录里有 `.sitekit.json` 就是 kit 站，要求 kit 版本 ≥ 2.4.0（`taxBehavior`、`managedPayments` 从这个版本开始有）。不是 kit 站时，找它自己的结账代码和 Stripe 脚本（例如 sfxmint 的 `worker/paid/stripe.ts`、`scripts/stripe-setup.mjs`），能用的优先用。
 2. 读 `src/site/pricing.ts`（lookup key、金额、`taxBehavior`）、`site.config.ts` 里的 `modules.app`、`wrangler.jsonc` 的 `name` 和 `vars`、README 的「线上资源」。
-3. 问站长或在后台看：正式账户激活了没有、税务方案定了没有、正式域名是否已经生效、Clerk 是否已经是正式实例（app 站）。
+3. 在后台看（账户切换器）：这个站有没有组织 flreey 下的香港账户、激活了没有、Managed Payments 开了没有；正式域名是否已经生效；Clerk 是否已经是正式实例（app 站）。账户国家不是香港、或不在组织里的，按 [standard.md](references/standard.md) 重建，不在旧账户上激活。
 
 ## 流程
 
@@ -30,16 +30,19 @@ description: 把一个站点的 Stripe 从沙盒配到正式收款，主要用�
 
 | 阶段 | 做什么 | 谁做 | 细节 |
 |---|---|---|---|
-| 1 沙盒 | 每个 lookup key 一个 Price，金额和币种与目录一致；建 webhook；写 Worker 密钥；用 4242 测试卡跑通 | 站长跑脚本，AI 核对 | [golive.md](references/golive.md) §沙盒 |
-| 2 激活正式账户 | 走激活向导：AI 填非敏感项，站长填证件并提交 | 双方 | [activation.md](references/activation.md) §激活 |
-| 3 收款币种 | 添加美元银行账户，默认结算币种设为 USD | 站长 | [activation.md](references/activation.md) §收款币种 |
-| 4 税务方案 | 让站长在 Stripe Tax 自报和 Managed Payments 之间选；选了 MP 就在后台开通 | 站长决定，AI 带路 | [tax.md](references/tax.md) |
-| 5 kit 配置 | `taxBehavior`、`managedPayments`、`STRIPE_MANAGED_PAYMENTS`；**先提交，不部署** | AI | [tax.md](references/tax.md) §kit 配置 |
-| 6 切正式 | 站长运行脚本，粘贴 `sk_live_`；AI 经授权后部署、核对；站长买最便宜的包实测再退款 | 双方 | [golive.md](references/golive.md) §切正式 |
+| 0 建账户 | 组织 flreey 下新建账户（香港、沿用共享主体、账户名=站名）和沙盒 | AI 带路，站长确认 | [standard.md](references/standard.md) §账户 |
+| 1 沙盒 | 每个 lookup key 一个 Price（美元、不含税、税码 `txcd_10105001`）；建 webhook；用 4242 测试卡跑通 | 站长跑脚本，AI 核对 | [golive.md](references/golive.md) §沙盒 |
+| 2 先上线不卖 | 站点在正式域名上线，`offered` 关闭，Worker 不放沙盒 Stripe 密钥 | AI（部署需授权） | [standard.md](references/standard.md) §上线顺序 |
+| 3 激活正式账户 | 按标准表填非敏感项（行业、描述、网站、公开名、账单显示名、Radar Lite、不开 Climate），站长提交 | 双方 | [activation.md](references/activation.md) §激活 |
+| 4 收款币种 | 汇丰美元账户，默认结算币种 USD | 站长 | [activation.md](references/activation.md) §收款币种 |
+| 5 Managed Payments | 正式模式按标准开通（欧盟、英国走 MP，Enable by default 关）；kit 配置 `taxBehavior: 'exclusive'`、`managedPayments: {}`、`STRIPE_MANAGED_PAYMENTS="true"` | AI 带路 | [tax.md](references/tax.md) |
+| 6 切正式 | 站长运行脚本，粘贴 live Secret key；AI 打开 `offered`、经授权部署、核对；站长买最便宜的包实测再退款 | 双方 | [golive.md](references/golive.md) §切正式 |
+
+税务方案已经定了（标准表），不再让站长在 Stripe Tax 自报和 Managed Payments 之间选；站长明确要求时才按 [tax.md](references/tax.md) 重新比较。
 
 整个过程中遇到异常（后台加载慢、按钮看不到、webhook 失败、重发）先查 [pitfalls.md](references/pitfalls.md)。
 
-**最容易出错的顺序**：目录声明了 `taxBehavior`，但 Worker 仍在用缺少 `tax_behavior` 的沙盒价格时，kit 结账会返回 503 `price_not_configured`。所以第 5 阶段的改动要等第 6 阶段正式价格建好、正式密钥写入之后再部署；或者先用脚本 `--mode test` 把沙盒价格也补齐。
+**最容易出错的顺序**：目录声明了 `taxBehavior`，但 Worker 仍在用缺少 `tax_behavior` 的沙盒价格时，kit 结账会返回 503 `price_not_configured`。标准流程里沙盒价格一开始就带 `tax_behavior=exclusive`，第 2 阶段又不卖，所以只要按顺序走就不会碰到；旧站要先用脚本 `--mode test` 把沙盒价格补齐。
 
 ## 脚本
 
@@ -60,6 +63,6 @@ python3 ~/.agents/skills/site-stripe/scripts/stripe_launch.py --mode live --site
 
 ## 收尾
 
-- 把新状态写进站点 README「线上资源」：正式账户 id、lookup key、币种、含税还是不含税、税码、MP 状态、结算币种、账单显示名、Radar 档位。只写名字和 id，不写密钥。
+- 把新状态写进站点 README「线上资源」（或站点的上线清单）：正式账户 id、lookup key、币种、含税还是不含税、税码、MP 状态、结算币种、账单显示名、Radar 档位。只写名字和 id，不写密钥。和 [standard.md](references/standard.md) 不一致的地方列为待办。
 - 站点经营主体名称（条款、隐私页、页脚）要和 Stripe 登记的一致，不一致时列为待办。
 - 用中文汇报：做了什么、站长还要做什么（逐条写出解除条件），以及哪些没有验证。
