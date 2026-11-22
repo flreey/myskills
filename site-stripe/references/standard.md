@@ -40,7 +40,7 @@
 | Managed Payments 后台 | 沙盒和正式各开一次，**先跑脚本建好商品再开**（向导的 Create product 一步要求至少有一个商品，不要在向导里手建）：主营类别同上、Prebuilt checkout、Include tax in prices 选 **No**、退款申请 **Email me for approval**、**Enable by default 关** |
 | kit 配置 | `modules.app.managedPayments: {}`；`wrangler.jsonc` `vars.STRIPE_MANAGED_PAYMENTS = "true"` |
 | webhook | `https://<apex>/api/kit/webhooks/stripe`，kit 的 9 个事件（脚本建） |
-| 客户门户 | 每个站独立账户，用账户默认门户，不需要 `STRIPE_PORTAL_CONFIGURATION` |
+| 客户门户 | 新账户的沙盒和正式模式**都没有门户配置**，不建的话账单页的 Manage billing 会报错、用户无法取消订阅。用 API `POST /v1/billing_portal/configurations` 各建一份（首个即默认，所以不需要 `STRIPE_PORTAL_CONFIGURATION`）：取消 `at_period_end`、`proration_behavior=none`、收集取消原因；换套餐开启，列出全部订阅价格，`always_invoice`，降级和缩短周期 `schedule_at_period_end`；发票历史、换卡、改邮箱和地址；headline、隐私和条款链接，`default_return_url=https://<apex>/app/billing`。建完用临时客户开一次 portal session 验证再删掉（MissedByAI `bpc_1UedCmLMjmgCi0WGRPbS1a6H`，2026-11-23） |
 | 正式密钥 | 新账户激活后 Stripe 不自动给正式 Secret key：站长在 Developers → API keys 自己创建（或按 SFXMint 用受限密钥 `rk_live_`），在自己终端运行 `stripe_launch.py --mode live` 粘贴；AI 不经手 |
 
 ## 上线顺序（app 站）
