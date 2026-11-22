@@ -55,7 +55,8 @@ same sources again.
    the effect, never change holdout or sentinel clusters, and never swap the question set between a
    baseline and its review.
 7. **No tricks.** Do not act on advice to stuff keywords, add hidden text, fake reviews, invent
-   statistics or show crawlers different content from users.
+   statistics or show crawlers different content from users. A "best X tools" or "alternatives" page
+   that ranks our product says we publish it and shows how the ranking was tested.
 
 ## Workflow
 
@@ -65,7 +66,7 @@ same sources again.
 3. If most visitors come from AI assistants, read the demand sources for G5 and pick target
    queries from them: low citation share first.
 4. With the user's go-ahead, run probe A on the same pages, probes B and C for each target query
-   (two or three of the site's main queries) and probe E once for the site, each three times in
+   (two or three of the site's main queries), probe A2 on pages live for 2–4 weeks, and probes E and F once for the site, each three times in
    fresh chats, from [references/chatgpt-probes.md](references/chatgpt-probes.md). Run them in the
    user's browser as [site-idea's probe-runs.md](../site-idea/references/probe-runs.md) says.
 5. Report.
@@ -78,9 +79,32 @@ same sources again.
   appear in that assistant's answers; user crawlers (`ChatGPT-User`, `Claude-User`,
   `Perplexity-User`) fetch when a person asks; training crawlers only feed models (rule 4).
 - Probes with AI user-agents should return 200, no challenge page, about the same HTML as a browser.
-- A probe only shows rules keyed on the user-agent string. Firewalls that verify crawlers by IP
-  (Cloudflare bot settings and AI crawler controls) are checked in the dashboard: a MANUAL item
-  for the user, with the zone named.
+- Read each probe's `answer`. Cloudflare applies its AI crawler and agent policies to verified bots
+  and to unverified requests that claim to be them, so a spoofed user agent meets the same policy:
+  `policy` (a plain-text 403 "Your request was blocked.", or 402) is that policy and a fix for search
+  and user crawlers. `blocked` or `challenge` (an HTML block or challenge page) may be bot protection
+  catching our fake crawler only: settle it with probe A, where the real `ChatGPT-User` fetches.
+  Probe the pricing page too (`--url /pricing`): with ads on it (`ads on page`) and the home page
+  passing, a `policy` there means "Block on pages with ads". The robots.txt section also shows
+  Cloudflare's managed block and its `Content-Signal` when the zone syncs its policies there.
+- What stays MANUAL: the exact zone settings (Security → Settings → AI Crawler and Agent access
+  policies, Bot Fight Mode), or a read-only API token with Bot Management Read
+  (`GET /zones/{id}/bot_management`: `ai_search`, `ai_user`, `ai_training`, `ai_agents`,
+  `fight_mode`). MissedByAI's scan runs the same outside check (`src/site/scan/access.ts`).
+- **ChatGPT's Cloud browser** (it replaced ChatGPT agent) visits and uses a site for a person. It
+  signs requests (Web Bot Auth, `Signature-Agent: "https://chatgpt.com"`) instead of using a fixed
+  user agent, so a UA probe cannot test it. MANUAL: in Cloudflare, Security → Settings → AI Crawler
+  and Agent access policies → Personal Agents → `dots, OpenAI` set to Allow (or a WAF skip rule on
+  detection ID `129220581`); proxies in front of the origin keep the `Signature`, `Signature-Input`
+  and `Signature-Agent` headers. Vercel allows it with no setting.
+- **The free path works for an agent.** With the user's go-ahead (rule 3), ask ChatGPT's Cloud browser
+  to do the site's main task end to end (upload, process, download). It cannot sign in, pay or pass a
+  captcha, so a free path behind any of these fails. Check the output yourself: a run that reports
+  success after a stalled upload is a fail.
+- **Markdown for agents** (only when the zone serves it: the probe output says `Markdown served`): the Markdown of the home and pricing pages keeps every plan's price, free allowance
+  and limits; a missing page does not return 200; the origin sets its own `Content-Signal` header,
+  since Cloudflare otherwise adds `ai-train=yes` whatever robots.txt says about training (rule 4).
+  Cloudflare offers it on Pro plans and up; no evidence yet that it raises recommendations.
 
 ### G2. llms.txt matches the site
 
@@ -97,6 +121,8 @@ same sources again.
 - Pass when it quotes the real title and the first lines, matching the raw HTML in site-check.
 - Fail when it cannot open the page, quotes an older version, or answers from search snippets.
   Compare with G1 to find which layer blocks it. A changed page may take time to show.
+- After launch (2–4 weeks), probe A2 asks for a sentence only that page has, without the URL. A
+  passing and A2 failing means the page can be fetched but is not indexed: fix indexing, not copy.
 
 ### G4. Would ChatGPT recommend the site (probes B and C)
 
@@ -104,6 +130,9 @@ same sources again.
   branded one. Count named, linked and first recommendation separately over the runs, and note which
   sites appear instead.
 - Probe E checks what it says about the site (use, price, limits, license) against the live pages.
+- Probe F asks for the official site by brand name: a clone domain, a name collision or a wrong
+  domain is a fix before anything else (one consistent domain everywhere, Organization `sameAs`,
+  report clones to the owner).
 - Where the page allows it, capture the search queries behind probe B (probe D). They separate
   "searched and not chosen" from "never searched for it".
 - Turn the advice into concrete page facts to change (a missing comparison, no price on the page, no
@@ -114,6 +143,8 @@ same sources again.
 
 - Run this on existing sites whose visitors come mostly from AI assistants.
 - Read the sources: search crawler and user crawler fetch logs, Bing Webmaster AI Performance, and site search misses.
+- In the same logs, list paths the assistants invent (404s to user crawlers or AI-referred visits) and
+  redirect the repeated ones to the page that does the job ([references/ai-demand.md](references/ai-demand.md)).
 - Classify each gap (not mentioned, mentioned without a link, linked without visits, visits without action), then sort the findings into pages to improve, new pages and missing content.
 - Before a page changes, write down the baseline, the pages left unchanged, the review dates and the result that would show the idea was wrong. Sources, tests, hand-offs and follow-up are in [references/ai-demand.md](references/ai-demand.md).
 - G5 is the entry to optimize mode: its sources feed O1 (tasks), and the gap classes feed O5. Run the
@@ -139,6 +170,20 @@ checked. Save it to a file only when the user asks, outside `seo/`.
 - Checked 2026-10-21 (news reports, not Cloudflare docs): from 2026-09-15 Cloudflare groups bots as
   Search, Agent and Training; new domains block Training and Agent crawlers by default on pages with
   ads, with Search allowed. Where OpenAI's bots fall was not confirmed, so check the zone's settings.
+- Checked 2026-11-22 against OpenAI's help center: ChatGPT agent is no longer available (Operator
+  folded into it earlier); its successor, ChatGPT Work's Cloud browser, signs requests per RFC 9421,
+  cannot sign in or pay at launch, and is allowlisted as above (help.openai.com/en/articles/11845367,
+  developers.openai.com/commerce/agent-access). Cloudflare's Markdown for Agents doc (dateModified
+  2026-11-09): Pro and up, default `Content-Signal: ai-train=yes, search=yes, ai-input=yes` unless the
+  origin sets one. Cloudflare's press releases and current docs disagree on whether new zones block
+  agents on ad pages by default: read the zone, not either source.
+- Cloud browser, Markdown, probe F, the reputation turn and the self-ranking rule came from the second
+  gbot round (2026-11-22, 90 more X posts and 18 official pages). Most X figures there are second-hand
+  (for example "two answers on the same day share about 40% of their sources"); only the official
+  lines above were checked.
+- Probe A2 and the invented-path check were added 2026-11-22 from a summary of 116 X posts on GEO
+  (gbot, “GEO方法论”): page retrieval by a unique sentence (Ann Smarty) and 404s from URLs AI
+  assistants make up. Neither has been run on our sites yet.
 - Split out of site-check on 2026-10-22 so page SEO acceptance stays reproducible and AI samples,
   which need the user's account, run on their own. First run on tinywonderpost.com (local build):
   every AI crawler allowed; llms.txt still said "Story Kits" after the shop moved to holiday

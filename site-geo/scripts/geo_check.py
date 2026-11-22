@@ -45,13 +45,21 @@ PROBES = {
     "PerplexityBot": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)",
 }
 CHALLENGE = re.compile(r"Just a moment\.\.\.|cf-chl-|challenge-platform|Attention Required!|captcha", re.I)
+# What a probe met, read the same way as MissedByAI's access check. Cloudflare applies its AI crawler and
+# agent policies to verified bots and to "matching unverified bots", so a spoofed user agent meets the same
+# policy; that policy answers a plain-text 403 "Your request was blocked." (or 402 for pay per crawl). An HTML
+# block or challenge may be bot protection catching a fake crawler the real one would pass.
+POLICY_TEXT = re.compile(r"^\s*Your request was blocked\.?\s*$", re.I)
+JS_CHALLENGE = re.compile(r"Just a moment\.\.\.|cf-chl|challenge-platform|cf_chl_opt", re.I)
+ADS = re.compile(r"adsbygoogle|pagead2\.googlesyndication|googletagservices\.com|securepubads|doubleclick\.net|"
+                 r"amazon-adsystem|mediavine|ezoic|adthrive|carbonads|propellerads|adsterra|monetag", re.I)
 MD_LINK = re.compile(r"\[([^\]]*)\]\(([^)\s]+)\)")
 LOC = re.compile(r"<loc>\s*([^<\s]+)\s*</loc>", re.I)
 MAX_LLMS_LINKS = 60
 
 
-def fetch(url, ua=BROWSER_UA):
-    req = urllib.request.Request(url, headers={"User-Agent": ua, "Accept": "text/html,text/plain,*/*;q=0.8"})
+def fetch(url, ua=BROWSER_UA, accept="text/html,text/plain,*/*;q=0.8"):
+    req = urllib.request.Request(url, headers={"User-Agent": ua, "Accept": accept})
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
             body = r.read(MAX_BYTES)
@@ -62,7 +70,22 @@ def fetch(url, ua=BROWSER_UA):
         return {"ok": False, "error": str(getattr(e, "reason", e)), "status": None}
     charset = headers.get_content_charset() or "utf-8"
     return {"ok": True, "status": status, "final_url": final, "body": body.decode(charset, "replace"),
-            "cf_mitigated": headers.get("cf-mitigated"), "x_robots_tag": headers.get("X-Robots-Tag")}
+            "cf_mitigated": headers.get("cf-mitigated"), "x_robots_tag": headers.get("X-Robots-Tag"),
+            "content_type": headers.get("Content-Type") or "", "content_signal": headers.get("Content-Signal"),
+            "cloudflare": "cloudflare" in (headers.get("Server") or "").lower() or bool(headers.get("CF-RAY"))}
+
+
+def classify(got):
+    """ok, policy (the CDN's AI crawler policy), challenge, blocked or error: see POLICY_TEXT."""
+    status, body = got.get("status"), got.get("body") or ""
+    if not status:
+        return "error"
+    if status < 400:
+        return "challenge" if JS_CHALLENGE.search(body[:20000]) else "ok"
+    if status == 402 or (status == 403 and "html" not in got.get("content_type", "").lower()
+                         and POLICY_TEXT.match(body[:200])):
+        return "policy"
+    return "challenge" if JS_CHALLENGE.search(body[:20000]) else "blocked"
 
 
 def norm(s):
@@ -95,11 +118,12 @@ def robots_for(origin, pages):
 def probe(url):
     browser = fetch(url)
     size = len(browser.get("body") or "")
-    out = {"url": url, "browser_status": browser.get("status"), "agents": {}}
+    out = {"url": url, "browser_status": browser.get("status"), "cloudflare": bool(browser.get("cloudflare")),
+           "ads": bool(ADS.search(browser.get("body") or "")), "agents": {}}
     for name, ua in PROBES.items():
         got = fetch(url, ua)
         body = got.get("body") or ""
-        out["agents"][name] = {"status": got.get("status"), "error": got.get("error"),
+        out["agents"][name] = {"status": got.get("status"), "error": got.get("error"), "answer": classify(got),
                                "cf_mitigated": got.get("cf_mitigated"),
                                "challenge_page": bool(CHALLENGE.search(body[:20000])),
                                "same_size_as_browser": abs(len(body) - size) < max(500, size // 10)}
@@ -171,9 +195,17 @@ def llms(origin, sitemap=None, retired=(), site_host=None, base=None):
 def check(site, urls=(), sitemap=None, base=None, retired=()):
     origin = origin_of(base or site)
     pages = [urllib.parse.urljoin(origin + "/", urllib.parse.urlsplit(u).path or "/") for u in urls] or [origin + "/"]
+    md = fetch(origin + "/", accept="text/markdown")
+    robots_raw = fetch(origin + "/robots.txt")
+    rtxt = robots_raw.get("body") or "" if robots_raw.get("status") == 200 else ""
+    signal = re.search(r"^\s*content-signal\s*:\s*(.+)$", rtxt, re.I | re.M)
     return {"schema": SCHEMA, "site": site, "base": base,
             "checked_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "robots_txt": robots_for(origin, pages), "probes": [probe(u) for u in pages],
+            "cloudflare_managed_robots": {"managed": bool(re.search(r"BEGIN Cloudflare Managed content", rtxt, re.I)),
+                                          "content_signal": signal.group(1).strip() if signal else None},
+            "markdown": {"served": md.get("status") == 200 and "markdown" in md.get("content_type", "").lower(),
+                         "content_signal": md.get("content_signal")},
             "llms_txt": llms(origin, sitemap, retired, urllib.parse.urlsplit(site).netloc, base),
             "limits": "probes send the user-agent from this machine; firewalls that verify bots by IP "
                       "(Cloudflare AI crawler controls) can still treat the real crawler differently"}
@@ -186,13 +218,25 @@ def render(r):
     for agent, v in rb["agents"].items():
         state = "allowed" if not v["blocked_pages"] else f"blocked on {v['blocked_pages']}"
         out.append(f"  {agent} ({v['role']}): {state}")
+    mr = r.get("cloudflare_managed_robots") or {}
+    if mr.get("managed"):
+        out.append(f"  Cloudflare managed robots.txt: Content-Signal {mr.get('content_signal')}")
+    meaning = {"ok": "", "policy": " (CDN AI crawler policy)", "error": " (no answer)",
+               "challenge": " (challenge page: may only catch our fake crawler)",
+               "blocked": " (block page: may only catch our fake crawler)"}
     for p in r["probes"]:
-        out.append(f"  probes on {p['url']} (browser {p['browser_status']}):")
+        extra = (", Cloudflare" if p.get("cloudflare") else "") + (", ads on page" if p.get("ads") else "")
+        out.append(f"  probes on {p['url']} (browser {p['browser_status']}{extra}):")
         for name, a in p["agents"].items():
-            flags = [f"cf-mitigated {a['cf_mitigated']}"] if a["cf_mitigated"] else []
-            flags += ["challenge page"] if a["challenge_page"] else []
+            flags = [a.get("answer", "") + meaning.get(a.get("answer", ""), "")] if a.get("answer", "ok") != "ok" else []
+            flags += [f"cf-mitigated {a['cf_mitigated']}"] if a["cf_mitigated"] else []
             flags += [] if a["same_size_as_browser"] else ["different HTML"]
             out.append(f"    {name}: {a['status'] or a['error']}{'; ' + ', '.join(flags) if flags else ''}")
+    md = r.get("markdown") or {}
+    if md.get("served"):
+        out.append(f"  Markdown served for Accept: text/markdown; Content-Signal {md.get('content_signal')}")
+    if any(p.get("cloudflare") for p in r["probes"]):
+        out.append("  MANUAL: ChatGPT's Cloud browser signs its requests and cannot be probed; check Personal Agents in the zone")
     out.append(f"  limits: {r['limits']}")
     lt = r["llms_txt"]
     out += ["", f"G2 llms.txt {lt['status']}"]

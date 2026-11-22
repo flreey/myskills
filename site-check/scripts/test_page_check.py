@@ -53,6 +53,11 @@ PRODUCT = """<!doctype html><html><head><title>{name} Chart Printable for Kids: 
 <h2>Questions</h2><p>The sale ends in 12 days. Also in the Old Bundle.</p>
 <a href="/hidden">Make yours</a> <a href="/gone">Old link</a> <a href="/products/beta">Beta</a>
 <aside aria-label="Related"><h2>Related tools</h2><a href="/aside-only">Aside link</a></aside></main></body></html>"""
+# A page shipped half-finished; a docs paragraph that mentions JavaScript's NaN by name still needs a human look.
+DRAFT = """<html><head><title>Pricing</title><meta name="description" content="Plans and credits."></head>
+<body><main><h1>Pricing</h1><p>Lorem ipsum dolor sit amet. Free plan: undefined credits a month.</p>
+<p>Pro: ${price} per month. TODO: add refund terms.</p></main>
+<footer>Contact jane@example.com</footer></body></html>"""
 HIDDEN = """<html><head><title>Editor</title><meta name="robots" content="noindex"></head><body><h1>Editor</h1></body></html>"""
 
 
@@ -74,6 +79,8 @@ class Handler(BaseHTTPRequestHandler):
             name = self.path.rsplit("/", 1)[1].title()
             h1 = "Something Else Entirely" if name == "Beta" else f"{name} Chart Printable"
             return self.send(200, PRODUCT.format(name=name, h1=h1, filler=FILLER), "text/html")
+        if self.path == "/draft":
+            return self.send(200, DRAFT, "text/html")
         if self.path == "/hidden":
             return self.send(200, HIDDEN, "text/html")
         if self.path == "/gone":
@@ -151,6 +158,15 @@ class PageCheckTest(unittest.TestCase):
         self.assertEqual(alpha["title_h1"], 0.75)
         self.assertNotIn("title_h1_drift", alpha["issues"])
         self.assertIn("5 page facts", pc.render(r))
+
+    def test_placeholder_text(self):
+        f = pc.check(self.base + "/draft", [])["facts"]
+        self.assertIn("placeholder_text", f["issues"])
+        found = " ".join(f["placeholders"])
+        for bit in ["Lorem ipsum", "undefined credits", "${price}", "TODO", "jane@example.com"]:
+            self.assertIn(bit, found)
+        self.assertNotIn("placeholder_text", pc.check(self.base + "/random-password-generator", [])["facts"]["issues"])
+        self.assertNotIn("placeholder_text", pc.check(self.base + "/products/alpha", [])["facts"]["issues"])
 
     def test_brief_questions(self):
         brief = {"page": "/random-password-generator", "clusters": [{

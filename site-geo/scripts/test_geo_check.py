@@ -43,6 +43,13 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200, PAGES, "application/xml")
         if "OAI-SearchBot" in ua:
             return self.send(403, "<title>Just a moment...</title>", "text/html", {"cf-mitigated": "challenge"})
+        # Cloudflare's AI crawler policy, as crawlstop.com answers GPTBot (2026-11-22).
+        if "GPTBot" in ua:
+            return self.send(403, "Your request was blocked.", "text/plain", {"Server": "cloudflare"})
+        if "ChatGPT-User" in ua and self.path == "/private":
+            return self.send(403, "<title>Attention Required! | Cloudflare</title>Sorry, you have been blocked", "text/html")
+        if self.headers.get("Accept") == "text/markdown" and self.path == "/":
+            return self.send(200, "# Example", "text/markdown; charset=utf-8", {"Content-Signal": "ai-train=yes, search=yes, ai-input=yes"})
         if self.path == "/old":
             return self.send(404, "<title>Not found</title>", "text/html")
         if self.path == "/editor":
@@ -85,6 +92,16 @@ class GeoCheckTest(unittest.TestCase):
         blocked = home["agents"]["OAI-SearchBot"]
         self.assertEqual((blocked["status"], blocked["cf_mitigated"], blocked["challenge_page"]), (403, "challenge", True))
         self.assertTrue(home["agents"]["ClaudeBot"]["same_size_as_browser"])
+        r = self.run_check()
+        answers = {(p["url"].rsplit("/", 1)[1], a): v["answer"] for p in r["probes"] for a, v in p["agents"].items()}
+        self.assertEqual(answers[("", "OAI-SearchBot")], "challenge")
+        self.assertEqual(answers[("", "GPTBot")], "policy")
+        self.assertEqual(answers[("private", "ChatGPT-User")], "blocked")
+        self.assertEqual(answers[("", "ChatGPT-User")], "ok")
+        self.assertEqual(r["markdown"], {"served": True, "content_signal": "ai-train=yes, search=yes, ai-input=yes"})
+        text = gc.render(r)
+        self.assertIn("GPTBot: 403; policy (CDN AI crawler policy)", text)
+        self.assertIn("Markdown served", text)
 
     def test_llms_txt(self):
         r = self.run_check()

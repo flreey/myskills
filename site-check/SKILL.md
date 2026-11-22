@@ -1,6 +1,6 @@
 ---
 name: site-check
-description: 页面验收（SEO 和 GEO 两种模式）：网站或页面上线前后要验收时用——全站扫 sitemap 找机械问题（状态码、noindex、canonical、只在 JS 里的内容、FAQ 答案不在 HTML、标题与 H1 不一致、缺 alt、面包屑不符、过时文案、链到 noindex 页），找模板级问题（重复标题和 FAQ、近似重复页、枢纽页内链弱、缺 sameAs），再抽页检查：SEO 模式看文案是否围绕目标关键词，GEO 模式看答案是否在前、限制条件是否逐条写明、追问是否可见、数字是否与事实库一致；两种模式都查 FAQ、服务端渲染、可收录和结构化数据。site-kit 站和其他站都适用。Also for 全站 SEO 检查、页面验收、上线前检查、关键词文案检查、GEO 页面验收、批量页面抽检、FAQ 检查、服务端渲染、内链检查、模板页重复。不用于：AI 爬虫、llms.txt、ChatGPT 推荐（site-geo），找词（site-research），决定建哪些页（site-plan、site-batch），kit 构建门槛（site-kit 的 npm run check）。
+description: 页面验收（SEO 和 GEO 两种模式）：网站或页面上线前后要验收时用——全站扫 sitemap 找机械问题（状态码、noindex、canonical、只在 JS 里的内容、FAQ 答案不在 HTML、标题与 H1 不一致、缺 alt、面包屑不符、过时文案、占位和测试文字、链到 noindex 页），找模板级问题（重复标题和 FAQ、近似重复页、枢纽页内链弱、缺 sameAs），再抽页检查：SEO 模式看文案是否围绕目标关键词，GEO 模式看答案是否在前、限制条件是否逐条写明、追问是否可见、数字是否与事实库一致；两种模式都查 FAQ、服务端渲染、可收录和结构化数据。site-kit 站和其他站都适用。Also for 全站 SEO 检查、页面验收、上线前检查、关键词文案检查、GEO 页面验收、批量页面抽检、FAQ 检查、服务端渲染、内链检查、模板页重复。不用于：AI 爬虫、llms.txt、ChatGPT 推荐（site-geo），找词（site-research），决定建哪些页（site-plan、site-batch），kit 构建门槛（site-kit 的 npm run check）。
 ---
 
 # site-check: page and site acceptance (SEO and GEO modes)
@@ -66,7 +66,8 @@ its own mode. Checks 2b–5 and S2–S4 are the same in both modes.
    on kit sites); new sub-needs or pages go back to site-plan (SEO) or to the rows and templates in
    site-batch (GEO). Never write under `seo/` or `geo/`.
 6. **No tricks.** Do not act on advice to stuff keywords, add hidden text, fake reviews, invent
-   statistics or show crawlers different content from users.
+   statistics or show crawlers different content from users. A "best X tools" or "alternatives" page
+   that ranks our product says we publish it and shows how the ranking was tested.
 
 ## Workflow
 
@@ -142,7 +143,9 @@ Assistants quote passages, not pages, and filter options by the conditions the p
   under alternatives. The same question answered in three places, or FAQ entries that only reword the
   target, is a fix. Group pages: the answer, the chooser to item pages and the group FAQ are present.
 - **Facts match.** Every number and capability on the page matches `geo/facts.jsonl` (or the row's
-  key facts) and the live product. Check the main ones in the product or the browser.
+  key facts) and the live product. Check the main ones in the product or the browser. Superlatives
+  ("best", "#1", "fastest", "最好", "第一") need a source or a test on the page; without one, cut them
+  or state the comparison ("4K free, where X and Y cap at 1080p").
 - **Usable next step.** The resource the template requires (tool, file, steps) is on the page and
   works.
 - **Words people use.** Title and H1 name the task the way people put it to an assistant (the
@@ -174,7 +177,8 @@ what people ask.
 
 - **True to the product.** Check every factual claim against the code or by using the product in
   the browser: limits, formats, counts, what is stored or sent, what happens on reload. Quote the
-  code location or the observed behaviour. A false or unverifiable claim is a fix before anything else.
+  code location or the observed behaviour. A false or unverifiable claim is a fix before anything else,
+  and so is a superlative with no source.
 - **Consistent.** Same facts as the rest of the page, the schema answer, other pages and the
   privacy policy.
 - **Answers the question asked**, first sentence first, in the searcher's words. Marketing copy,
@@ -236,6 +240,10 @@ Mechanics, for all three:
   numbers describe different things (paid vs all), the copy says so. Build-time relative dates
   ("in 12 days", issue `stale_relative_dates`) are no older than a day. No retired names or
   positioning (`retired_term`); an About page still describing the old product is a fix.
+- **No draft copy.** `placeholder_text` flags filler and broken output in the server HTML (lorem
+  ipsum, TODO, unfilled `{{var}}` or `${var}`, `undefined`, `NaN`, `@example.com` contacts, John Doe)
+  and quotes each. Judge every hit: a docs page may show `{{ }}` on purpose. On a pricing or home
+  page it is a fix before launch, since assistants read those pages to verify a pick.
 - **Unique value.** Something on the page exists only here: a sample, a real photo, a worked
   example, a paragraph about this product's use. A template page with nothing of its own is what
   the near-duplicate check (S2) catches.
@@ -287,7 +295,9 @@ Name the mode per page. First the sweep: URLs checked, issues by type and URL sh
 questions, near duplicates, internal links, structured-data types, Organization), and what was fixed
 at the shared cause. Then one table per picked page: check, result (pass / fix / unknown / MANUAL),
 evidence (quoted text or a field from the script output) and the fix. Then S1–S5, the fixes in
-priority order, the MANUAL items, and what was not checked. Save it to a file only when the user
+priority order, the MANUAL items, and what was not checked. Before a launch, add a MANUAL line to
+confirm with site-measure that AI referrals and the core events (signup, payment, the main action)
+are tracked; numbers that were not recorded at launch cannot be read later. Save it to a file only when the user
 asks, outside `seo/`.
 
 ## Premises
@@ -312,5 +322,8 @@ asks, outside `seo/`.
 - Thresholds set on tinywonderpost.com 2026-10-22 and uncalibrated elsewhere: title/H1 lead words
   0.7 of the first 4; near duplicates at Jaccard 0.33 (sibling chart pages 0.37–0.41, unrelated
   pages at most 0.29); images flagged when half of 3+ content images lack alt text.
+- 2026-11-22: `placeholder_text`, the superlative rule and the pre-launch tracking line came from a
+  summary of 116 X posts on GEO (gbot, “GEO方法论”, pre-launch items 6, 8 and 9). The placeholder
+  patterns are a lexical pre-sort and have not been run on a live site yet.
 - Split 2026-10-22: AI crawler probes, llms.txt and the ChatGPT probes moved to site-geo, so this
   skill's results are reproducible and need no ChatGPT account.

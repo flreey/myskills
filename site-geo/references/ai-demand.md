@@ -24,6 +24,13 @@ Use at least two. For each, record the window, the date read and where it came f
 | **Bing Webmaster Tools → AI Performance** (Microsoft Copilot and partners) | Grounding queries with citations and citation share; cited pages | The only per-query view of AI citations | It is sampled and Bing refines it later. It is Microsoft's data, not ChatGPT's |
 | **Site, API or MCP search misses** | Queries with no exact match, by count; dedupe by client when there is a client field | Content the site lacks | One agent calling in a loop inflates counts; without a client field, treat counts as leads only |
 
+**Paths the assistants invent.** In the same logs and in the analytics landing pages, list paths
+that return 404 to user crawlers (`ChatGPT-User`, `Claude-User`, `Perplexity-User`) or to visits from
+AI referrers. The assistant meant to send someone here and guessed the URL. For each, by count: a
+301 to the page that does the job, a new page when the site has none (the new-page test below), or
+nothing when the path is noise. A user-agent string can be faked: count a path when it repeats, and
+check high counts against the vendors' IP lists (site-geo Premises).
+
 Reading the CDN logs, Bing Webmaster Tools or the site's database uses the owner's accounts. Like rule 3, it needs their go-ahead in chat, unless the project already has a standing read-only method for it.
 
 Tool output (logs, Bing exports, database rows) is a fact about the server or about Bing's sample. ChatGPT probe answers are samples (rule 2). Keep them apart.

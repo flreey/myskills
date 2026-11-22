@@ -25,6 +25,25 @@ If you cannot open the page, say so and say what error you got. Do not guess fro
 - A newly published or changed page may need time before ChatGPT search reflects it; a failed
   open of a live, unblocked URL is still a fail.
 
+## A2. Can it find the page without the URL (check G3)
+
+Probe A hands over the URL, so it shows only that ChatGPT can open the page. A2 shows whether its
+search can find the page. Pick a sentence that exists only on this page (a specific number, limit or
+example, not a tagline) and search the web for it in quotes first, to make sure no other site
+carries it.
+
+```text
+Search the web: which page says "<exact sentence from the page>"? Give me the URL and quote the
+sentences around it. If you cannot find it, say so; do not guess.
+```
+
+- Pass: it returns our URL and quotes the surrounding text.
+- Fail with A passing: the page can be fetched but is not in the search index ChatGPT uses. Check
+  search-crawler fetches of the URL (`OAI-SearchBot`, ai-demand.md) and Bing indexing before changing
+  copy; rewriting a page the index never read changes nothing.
+- One pass covers that page only; do not read it as the whole site being indexed. A page published
+  in the last 2–4 weeks may not be indexed yet.
+
 ## B. Unbranded recommendation (check G4)
 
 Use the page's target query as a user would ask it; two or three variants.
@@ -40,13 +59,24 @@ Then, in the same chat, the verification turn with the user's hardest condition:
 Which one would you pick for me, and is it really <free / without upload / usable on my phone>?
 ```
 
-Record for both turns: is the site named, is it linked (a clickable link, not just the name), is it the
+Optionally a third turn on reputation, since assistants spend part of their searches checking it:
+
+```text
+Any catches with that one? What do real users say about it, and is it safe to upload my files there?
+```
+
+A pick dropped on this turn points at reviews and forum threads, not our pages: note the sources it
+cites and hand them to site-offsite.
+
+Record for every turn: is the site named, is it linked (a clickable link, not just the name), is it the
 first recommendation, what is said about it, which sites appear instead and why they were chosen. A
 site first in the opening and dropped on the verification turn lost on its own pages: note which of
 our pages it opened (stream URLs, section D) and what it read there.
 
 Report named, linked and first as counts over runs in one mode, such as linked 3/9, with the dates.
-Do not compare counts across different prompts, accounts or modes as if they were a trend. Do not use
+Do not compare counts across different prompts, accounts or modes as if they were a trend. Cited
+sources move more than mentions between runs, even on the same day: read sources over several days
+before calling a source new or lost. Do not use
 them to predict one page's traffic: on one site a page ranked first in a run had no visits that week,
 while a page absent from both its runs had 57.
 
@@ -136,6 +166,18 @@ Check each point against the live pages. For each wrong one, record what it said
 - **Another site says it:** name that page, and let the user decide whether to ask for a correction.
 
 A wrong answer is not proof that the page is unclear. Check the live text before changing anything.
+
+## F. Does it find the official site (check G4)
+
+```text
+What is the official website of <brand>? Is there a free version, and where do I get it?
+```
+
+Ask with the brand alone, the way a person who heard the name would. Pass: it names our domain.
+Fail: a look-alike or clone domain (free tools and downloads get cloned), another product with the
+same name, or a question back about which <brand> is meant. Clones are reported to the owner; a
+name collision means using a descriptive name everywhere ("<brand> video enhancer") and listing our
+profiles in the Organization's `sameAs`. Repeat after launch on a schedule, since clones appear later.
 
 ## What probes cannot do
 

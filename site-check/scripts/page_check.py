@@ -53,6 +53,11 @@ TITLE_LEAD_WORDS = 4          # the title's lead phrase: its first content words
 TITLE_H1_MIN = 0.7            # share of the lead words the H1 must keep
 ALT_MIN_IMAGES = 3            # content images before missing alt text counts as an issue
 RELATIVE_DATE = re.compile(r"\b(?:in \d+ days?|\d+ days? (?:left|to go|away))\b", re.I)
+# Draft or broken copy left on a live page: filler text, notes, unfilled template variables, missing data printed
+# as JS values, sample contacts. Lexical pre-sort: a docs page may show {{ }} or NaN on purpose.
+PLACEHOLDER = re.compile(r"(?i:lorem ipsum)|\b(?:TODO|TBD|FIXME)\b|\{\{[^{}]{0,60}\}\}|\$\{[^{}]{0,60}\}|\{%[^%]{0,60}%\}"
+                         r"|\bundefined\b|\bNaN\b|\[object Object\]|\b[\w.+-]+@example\.(?:com|org|net)\b"
+                         r"|\b(?:John|Jane) Doe\b|\b123-456-7890\b")
 # One-word H2s that label a UI block rather than name a topic.
 LABELS = {"questions", "faq", "faqs", "filter", "filters", "menu", "search", "results", "overview", "details",
           "description", "features", "reviews", "more", "related", "contents", "summary", "info", "information",
@@ -457,7 +462,13 @@ def page_facts(page, retired=(), today=None):
     age = None
     if dated and isinstance(sd["date_modified"], str) and re.match(r"\d{4}-\d{2}-\d{2}", sd["date_modified"]):
         age = ((today or date.today()) - date.fromisoformat(sd["date_modified"][:10])).days
-    everything = norm(" ".join([page.title, page.meta.get("description") or ""] + [t for t, _ in page.text]))
+    visible = " ".join([page.title, page.meta.get("description") or ""] + [t for t, _ in page.text])
+    everything = norm(visible)
+    placeholders = []
+    for m in PLACEHOLDER.finditer(visible):
+        snippet = visible[max(0, m.start() - 30):m.end() + 30].strip()
+        if snippet not in placeholders:
+            placeholders.append(snippet)
     return {
         "title_h1": title_h1(page.title, h1[0]) if h1 else None, "title_lead": title_lead(page.title),
         "label_headings": [t for (tag, t), z in zip(page.headings, page.heading_zones)
@@ -469,6 +480,7 @@ def page_facts(page, retired=(), today=None):
         "structured": sd,
         "relative_dates": {"found": dated, "days_since_modified": age},
         "retired": [p for p in retired if norm(p) and f" {norm(p)} " in f" {everything} "],
+        "placeholders": placeholders[:5],
     }
 
 
@@ -491,6 +503,8 @@ def fact_issues(f):
         issues.append("stale_relative_dates")
     if f["retired"]:
         issues.append("retired_term")
+    if f["placeholders"]:
+        issues.append("placeholder_text")
     return issues
 
 
@@ -616,6 +630,8 @@ def render(r):
         out.append(f"  dated copy {fa['relative_dates']['found']}: {fa['relative_dates']['days_since_modified']} days since dateModified")
     if fa["retired"]:
         out.append(f"  retired phrases on the page: {fa['retired']}")
+    if fa["placeholders"]:
+        out.append(f"  draft or broken copy (judge each): {fa['placeholders']}")
     out.append(f"  issues: {fa['issues'] or 'none'}")
     return "\n".join(out)
 
@@ -640,6 +656,7 @@ ISSUES = {
     "breadcrumb_mismatch": "visible breadcrumb and BreadcrumbList have a different number of levels",
     "stale_relative_dates": "copy such as 'in 12 days' is more than a day older than the page's dateModified",
     "retired_term": "a retired product name or phrase is still on the page",
+    "placeholder_text": "draft or broken copy (lorem ipsum, TODO, {{var}}, undefined, NaN, example.com contacts)",
     "links_to_noindex": "links to a noindex page in the main content",
     "links_to_error": "links to a page that does not return 200",
 }
@@ -917,12 +934,15 @@ def render_sweep(r):
                    else "Organization: none in structured data")
         out.append("primary structured-data types: " + ", ".join(
             f"{t} {v['pages']}" for t, v in sorted(site["primary_types"].items(), key=lambda kv: -kv[1]["pages"])))
+    by_url = {p["url"]: p.get("facts") or {} for p in r.get("pages") or []}
     for code, g in r["issues"].items():
         out += ["", f"{code} ({g['count']}): {g['meaning']}"]
         for p in g["patterns"]:
             share = " (every page of this shape: likely a shared template)" if p["hit"] == p["of"] and p["of"] > 1 else ""
             out.append(f"  {p['pattern']}: {p['hit']} of {p['of']}{share}")
-            out += [f"    {u}" for u in p["urls"][:8]]
+            for u in p["urls"][:8]:
+                found = (by_url.get(u) or {}).get("placeholders") if code == "placeholder_text" else None
+                out.append(f"    {u}" + (f"  {found[0]!r}" if found else ""))
             if len(p["urls"]) > 8:
                 out.append(f"    … {len(p['urls']) - 8} more (see --format json)")
     if not r["issues"]:
