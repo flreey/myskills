@@ -33,7 +33,7 @@
 | 项 | 标准 |
 |---|---|
 | 定价币种 | USD |
-| 结算 | 汇丰香港美元账户收款，默认结算币种 USD。建账户时能沿用的那个汇丰账户是 **HKD**，激活后要在 Settings → Bank accounts and currencies 加美元账户（站长填），再把 USD 设为默认结算币种（见 [activation.md](activation.md)） |
+| 结算 | 汇丰香港美元账户收款，默认结算币种 USD。建账户时能沿用的那个汇丰账户是 **HKD**。激活后 Settings → Linked accounts → USD → Add bank account：汇丰是多币种账户，美元和港币**同一个账号**；银行选 `[004]`（不是 `[828] USD Clearing`），分行选账号前 3 位，账号填后 9 位、不带横线，户名和港币账户一致。再到 Settlement and transfer rules → USD → Make default currency（MissedByAI 2026-11-22） |
 | 价格 | 不含税：`tax_behavior=exclusive`，目录 `taxBehavior: 'exclusive'` |
 | 税码 | `txcd_10105001`（AIaaS Cloud Based Personal Use），所有商品 |
 | 欧盟、英国 | Managed Payments（每笔另加 3.5%，Stripe 经 Link 代收代缴）；其他国家走站点自己的 Checkout，不开 Stripe Tax |
