@@ -100,6 +100,12 @@ class StandardEventsTest(unittest.TestCase):
         self.assertEqual((mapping["takeaway"], origin["takeaway"]), (["game_complete"], "spec"))
         self.assertEqual(ops.north_star({"types": ["app"]}, None), "core_done")
 
+    def test_spec_wildcards_expand_against_observed_events(self):
+        spec_ = {"standard": {"core_start": ["generate", "*-roll", "teams-make"], "takeaway": "*-share"}}
+        mapping, origin = ops.standard_events({"types": ["tool"]}, spec_, ["lol-roll", "generate", "r6-roll", "roll", "x-roll-y"])
+        self.assertEqual(mapping["core_start"], ["generate", "lol-roll", "r6-roll", "teams-make"])
+        self.assertEqual((mapping["takeaway"], origin["takeaway"]), ([], "spec"))
+
 
 class LoopTest(unittest.TestCase):
     def test_collect_check_weekly(self):

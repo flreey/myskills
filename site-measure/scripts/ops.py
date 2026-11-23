@@ -98,15 +98,23 @@ def plans():
 def standard_events(site, spec, observed, plan_types=None):
     """Map the five standard events to the site's own event names.
 
-    The site's umami-reports.json "standard" wins; otherwise each standard event takes the plan role of the
-    site's type and matches observed event names against that role's aliases (a guess, labelled as one)."""
+    The site's umami-reports.json "standard" wins (a name with `*` stands for every observed event it matches,
+    e.g. "*-roll"); otherwise each standard event takes the plan role of the site's type and matches observed
+    event names against that role's aliases (a guess, labelled as one)."""
     explicit = (spec or {}).get("standard") or {}
     plan_types = plan_types or plans()
     mapping, origin = {}, {}
     for key in STANDARD:
         if key in explicit:
             names = explicit[key] if isinstance(explicit[key], list) else [explicit[key]]
-            mapping[key], origin[key] = [n for n in names if n], "spec"
+            expanded = []
+            for n in names:
+                if n and "*" in n:
+                    pattern = re.compile("^" + ".*".join(map(re.escape, n.split("*"))) + "$")
+                    expanded += [o for o in observed if pattern.match(o) and o not in expanded]
+                elif n and n not in expanded:
+                    expanded.append(n)
+            mapping[key], origin[key] = expanded, "spec"
             continue
         names = []
         for t in site.get("types") or []:

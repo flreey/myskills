@@ -52,6 +52,10 @@ and labels the result a guess. Confirm it in the site's `umami-reports.json`:
  "northStar": "takeaway"}
 ```
 
+Names are plain event names (the daily snapshots count events by name, so field filters do not apply
+here; put a filtered step in a funnel instead). A `*` stands for every observed event it matches, for
+sites that send one event per tool (`"core_start": ["*-roll", "*-make"]`).
+
 Default north star: `takeaway` for tool, directory, landing and content sites; `core_done` (a first real
 job finished) for app sites. Counts are events, not people, and include the owner's own visits.
 
