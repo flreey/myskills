@@ -33,7 +33,8 @@ Spec (`site-measure/umami-reports@1`):
                   "steps": ["path:/", "tool_file", "tool_done", "job_end[status=done]", "tool_download"]}],
      "goals": [{"name": "Goal: download", "step": "tool_download"}]}
 
-A step is an event name or `path:/x`; a leading or trailing `*` matches a prefix or suffix (`path:/guides/*`).
+A step is an event name or `path:/x`; a leading or trailing `*` matches a prefix or suffix (`path:/guides/*`,
+`path:*-quiz`).
 Event steps in funnels may filter on event fields: `event[key=value]`, `event[key!=value]`, several joined
 with `;`. `window` is the most minutes allowed between two consecutive steps. Funnels take 2 to 8 steps;
 goals take one step and no filters.
@@ -80,8 +81,9 @@ def parse_step(raw, allow_filters=True):
         raise ValueError("step '" + text + "' is still a placeholder")
     if text.startswith("path:"):
         value = text[5:].strip()
-        if not value.lstrip("*").startswith("/") or "*" in value.strip("*") or "[" in value:
-            raise ValueError("step '" + text + "': a path starts with / and may only start or end with *")
+        # `*-quiz` (every path ending in -quiz) is valid: Umami turns a leading or trailing * into LIKE.
+        if not value[:1] in ("/", "*") or value.strip("*") == "" or "*" in value.strip("*") or "[" in value:
+            raise ValueError("step '" + text + "': a path starts with / or *, and may only start or end with *")
         return {"type": "path", "value": value}
     match = STEP.match(text)
     if not match or not EVENT_NAME.match(match.group(1).strip()):

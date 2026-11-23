@@ -68,12 +68,13 @@ class StepTest(unittest.TestCase):
     def test_step_syntax(self):
         self.assertEqual(ur.parse_step("path:/app"), {"type": "path", "value": "/app"})
         self.assertEqual(ur.parse_step("path:/guides/*"), {"type": "path", "value": "/guides/*"})
+        self.assertEqual(ur.parse_step("path:*-quiz"), {"type": "path", "value": "*-quiz"})
         self.assertEqual(ur.parse_step("job_end[status=done;out!=4k]"), {"type": "event", "value": "job_end", "filters": [
             {"property": "status", "operator": "eq", "value": "done"}, {"property": "out", "operator": "neq", "value": "4k"}]})
         self.assertEqual(ur.step_text(ur.parse_step("job_end[status=done]")), "job_end[status=done]")
 
     def test_steps_umami_cannot_store_are_refused(self):
-        for bad in ("a|b", "path:<tool page>", "<tool_done?>", "path:app", "path:/a*b", "bad name", "x[status]", "x[]"):
+        for bad in ("a|b", "path:<tool page>", "<tool_done?>", "path:app", "path:/a*b", "path:*", "path:*a*b", "bad name", "x[status]", "x[]"):
             with self.assertRaises(ValueError, msg=bad):
                 ur.parse_step(bad)
         with self.assertRaises(ValueError):
