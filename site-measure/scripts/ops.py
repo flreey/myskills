@@ -873,7 +873,8 @@ def init(root, projects):
     existing = load_json(path)
     sites = discover(projects)
     if existing:
-        known = {s["domain"] for s in existing["sites"]}
+        # "paused": sites the owner stopped watching; kept for the record, never re-added, never checked
+        known = {s["domain"] for s in existing["sites"] + existing.get("paused", [])}
         added = [s for s in sites if s["domain"] not in known]
         existing["sites"] += added
         data = existing

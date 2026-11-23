@@ -21,7 +21,7 @@ executes approved changes with the skill that owns them, and reviews them on the
 
 | File | Holds | Who edits |
 | --- | --- | --- |
-| `portfolio.json` | sites (domain, project, types, stage, since, sells), thresholds, `notify.command` | the agent, after the owner confirms a stage change |
+| `portfolio.json` | sites (domain, project, types, stage, since, sells), thresholds, `notify.command`; `paused`: sites the owner stopped watching (no check, guard or weekly; `init` does not add them back) | the agent, after the owner confirms a stage change or a pause |
 | `experiments.json` | `items`: `id`, `site`, `hypothesis`, `change`, `metric`, `expect`, `start`, `review`, `stop`, `status` (`proposed`, `running`, `done`, `dropped`), `result` | the agent |
 | `playbook.md` | results worth keeping | the agent |
 | `weekly/<year>-W<nn>.md` | the weekly report | `ops.py weekly --write`, then the agent appends the proposals |

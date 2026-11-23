@@ -196,6 +196,11 @@ class InitTest(unittest.TestCase):
             (root / "portfolio.json").write_text(json.dumps(data))
             self.assertEqual(ops.init(root, projects), [])
             self.assertEqual(json.loads((root / "portfolio.json").read_text())["sites"][0]["stage"], "growth")
+            data = json.loads((root / "portfolio.json").read_text())
+            data["paused"] = [s for s in data["sites"] if s["domain"] == "plain.io"]
+            data["sites"] = [s for s in data["sites"] if s["domain"] != "plain.io"]
+            (root / "portfolio.json").write_text(json.dumps(data))
+            self.assertEqual(ops.init(root, projects), [])  # a paused site is not added back
             self.assertIn("data/", (root / ".gitignore").read_text())
 
     def test_plist_preview(self):
