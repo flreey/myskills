@@ -4,6 +4,7 @@
     python3 umami_reports.py draft  --project <dir> [--type tool --type app] [--domain host] [--window 1440]
     python3 umami_reports.py sync   --spec umami-reports.json [--apply] [--seen-days 30] [--format text|json]
     python3 umami_reports.py status (--spec umami-reports.json | --domain host) [--days 14] [--format text|json]
+    python3 umami_reports.py prune  (--spec umami-reports.json | --domain host) [--days 30] [--delete NAME]... [--apply]
 
 - draft (read-only, no network): builds a spec from the plan of the site's type
   (references/tracking-plans.json: funnel, more_funnels, goals) and the events the code sends (audit.py).
@@ -17,6 +18,13 @@
 - status: each saved funnel's steps with visitors, and each goal's count, over --days. These numbers come
   from Umami and include every session, the owner's too; funnel.py gives the same funnel without them,
   and status prints the matching funnel.py command (event-data filters are left out there).
+- prune (read-only unless --apply): every saved funnel and goal, whether the spec lists it, and how often
+  each of its events and paths occurred in the last --days days. Verdicts: keep (in the spec, all steps
+  seen), fix (in the spec, a step not seen: fix the tracking or the spec), review (not in the spec, all
+  steps seen: add it to the spec or delete it) and delete (not in the spec, a step not seen: suggested for
+  deletion). It deletes only with --apply, and only the reports named with --delete (name, kind:name or
+  id), after the owner approved that list. It refuses names the spec lists (sync would recreate them),
+  names that match no report or several, and --apply without --delete.
 
 Spec (`site-measure/umami-reports@1`):
 
@@ -40,6 +48,7 @@ from pathlib import Path
 import re
 import sys
 import time
+import urllib.parse
 
 HERE = Path(__file__).resolve().parent
 SCHEMA = "site-measure/umami-reports@1"
@@ -239,20 +248,39 @@ def saved(client, website_id, kind):
         page += 1
 
 
-def seen(client, website_id, days, now_ms=None):
+# Large sites have thousands of paths; a top-500 list would call real paths unseen.
+SEEN_LIMIT = 100000
+
+
+def seen_counts(client, website_id, days, now_ms=None):
+    """({event: count}, {path: count}) over the last `days` days."""
     end = now_ms or int(time.time() * 1000)
     span = "startAt=" + str(end - days * report.DAY_MS) + "&endAt=" + str(end)
-    base = "/api/websites/" + website_id + "/metrics?" + span + "&limit=500&type="
-    return ({row["value"] for row in report.rows(client.request(base + "event"))},
-            {row["value"] for row in report.rows(client.request(base + "path"))})
+    base = "/api/websites/" + website_id + "/metrics?" + span + "&limit=" + str(SEEN_LIMIT) + "&type="
+    return ({row["value"]: row["count"] for row in report.rows(client.request(base + "event"))},
+            {row["value"]: row["count"] for row in report.rows(client.request(base + "path"))})
+
+
+def seen(client, website_id, days, now_ms=None):
+    events, paths = seen_counts(client, website_id, days, now_ms)
+    return set(events), set(paths)
+
+
+def _matches(value, name):
+    if value.startswith("*") or value.endswith("*"):
+        core = value.strip("*")
+        return bool(name) and core in name and (value.startswith("*") or name.startswith(core)) \
+            and (value.endswith("*") or name.endswith(core))
+    return value == name
 
 
 def _matches_seen(value, names):
-    if value.startswith("*") or value.endswith("*"):
-        core = value.strip("*")
-        return any((value.startswith("*") or n.startswith(core)) and (value.endswith("*") or n.endswith(core))
-                   and core in n for n in names if n)
-    return value in names
+    return any(_matches(value, n) for n in names)
+
+
+def seen_count(value, counts):
+    """Occurrences of an event or path (wildcards add up every match)."""
+    return sum(c for n, c in counts.items() if _matches(value, n))
 
 
 def plan_sync(client, website, wanted, seen_days=30, now_ms=None):
@@ -297,6 +325,139 @@ def apply_sync(client, website, result):
             client.request(base + "/" + a["id"], a["body"])
             a["done"] = True
     return result
+
+
+# ---------- prune ----------
+
+VERDICTS = {
+    "keep": "in the spec, every step seen",
+    "fix": "in the spec, but a step was not seen: fix the tracking or the spec",
+    "review": "not in the spec, every step seen: add it to the spec or delete it",
+    "delete": "not in the spec, a step was not seen: suggested for deletion",
+}
+
+
+def _value_matches(operator, wanted, value):
+    if operator == "eq":
+        return value == wanted
+    if operator == "neq":
+        return value != wanted
+    if operator in ("c", "dnc"):
+        return (wanted in value) == (operator == "c")
+    raise ValueError("unknown filter operator " + str(operator))
+
+
+def step_count(client, website_id, step, events, paths, end_ms, days, cache):
+    """How often a saved step occurred. A filtered event step counts the events whose field matches
+    (server totals from /event-data/values); with several filters it is the smallest single-filter count,
+    an upper bound, so 0 still means never."""
+    value = step.get("value") or ""
+    if step.get("type") != "event":
+        return seen_count(value, paths)
+    total = seen_count(value, events)
+    if not total or not step.get("filters") or "*" in value:
+        return total
+    counts = []
+    for f in step["filters"]:
+        key = (value, f.get("property"))
+        if key not in cache:
+            query = "startAt=" + str(end_ms - days * report.DAY_MS) + "&endAt=" + str(end_ms) + "&event=" + \
+                urllib.parse.quote(value) + "&propertyName=" + urllib.parse.quote(str(f.get("property")))
+            cache[key] = client.request("/api/websites/" + website_id + "/event-data/values?" + query) or []
+        rows = cache[key]
+        if f.get("operator") in ("neq", "dnc"):
+            # events without the field match a "not" filter too, so start from every event of that name
+            hit = total - sum(int(r.get("total") or 0) for r in rows if not _value_matches(f["operator"], str(f.get("value")), str(r.get("value"))))
+        else:
+            hit = sum(int(r.get("total") or 0) for r in rows if _value_matches(f.get("operator"), str(f.get("value")), str(r.get("value"))))
+        counts.append(max(0, hit))
+    return min(counts)
+
+
+def plan_prune(client, website, spec_names=None, days=30, now_ms=None):
+    """Every saved funnel and goal with its verdict. spec_names: {'funnel': set, 'goal': set}, or None (no spec)."""
+    end_ms = now_ms or int(time.time() * 1000)
+    events, paths = seen_counts(client, website["id"], days, end_ms)
+    out, cache = [], {}
+    for kind in ("funnel", "goal"):
+        for item in sorted(saved(client, website["id"], kind), key=lambda i: i.get("name") or ""):
+            p = item.get("parameters") or {}
+            steps = p.get("steps") or [] if kind == "funnel" else [p]
+            counted = [{"step": step_text(s), "count": step_count(client, website["id"], s, events, paths, end_ms, days, cache)}
+                       for s in steps]
+            in_spec = None if spec_names is None else item.get("name") in spec_names[kind]
+            unseen = any(c["count"] == 0 for c in counted) or not counted
+            verdict = ("fix" if unseen else "keep") if in_spec else ("delete" if unseen else "review")
+            out.append({"kind": kind, "id": item.get("id"), "name": item.get("name"), "in_spec": in_spec,
+                        "steps": counted, "verdict": verdict})
+    return {"days": days, "reports": out}
+
+
+def pick(reports, wanted):
+    """Resolve --delete values (id, kind:name or name) to reports; refuse anything unclear."""
+    chosen, errors = [], []
+    for raw in wanted:
+        text = str(raw).strip()
+        kind, _, rest = text.partition(":")
+        matches = [r for r in reports if r["id"] == text]
+        if not matches and kind in ("funnel", "goal") and rest:
+            matches = [r for r in reports if r["kind"] == kind and r["name"] == rest.strip()]
+        if not matches:
+            matches = [r for r in reports if r["name"] == text]
+        if not matches:
+            errors.append("no saved report is named or has the id '" + text + "'")
+        elif len(matches) > 1:
+            errors.append("'" + text + "' matches " + str(len(matches)) + " reports; use kind:name or the id ("
+                          + ", ".join(m["kind"] + " " + str(m["id"]) for m in matches) + ")")
+        elif matches[0]["in_spec"]:
+            errors.append("'" + text + "' is in the spec, and sync would create it again; remove it from the spec first")
+        elif matches[0] not in chosen:
+            chosen.append(matches[0])
+    if errors:
+        raise ValueError("refusing to delete:\n  - " + "\n  - ".join(errors))
+    return chosen
+
+
+def delete_report(client, website, item):
+    path = "/api/websites/" + website["id"] + "/" + item["kind"] + "s/" + item["id"]
+    if hasattr(client, "delete"):
+        return client.delete(path)
+    # The Umami tool's client sends only GET and POST.
+    import urllib.request
+    req = urllib.request.Request(report.load_tool().BASE_URL + path, method="DELETE",
+                                 headers={"Accept": "application/json", "Authorization": "Bearer " + client.token})
+    with client.opener.open(req, timeout=30) as response:
+        return response.read()
+
+
+def apply_prune(client, website, chosen):
+    for item in chosen:
+        delete_report(client, website, item)
+        item["deleted"] = True
+    return chosen
+
+
+def render_prune(website, data, chosen, applied):
+    lines = ["Umami saved reports: " + str(website.get("name")) + " (" + str(website.get("domain")) + ")",
+             "steps counted over the last " + str(data["days"]) + " days; "
+             + ("deleted the reports marked x" if applied else "preview only; nothing is deleted without --apply and --delete")]
+    names = {id(c) for c in chosen}
+    for verdict in ("delete", "review", "fix", "keep"):
+        group = [r for r in data["reports"] if r["verdict"] == verdict]
+        if not group:
+            continue
+        lines.append("")
+        lines.append(verdict + " (" + str(len(group)) + "): " + VERDICTS[verdict])
+        for r in group:
+            mark = ("x" if r.get("deleted") else "-") if id(r) in names else " "
+            spec = {True: "in spec", False: "not in spec", None: "no spec"}[r["in_spec"]]
+            lines.append("  " + mark + " " + r["kind"] + "  " + str(r["name"]) + "  [" + spec + "]  id " + str(r["id"]))
+            lines.append("      " + " -> ".join(s["step"] + " (" + str(s["count"]) + ")" for s in r["steps"]))
+    if chosen and not applied:
+        lines.append("")
+        lines.append("would delete (marked -): " + ", ".join(c["kind"] + ":" + str(c["name"]) for c in chosen)
+                     + "; re-run with --apply once the owner approved this list")
+    return "\n".join(lines)
 
 
 # ---------- status ----------
@@ -377,6 +538,14 @@ def main():
     target.add_argument("--domain")
     st.add_argument("--days", type=int, default=14)
     st.add_argument("--format", choices=["text", "json"], default="text")
+    pr = sub.add_parser("prune", help="Saved funnels and goals with spec membership and step counts; delete only what is named")
+    target = pr.add_mutually_exclusive_group(required=True)
+    target.add_argument("--spec")
+    target.add_argument("--domain", help="Without a spec every report counts as not in the spec")
+    pr.add_argument("--days", type=int, default=30, help="Count steps over this many days")
+    pr.add_argument("--delete", action="append", default=[], help="Report to delete: name, kind:name or id (repeatable)")
+    pr.add_argument("--apply", action="store_true", help="Delete the --delete reports (default: preview only)")
+    pr.add_argument("--format", choices=["text", "json"], default="text")
     args = parser.parse_args()
     try:
         if args.command == "draft":
@@ -387,7 +556,21 @@ def main():
         tool = report.load_tool()
         api = tool.Umami()
         website = report.find_website(api, tool, domain)
-        if args.command == "sync":
+        if args.command == "prune":
+            if args.apply and not args.delete:
+                raise ValueError("--apply deletes only the reports named with --delete; name them")
+            spec_names = None
+            if args.spec:  # names only: a spec with open todo still says what it keeps
+                spec = load_spec(args.spec)
+                spec_names = {k: {str(i.get("name") or "").strip() for i in spec.get(k + "s") or []} for k in ("funnel", "goal")}
+            data = plan_prune(api, website, spec_names, max(1, args.days))
+            chosen = pick(data["reports"], args.delete)
+            if args.apply:
+                apply_prune(api, website, chosen)
+            text = render_prune(website, data, chosen, args.apply)
+            payload = {"schema": SCHEMA, "website": website, "applied": args.apply,
+                       "delete": [c["id"] for c in chosen], **data}
+        elif args.command == "sync":
             wanted = desired(load_spec(args.spec))
             result = plan_sync(api, website, wanted, max(0, args.seen_days))
             if args.apply:

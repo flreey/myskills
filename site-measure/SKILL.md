@@ -15,7 +15,8 @@ experiment queue ([references/operating-loop.md](references/operating-loop.md)).
 Questions about running or reading GA4 reports when nothing is being migrated are out of scope:
 answer them directly, without a scan or migration advice.
 
-Scripts (Python 3.9+ stdlib; read-only toward every source except `umami_reports.py sync --apply`):
+Scripts (Python 3.9+ stdlib; read-only toward every source except `umami_reports.py sync --apply` and
+`prune --apply`):
 
 - `python3 <skill-dir>/scripts/ops.py init | check | collect | guard | weekly | schedule`: the operating loop
   over `~/Projects/growth/portfolio.json`. `check [--site host]` lists, per site, Umami (website, 7-day
@@ -44,6 +45,12 @@ Scripts (Python 3.9+ stdlib; read-only toward every source except `umami_reports
   drafts the site's saved funnels and goals from its plan and the events its code sends (choices it cannot
   make go into `todo`), creates or updates them in Umami by name (preview unless `--apply`; never deletes),
   and reads their numbers. Step syntax: `path:/x`, `event`, `event[key=value;key!=value]`, `*` at either end.
+- `python3 <skill-dir>/scripts/umami_reports.py prune (--spec <file> | --domain <host>) [--days 30]
+  [--delete NAME]... [--apply]`: cleanup suggestions for every saved funnel and goal: in the spec or not,
+  and each step's count over the last 30 days (field filters count only matching events). Verdicts `keep`,
+  `fix` (in the spec, a step unseen), `review` (not in the spec, all seen) and `delete` (not in the spec, a
+  step unseen). It deletes only with `--apply`, only the reports named with `--delete` (name, `kind:name`
+  or id), and refuses names the spec lists, names matching several reports, and `--apply` without `--delete`.
 
 The user's Umami tool does registration and layout wiring: `~/Projects/umami` (override with `UMAMI_TOOL_ROOT`).
 
@@ -256,8 +263,14 @@ kept in one spec file in the project so they change with the code.
    notes (README or the site notes) with the usual commit approval.
 5. **Keep it current.** An event rename, a new step or a new paid path changes the spec in the same change
    as the code; re-run `sync` after it ships. Renaming a saved report creates a new one and leaves the old
-   one as `?`: remove that one in the Umami UI if the owner wants it gone.
-6. **Read it honestly.** The Umami UI and `status` include the owner's sessions. Quote numbers from
+   one as `?`: clean those up with `prune` (next step).
+6. **Prune with a list.** `prune --spec umami-reports.json` previews every saved report with its verdict.
+   Show the owner the `delete` and `review` lists; a report that may belong to a running experiment
+   (`experiments.json`, names like control/variant) is asked about on its own. Delete only the reports the
+   owner approved, by name, with `prune --delete <name>... --apply`, then re-run `prune` to confirm. Counts
+   include the owner's sessions, and a step at 0 on a quiet site can mean low traffic rather than a dead
+   event: say which it is when the event still ships in the code.
+7. **Read it honestly.** The Umami UI and `status` include the owner's sessions. Quote numbers from
    `funnel.py` with the exclusions (`status` prints the matching `--steps`; field filters are not in
    funnel.py), and treat steps under about 30 sessions as anecdotes.
 
@@ -304,7 +317,8 @@ When a report needs AI traffic on its own:
 - Each guard translation: GA rule → Umami behavior.
 - Each verification step with its result: checks, commit, push, deploy, production evidence.
 - Measurement system: the spec file, each saved funnel and goal with its sync result (created, updated,
-  unchanged, left alone), the steps `sync` warned about, and where the project notes record them.
+  unchanged, left alone), the steps `sync` warned about, the reports `prune` deleted (and the approved list),
+  and where the project notes record them.
 - What comes next (parallel end date or leftovers) and any decision the user still owes (report scripts,
   period length).
 - Operating loop: the check result (failing items first), the weekly file path, proposals waiting for

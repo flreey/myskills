@@ -25,11 +25,23 @@ def spec_with(**extra):
 class FakeClient:
     def __init__(self, funnels=None, goals=None, events=("tool_file", "job_end"), paths=("/",)):
         self.store = {"funnel": list(funnels or []), "goal": list(goals or [])}
-        self.events, self.paths, self.writes = events, paths, []
+        self.events, self.paths, self.writes, self.deleted, self.queries = events, paths, [], [], []
+        self.values = {}
+
+    def delete(self, path):
+        parts = path.split("/")
+        kind = parts[-2][:-1]
+        self.deleted.append(path)
+        self.store[kind] = [i for i in self.store[kind] if i["id"] != parts[-1]]
+        return {"ok": True}
 
     def request(self, path, body=None):
         route, _, query = path.partition("?")
+        if route.endswith("/event-data/values"):
+            self.queries.append(query)
+            return self.values.get(dict(kv.split("=", 1) for kv in query.split("&"))["propertyName"], [])
         if route.endswith("/metrics"):
+            self.queries.append(query)
             values = self.events if "type=event" in query else self.paths
             return [{"x": v, "y": 1} for v in values]
         parts = route.split("/")
@@ -128,6 +140,76 @@ class SyncTest(unittest.TestCase):
         client = FakeClient(paths=("/guides/a",))
         wanted = ur.desired(spec_with(funnels=[{"name": "G", "steps": ["path:/guides/*", "tool_file"]}], goals=[]))
         self.assertEqual(ur.plan_sync(client, WEBSITE, wanted, seen_days=30, now_ms=10 ** 12)["warnings"], [])
+
+
+def funnel(id_, name, *steps):
+    return {"id": id_, "name": name, "description": "", "parameters": {"window": 1440, "steps": [
+        {"type": "path", "value": s[5:]} if s.startswith("path:") else {"type": "event", "value": s} for s in steps]}}
+
+
+class PruneTest(unittest.TestCase):
+    def client(self):
+        return FakeClient(
+            funnels=[funnel("f1", "Tool", "path:/", "tool_file"), funnel("f2", "Old", "path:/", "gone_event"),
+                     funnel("f3", "Hand made", "path:/", "job_end"), funnel("f4", "Tool broken", "path:/", "never_sent")],
+            goals=[{"id": "g1", "name": "Old", "parameters": {"type": "path", "value": "/retired"}}],
+            events=("tool_file", "job_end"), paths=("/",))
+
+    def plan(self, client, spec_names=None):
+        if spec_names is None:
+            spec_names = {"funnel": {"Tool", "Tool broken"}, "goal": set()}
+        return ur.plan_prune(client, WEBSITE, spec_names, days=30, now_ms=10 ** 12)
+
+    def test_verdicts_and_counts(self):
+        client = self.client()
+        data = self.plan(client)
+        got = {(r["kind"], r["name"]): r["verdict"] for r in data["reports"]}
+        self.assertEqual(got, {("funnel", "Tool"): "keep", ("funnel", "Tool broken"): "fix",
+                               ("funnel", "Old"): "delete", ("funnel", "Hand made"): "review", ("goal", "Old"): "delete"})
+        old = next(r for r in data["reports"] if r["id"] == "f2")
+        self.assertEqual(old["steps"], [{"step": "path:/", "count": 1}, {"step": "gone_event", "count": 0}])
+        # Every path counts, not a top-500 list (sfxmint has thousands of pages).
+        self.assertTrue(all("limit=" + str(ur.SEEN_LIMIT) in q for q in client.queries))
+        self.assertEqual(client.writes + client.deleted, [])
+
+    def test_without_spec_nothing_is_kept_by_membership(self):
+        data = ur.plan_prune(self.client(), WEBSITE, None, days=30, now_ms=10 ** 12)
+        self.assertTrue(all(r["in_spec"] is None and r["verdict"] in ("delete", "review") for r in data["reports"]))
+
+    def test_field_filters_count_matching_events_only(self):
+        client = FakeClient(funnels=[funnel("f1", "Taxi", "path:/", "job_end")], events=("job_end",))
+        client.events = ("job_end",)
+        client.store["funnel"][0]["parameters"]["steps"][1]["filters"] = [{"property": "card", "operator": "eq", "value": "taxi"}]
+        client.values = {"card": [{"value": "allergy", "total": 12}]}
+        r = ur.plan_prune(client, WEBSITE, None, days=30, now_ms=10 ** 12)["reports"][0]
+        self.assertEqual((r["steps"][1], r["verdict"]), ({"step": "job_end[card=taxi]", "count": 0}, "delete"))
+        self.assertTrue(any("startAt=" + str(10 ** 12 - 30 * 86_400_000) in q for q in client.queries))
+        events, values = {"job_end": 20}, [{"value": "taxi", "total": 5}, {"value": "allergy", "total": 12}]
+        step = {"type": "event", "value": "job_end", "filters": [{"property": "card", "operator": "neq", "value": "taxi"}]}
+        self.assertEqual(ur.step_count(type("C", (), {"request": lambda self, p: values})(), "w", step, events, {}, 10 ** 12, 30, {}), 15)
+
+    def test_wildcard_counts_add_up(self):
+        self.assertEqual(ur.seen_count("/guides/*", {"/guides/a": 2, "/guides/b": 3, "/other": 9}), 5)
+        self.assertEqual(ur.seen_count("tool_done", {"tool_done_x": 4}), 0)
+
+    def test_deletes_only_named_reports_not_in_spec(self):
+        client = self.client()
+        data = self.plan(client)
+        chosen = ur.pick(data["reports"], ["f2", "goal:Old"])
+        text = ur.render_prune(WEBSITE, data, chosen, applied=False)
+        self.assertIn("would delete (marked -): funnel:Old, goal:Old", text)
+        self.assertEqual(client.deleted, [])
+        ur.apply_prune(client, WEBSITE, chosen)
+        base = "/api/websites/" + WEBSITE["id"]
+        self.assertEqual(client.deleted, [base + "/funnels/f2", base + "/goals/g1"])
+        self.assertEqual([i["id"] for i in client.store["funnel"]], ["f1", "f3", "f4"])
+
+    def test_refuses_unclear_or_spec_names(self):
+        data = self.plan(self.client())
+        for bad, why in (("Old", "matches 2"), ("Tool", "in the spec"), ("nope", "no saved report")):
+            with self.assertRaisesRegex(ValueError, why, msg=bad):
+                ur.pick(data["reports"], [bad])
+        self.assertEqual(ur.pick(data["reports"], []), [])
 
 
 class StatusAndDraftTest(unittest.TestCase):
