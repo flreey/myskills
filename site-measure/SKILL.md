@@ -1,6 +1,6 @@
 ---
 name: site-measure
-description: 统计与衡量（Umami）：已有网站（非 site-kit）接入自建 Umami、用 Umami 替换或移除 Google Analytics（GA4、gtag.js、GTM）、完成 GA 到 Umami 的并行切换时用；也用于按站点类型（工具、落地页、目录、应用、内容站）决定该埋哪些事件、对照埋点方案和隐私文案审计代码里的埋点、排除站长自测流量后读漏斗、转化率和事件字段分布、功能完成后建立衡量体系（Umami 漏斗和目标写进经过审核的配置文件），以及给任何站（含 site-kit 站）拉流量和事件报表。Also for 接入 Umami、用 Umami 替换 GA、去掉 GA、GA 迁移、Umami 报表、埋点方案、埋点审计、漏斗、转化率、衡量体系。不用于：给 site-kit 站接入统计代码（kit 从 site.config.ts 自动加载，方案、审计和报表仍适用），或只读现有 GA4 报表。
+description: 统计与衡量和运营闭环：所有站的数据接入核对（Umami、Search Console、Bing、Cloudflare）、每日快照和守护提醒（核心事件归零、流量断崖、5xx）、组合周报（每站阶段、北极星、卡在哪一层、下周最多 3 个改动）、实验队列和到期复查、打法库，数据放在 ~/Projects/growth；已有网站（非 site-kit）接入自建 Umami、用 Umami 替换或移除 Google Analytics（GA4、gtag.js、GTM）、完成 GA 到 Umami 的并行切换时用；也用于按站点类型（工具、落地页、目录、应用、内容站）决定该埋哪些事件、对照埋点方案和隐私文案审计代码里的埋点、排除站长自测流量后读漏斗、转化率和事件字段分布、功能完成后建立衡量体系（Umami 漏斗和目标写进经过审核的配置文件），以及给任何站（含 site-kit 站）拉流量和事件报表。Also for 周报、运营复盘、数据闭环、北极星指标、看哪些数据、数据接入是否完整、站点阶段、该下线哪个站、实验复查、接入 Umami、用 Umami 替换 GA、去掉 GA、GA 迁移、Umami 报表、埋点方案、埋点审计、漏斗、转化率、衡量体系。不用于：给 site-kit 站接入统计代码（kit 从 site.config.ts 自动加载，方案、审计和报表仍适用），或只读现有 GA4 报表。
 ---
 
 # site-measure: Umami analytics
@@ -9,11 +9,20 @@ Move existing sites from Google Analytics to the user's self-hosted Umami withou
 events or truthful privacy text. It takes two releases: Umami next to GA first, GA out later.
 It also decides which events a site should send for its type, audits the tracking calls a project
 has, reads funnels and event fields from Umami, and keeps each site's saved Umami funnels and goals
-in a spec file it syncs (any site, site-kit sites included).
+in a spec file it syncs (any site, site-kit sites included). Across all sites it runs the operating
+loop: a data-sources check, daily snapshots and guard alerts, the weekly portfolio review, and the
+experiment queue ([references/operating-loop.md](references/operating-loop.md)).
 Questions about running or reading GA4 reports when nothing is being migrated are out of scope:
 answer them directly, without a scan or migration advice.
 
-Scripts (Python 3.9+ stdlib; read-only except `umami_reports.py sync --apply`):
+Scripts (Python 3.9+ stdlib; read-only toward every source except `umami_reports.py sync --apply`):
+
+- `python3 <skill-dir>/scripts/ops.py init | check | collect | guard | weekly | schedule`: the operating loop
+  over `~/Projects/growth/portfolio.json`. `check [--site host]` lists, per site, Umami (website, 7-day
+  pageviews, the north-star and core events), Search Console (property, sitemap read), Bing and Cloudflare
+  (or a missing credential); `collect [--days N]` upserts daily numbers into `data/snapshots.sqlite`
+  (a first backfill of 60 days takes several minutes); `guard` collects, checks and alerts;
+  `weekly [--date D] [--write]` writes `weekly/<year>-W<nn>.md`; `schedule [--install]` sets up launchd.
 
 - `python3 <skill-dir>/scripts/scan.py --project <dir> [--domain <host>] [--format json]`: inventory with
   file:line evidence, framework, phase, and a ready `umami-connect --dry-run` command when the layout is unambiguous.
@@ -231,7 +240,9 @@ kept in one spec file in the project so they change with the code.
 2. **Draft.** `umami_reports.py draft --project <dir>` (both types for a two-sided site). Each plan funnel
    (`funnel`, `more_funnels`) and goal (`goals`) in `tracking-plans.json` becomes an entry. Write it to
    `umami-reports.json` at the repository root (next to `umami.config.json` on non-kit sites; on site-kit
-   sites outside the kit-owned paths).
+   sites outside the kit-owned paths). Add `standard` (the site's event names for `core_start`,
+   `core_done`, `takeaway`, `error`, `paid`) and `northStar`; the operating loop reads them and `sync`
+   ignores them.
 3. **Resolve `todo` from the code, not the names.** Umami takes one value per step, so for each role with
    several events read the flow: steps the UI forces in order become consecutive steps (ToHD: preview
    before the full run, so `tool_start` → `tool_preview` → `tool_full` → `tool_done`); alternatives that
@@ -249,6 +260,27 @@ kept in one spec file in the project so they change with the code.
 6. **Read it honestly.** The Umami UI and `status` include the owner's sessions. Quote numbers from
    `funnel.py` with the exclusions (`status` prints the matching `--steps`; field filters are not in
    funnel.py), and treat steps under about 30 sessions as anecdotes.
+
+## Operating loop (all sites)
+
+When the owner asks what to look at, whether data is complete, for the weekly review, which site to
+work on or retire, or to review an experiment. Rules: [references/operating-loop.md](references/operating-loop.md).
+
+1. **Data before numbers.** Run `ops.py check`. A failing Umami or north-star line makes that site's
+   numbers untrustworthy: list it first, with the fix (register, map `standard`, add the missing event,
+   verify Search Console, add the site in Bing). Fixes that write to Umami, Search Console or Bing, or
+   change and deploy a site, need the owner's approval.
+2. **Weekly.** `ops.py weekly --write` (launchd may have written it already), then follow the review
+   steps in the reference: due experiments first, then at most 3 proposed changes across all sites, then
+   stage suggestions. Proposals go to the weekly file and `experiments.json` as `proposed`; the owner
+   approves before anything runs. Executing a change belongs to the skill that owns it (`/ui`, `ui-flow`,
+   `site-batch`, `site-offsite`, `site-geo`, `site-stripe`, the site's code).
+3. **Guard.** An alert is checked against the site before anything else: a zero core event after a
+   deploy is usually broken tracking, not lost users.
+4. **New site.** At launch the site joins `portfolio.json` as `validate` (`ops.py init` adds new ones
+   and keeps existing entries) and `ops.py check --site <domain>` passes; site-kit stage 5 requires it.
+5. **Credentials.** Bing key and Cloudflare token live in `~/Projects/growth/credentials.local.json`
+   (or `BING_API_KEY`, `CLOUDFLARE_API_TOKEN`); ask for them through the secret prompt, never in chat.
 
 ## Counting AI assistant visits
 
@@ -275,6 +307,8 @@ When a report needs AI traffic on its own:
   unchanged, left alone), the steps `sync` warned about, and where the project notes record them.
 - What comes next (parallel end date or leftovers) and any decision the user still owes (report scripts,
   period length).
+- Operating loop: the check result (failing items first), the weekly file path, proposals waiting for
+  approval, stage suggestions, and any alert with what it turned out to be.
 - How the owner keeps their own visits out: on the site, run `localStorage.setItem('umami.disabled', '1')`
   in the browser console once per browser.
 
@@ -286,4 +320,6 @@ When a report needs AI traffic on its own:
 - [references/example-randtools.md](references/example-randtools.md): the first pilot (Next.js App Router).
 - [references/tracking-plans.md](references/tracking-plans.md): events, fields, funnels and common misses per
   site type, with ToHD as the tool + app example; [references/tracking-plans.json](references/tracking-plans.json)
-  is the machine-readable half the scripts use.
+  is the machine-readable half the scripts use (with each type's `standard` events and `north_star`).
+- [references/operating-loop.md](references/operating-loop.md): layers, growth home files, standard events,
+  stages and thresholds, stuck layer → lever, the weekly review, data sources and automation.

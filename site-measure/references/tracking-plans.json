@@ -25,7 +25,8 @@
         {"role": "tool_limit", "required": false, "aliases": "tool_(too_long|too_large|limit|unsupported|device)", "fields": ["length", "size", "state"]},
         {"role": "upsell_click", "required": false, "aliases": "(cloud|upgrade|pricing|pro)_click|buy_click", "fields": ["from"]}
       ],
-      "funnel": ["path:<tool page>", "tool_input", "tool_start", "tool_done", "tool_takeaway"], "goals": ["tool_takeaway"]
+      "funnel": ["path:<tool page>", "tool_input", "tool_start", "tool_done", "tool_takeaway"], "goals": ["tool_takeaway"],
+      "standard": {"core_start": "tool_start", "core_done": "tool_done", "takeaway": "tool_takeaway", "error": "tool_error", "paid": "purchase"}, "north_star": "takeaway"
     },
     "landing": {
       "question": "Does the page get visitors to take its one main action (install, start, buy or join the waitlist), and from which placement?",
@@ -36,7 +37,8 @@
         {"role": "checkout_start", "required": false, "aliases": "checkout_start", "fields": ["product"]},
         {"role": "purchase", "required": false, "aliases": "purchase", "fields": ["product", "amount", "currency"]}
       ],
-      "funnel": ["path:/", "cta_click", "pricing_buy", "checkout_start", "purchase"], "goals": ["cta_click", "purchase"]
+      "funnel": ["path:/", "cta_click", "pricing_buy", "checkout_start", "purchase"], "goals": ["cta_click", "purchase"],
+      "standard": {"core_start": "cta_click", "core_done": "checkout_start", "takeaway": "cta_click", "error": "checkout_error", "paid": "purchase"}, "north_star": "takeaway"
     },
     "directory": {
       "question": "Do visitors find an item (search, filter or browse) and leave to it? Which hubs and items send the clicks out?",
@@ -45,7 +47,8 @@
         {"role": "outbound_click", "required": true, "aliases": "outbound(_click)?|visit_(site|item)|item_(click|visit|out)|go_out|external_click", "fields": ["from", "category", "rank", "position"]},
         {"role": "submit_item", "required": false, "aliases": "submit(_item|_tool|_site)?", "fields": ["category"]}
       ],
-      "funnel": ["path:<hub>", "path:<item>", "outbound_click"], "goals": ["outbound_click"]
+      "funnel": ["path:<hub>", "path:<item>", "outbound_click"], "goals": ["outbound_click"],
+      "standard": {"core_start": "search", "core_done": "outbound_click", "takeaway": "outbound_click", "paid": "purchase"}, "north_star": "takeaway"
     },
     "app": {
       "question": "Do visitors sign in, reach a first real job (activation), hit the paywall, pay, and get their results out?",
@@ -64,7 +67,8 @@
       ],
       "funnel": ["path:/app", "job_start", "job_end", "result_download"],
       "more_funnels": [{"key": "paid", "steps": ["path:/pricing", "pricing_buy", "checkout_start", "purchase"]}],
-      "goals": ["result_download", "purchase"]
+      "goals": ["result_download", "purchase"],
+      "standard": {"core_start": "job_start", "core_done": "job_end", "takeaway": "result_download", "error": "job_error", "paid": "purchase"}, "north_star": "core_done"
     },
     "content": {
       "question": "Which articles bring readers who read on and then take the site's action (tool, signup, affiliate click)?",
@@ -74,7 +78,8 @@
         {"role": "outbound_click", "required": false, "aliases": "outbound(_click)?|affiliate_click|external_click", "fields": ["from", "category", "position"]},
         {"role": "subscribe", "required": false, "aliases": "subscribe|newsletter(_submit)?|waitlist(_submit)?", "fields": ["from"]}
       ],
-      "funnel": ["path:<article>", "read_depth", "cta_click"], "goals": ["cta_click"]
+      "funnel": ["path:<article>", "read_depth", "cta_click"], "goals": ["cta_click"],
+      "standard": {"core_start": "read_depth", "core_done": "read_depth", "takeaway": "cta_click", "paid": "purchase"}, "north_star": "takeaway"
     }
   }
 }

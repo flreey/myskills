@@ -9,6 +9,11 @@ checks a project against it, `scripts/funnel.py --plan <type>` builds the standa
 
 ## Rules for every plan
 
+- **Map the standard five.** Each type below lists which role is `core_start`, `core_done`, `takeaway`,
+  `error` and `paid`, and its north star (`standard` and `north_star` in the JSON). The operating loop
+  compares sites on those; a site confirms its own names in `umami-reports.json` → `standard`
+  ([operating-loop.md](operating-loop.md)).
+
 - **Name events `<area>_<what happened>`** in snake_case, past or present but the same across the site:
   `tool_start`, `tool_done`, `checkout_start`. One name per thing: if the free tool and the app both
   "start", they are `tool_start` and `cloud_start`, not `start` with a `where` field.

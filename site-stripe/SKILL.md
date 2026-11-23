@@ -64,5 +64,6 @@ python3 ~/.agents/skills/site-stripe/scripts/stripe_launch.py --mode live --site
 ## 收尾
 
 - 把新状态写进站点 README「线上资源」（或站点的上线清单）：正式账户 id、lookup key、币种、含税还是不含税、税码、MP 状态、结算币种、账单显示名、Radar 档位。只写名字和 id，不写密钥。和 [standard.md](references/standard.md) 不一致的地方列为待办。
+- 给运营数据层一个只读 key：在这个账户建 restricted key，只开 Charges、Refunds、Disputes 的读取权限，由站长通过安全输入框交给 site-measure，存进 `~/Projects/growth/credentials.local.json`，不进任何仓库。真实付款实测后核对：Stripe 里的成功付款数和 Umami 的 `purchase` 事件数对得上，对不上先查埋点。数据层读取 Stripe 的部分还没做，这一步先只做核对。
 - 站点经营主体名称（条款、隐私页、页脚）要和 Stripe 登记的一致，不一致时列为待办。
 - 用中文汇报：做了什么、站长还要做什么（逐条写出解除条件），以及哪些没有验证。
