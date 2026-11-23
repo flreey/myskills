@@ -129,7 +129,9 @@ compare trends, not totals.
 
 `ops.py schedule` previews two launchd jobs; `--install` loads them (`--uninstall` removes them):
 guard daily at 09:00 and the weekly file on Mondays at 09:30, local time, logs in `logs/`. Alerts go
-to `alerts.md` and a macOS notification. To push them elsewhere, set `notify.command` in
-`portfolio.json` to a shell command that reads the message on stdin (for example a `lark-cli` call to
-the owner's chat once it is installed). The launchd run has no agent: the weekly file then has numbers
+to `alerts.md`; `weekly --write` also sends a one-line-per-site summary. Both go through `notify.command`
+in `portfolio.json`, a shell command that reads Markdown on stdin; without it (or when it fails) a macOS
+notification is shown. The owner's setup (2026-11-23) is the Feishu bot sending a direct message:
+`<lark-cli binary> im +messages-send --as bot --user-id <owner open_id> --markdown -`. Use the Go binary
+under `node_modules/@larksuite/cli/bin/` by absolute path: launchd has no `node` on its PATH. The launchd run has no agent: the weekly file then has numbers
 and no proposals until the owner runs `/site-measure 周报`.

@@ -786,13 +786,39 @@ def notify(root, portfolio, alerts, send=True):
         handle.write("\n## " + stamp + "\n\n" + "".join("- " + a + "\n" for a in alerts))
     if not send:
         return
-    message = "site-measure 守护：" + str(len(alerts)) + " 条提醒\n" + "\n".join(alerts)
+    push(portfolio, "**site-measure 守护：" + str(len(alerts)) + " 条提醒**\n\n" + "\n".join("- " + a for a in alerts),
+         str(len(alerts)) + " 条提醒，详见 alerts.md：" + alerts[0], "site-measure 守护")
+
+
+def push(portfolio, message, short, title):
+    """Send through notify.command (reads the message on stdin, e.g. lark-cli --markdown -); else a macOS notification."""
     command = (portfolio.get("notify") or {}).get("command")
-    if command:  # e.g. a lark-cli call that reads the message on stdin
-        subprocess.run(command, shell=True, input=message, text=True, timeout=60)
-    elif sys.platform == "darwin":
-        text = (str(len(alerts)) + " 条提醒，详见 alerts.md：" + alerts[0])[:200].replace('"', "'")
-        subprocess.run(["osascript", "-e", 'display notification "' + text + '" with title "site-measure 守护"'], timeout=30)
+    if command:
+        result = subprocess.run(command, shell=True, input=message, text=True, timeout=60, capture_output=True)
+        if result.returncode == 0:
+            return True
+        print("notify command failed: " + (result.stderr or result.stdout)[-300:], file=sys.stderr)
+    if sys.platform == "darwin":
+        subprocess.run(["osascript", "-e", 'display notification "' + short[:200].replace('"', "'") + '" with title "' + title + '"'],
+                       timeout=30)
+    return False
+
+
+def weekly_summary(report, path):
+    """The overview as a short message: one line per site with traffic or a north star, plus counts of open items."""
+    iso = date.fromisoformat(report["end"]).isocalendar()
+    lines = ["**组合周报 " + str(iso[0]) + "-W" + str(iso[1]).zfill(2) + "**（" + report["start"] + " 至 " + report["end"] + "）", ""]
+    for s in sorted(report["sites"], key=lambda s: -s["visitors"]):
+        if not (s["visitors"] or s["north_star"]["value"]):
+            continue
+        ns = s["north_star"]
+        sug = s["suggest"]
+        lines.append("- " + s["site"] + "：" + ns["label"] + " " + num(ns["value"]) + delta(ns["value"], ns["avg_prev4"])
+                     + "，访客 " + num(s["visitors"]) + "，卡在" + s["bottleneck"][0] + ("，建议→" + STAGES[sug[0]] if sug else ""))
+    broken = len({c["site"] for c in report["checks"] if c["status"] == "fail"})
+    lines += ["", "数据接入有问题的站 " + str(broken) + " 个；到期实验 " + str(len(report["experiments"]["due"])) + " 个。",
+              "完整报告：" + str(path) + "。要下周改动建议，在 Claude 里说 `/site-measure 周报`。"]
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------- init and schedule
@@ -914,7 +940,8 @@ def main():
     p.add_argument("--no-notify", action="store_true")
     p = sub.add_parser("weekly")
     p.add_argument("--date", help="last day of the week (default yesterday, UTC)")
-    p.add_argument("--write", action="store_true", help="save to weekly/<year>-W<nn>.md")
+    p.add_argument("--write", action="store_true", help="save to weekly/<year>-W<nn>.md and send its summary")
+    p.add_argument("--no-notify", action="store_true", help="with --write: do not send the summary")
     p.add_argument("--format", choices=["md", "json"], default="md")
     p = sub.add_parser("schedule")
     group = p.add_mutually_exclusive_group()
@@ -944,6 +971,8 @@ def main():
                 target.parent.mkdir(exist_ok=True)
                 target.write_text(render_weekly(report) + "\n")
                 print("wrote " + str(target))
+                if not args.no_notify:
+                    push(portfolio, weekly_summary(report, target), "周报已生成：" + target.name, "site-measure 周报")
             else:
                 print(text)
             return 0
