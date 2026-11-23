@@ -50,7 +50,8 @@ Scripts (Python 3.9+ stdlib; read-only toward every source except `umami_reports
   and each step's count over the last 30 days (field filters count only matching events). Verdicts `keep`,
   `fix` (in the spec, a step unseen), `review` (not in the spec, all seen) and `delete` (not in the spec, a
   step unseen). It deletes only with `--apply`, only the reports named with `--delete` (name, `kind:name`
-  or id), and refuses names the spec lists, names matching several reports, and `--apply` without `--delete`.
+  or id), writes their full definitions to `~/Projects/growth/archive/umami-reports/` first (`--backup`), and
+  refuses names the spec lists, names matching several reports, and `--apply` without `--delete`.
 
 The user's Umami tool does registration and layout wiring: `~/Projects/umami` (override with `UMAMI_TOOL_ROOT`).
 
@@ -267,7 +268,9 @@ kept in one spec file in the project so they change with the code.
 6. **Prune with a list.** `prune --spec umami-reports.json` previews every saved report with its verdict.
    Show the owner the `delete` and `review` lists; a report that may belong to a running experiment
    (`experiments.json`, names like control/variant) is asked about on its own. Delete only the reports the
-   owner approved, by name, with `prune --delete <name>... --apply`, then re-run `prune` to confirm. Counts
+   owner approved, by name, with `prune --delete <name>... --apply` (it backs the definitions up first; say
+   where), then re-run `prune` to confirm. A project that keeps its own report notes (a `docs/umami.md`) gets
+   the deletion and the backup path there too. Counts
    include the owner's sessions, and a step at 0 on a quiet site can mean low traffic rather than a dead
    event: say which it is when the event still ships in the code.
 7. **Read it honestly.** The Umami UI and `status` include the owner's sessions. Quote numbers from

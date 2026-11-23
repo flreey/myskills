@@ -200,7 +200,12 @@ class PruneTest(unittest.TestCase):
         text = ur.render_prune(WEBSITE, data, chosen, applied=False)
         self.assertIn("would delete (marked -): funnel:Old, goal:Old", text)
         self.assertEqual(client.deleted, [])
-        ur.apply_prune(client, WEBSITE, chosen)
+        with tempfile.TemporaryDirectory() as tmp:
+            backup = Path(tmp) / "b.json"
+            ur.apply_prune(client, WEBSITE, chosen, backup)
+            saved = json.loads(backup.read_text())["reports"]
+        self.assertEqual([(r["kind"], r["id"], r["name"]) for r in saved], [("funnel", "f2", "Old"), ("goal", "g1", "Old")])
+        self.assertEqual(saved[0]["parameters"]["steps"][1], {"type": "event", "value": "gone_event"})
         base = "/api/websites/" + WEBSITE["id"]
         self.assertEqual(client.deleted, [base + "/funnels/f2", base + "/goals/g1"])
         self.assertEqual([i["id"] for i in client.store["funnel"]], ["f1", "f3", "f4"])
@@ -211,6 +216,16 @@ class PruneTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, why, msg=bad):
                 ur.pick(data["reports"], [bad])
         self.assertEqual(ur.pick(data["reports"], []), [])
+
+    def test_no_delete_when_the_backup_cannot_be_written(self):
+        client = self.client()
+        chosen = ur.pick(self.plan(client)["reports"], ["f2"])
+        with tempfile.TemporaryDirectory() as tmp:
+            blocker = Path(tmp) / "file"
+            blocker.write_text("")
+            with self.assertRaises(OSError):
+                ur.apply_prune(client, WEBSITE, chosen, blocker / "b.json")
+        self.assertEqual(client.deleted, [])
 
 
 class StatusAndDraftTest(unittest.TestCase):

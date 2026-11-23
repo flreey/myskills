@@ -23,7 +23,8 @@
   seen), fix (in the spec, a step not seen: fix the tracking or the spec), review (not in the spec, all
   steps seen: add it to the spec or delete it) and delete (not in the spec, a step not seen: suggested for
   deletion). It deletes only with --apply, and only the reports named with --delete (name, kind:name or
-  id), after the owner approved that list. It refuses names the spec lists (sync would recreate them),
+  id), after the owner approved that list, and writes their full definitions to a backup file first
+  (--backup, default ~/Projects/growth/archive/umami-reports/). It refuses names the spec lists (sync would recreate them),
   names that match no report or several, and --apply without --delete.
 
 Spec (`site-measure/umami-reports@1`):
@@ -45,6 +46,7 @@ never appear in the output.
 import argparse
 import importlib.util
 import json
+import os
 from pathlib import Path
 import re
 import sys
@@ -391,7 +393,7 @@ def plan_prune(client, website, spec_names=None, days=30, now_ms=None):
             unseen = any(c["count"] == 0 for c in counted) or not counted
             verdict = ("fix" if unseen else "keep") if in_spec else ("delete" if unseen else "review")
             out.append({"kind": kind, "id": item.get("id"), "name": item.get("name"), "in_spec": in_spec,
-                        "steps": counted, "verdict": verdict})
+                        "steps": counted, "verdict": verdict, "saved": item})
     return {"days": days, "reports": out}
 
 
@@ -432,7 +434,23 @@ def delete_report(client, website, item):
         return response.read()
 
 
-def apply_prune(client, website, chosen):
+def backup_path(domain, now=None):
+    home = Path(os.environ.get("GROWTH_HOME") or Path.home() / "Projects" / "growth").expanduser()
+    stamp = time.strftime("%Y%m%d-%H%M%S", time.gmtime(now))
+    return home / "archive" / "umami-reports" / (str(domain) + "-" + stamp + ".json")
+
+
+def apply_prune(client, website, chosen, backup):
+    """Write every chosen report's full saved definition to `backup` first; delete only after it is on disk."""
+    if not chosen:
+        return chosen
+    backup = Path(backup).expanduser()
+    backup.parent.mkdir(parents=True, exist_ok=True)
+    backup.write_text(json.dumps({"schema": SCHEMA, "domain": website.get("domain"), "website": website.get("id"),
+                                  "deleted_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                                  "restore": "POST /api/websites/<id>/<kind>s with name, description, parameters",
+                                  "reports": [dict(c["saved"], kind=c["kind"]) for c in chosen]},
+                                 ensure_ascii=False, indent=2) + "\n")
     for item in chosen:
         delete_report(client, website, item)
         item["deleted"] = True
@@ -547,6 +565,8 @@ def main():
     pr.add_argument("--days", type=int, default=30, help="Count steps over this many days")
     pr.add_argument("--delete", action="append", default=[], help="Report to delete: name, kind:name or id (repeatable)")
     pr.add_argument("--apply", action="store_true", help="Delete the --delete reports (default: preview only)")
+    pr.add_argument("--backup", help="Where --apply first writes the deleted definitions "
+                                     "(default: $GROWTH_HOME or ~/Projects/growth, archive/umami-reports/<domain>-<time>.json)")
     pr.add_argument("--format", choices=["text", "json"], default="text")
     args = parser.parse_args()
     try:
@@ -567,10 +587,12 @@ def main():
                 spec_names = {k: {str(i.get("name") or "").strip() for i in spec.get(k + "s") or []} for k in ("funnel", "goal")}
             data = plan_prune(api, website, spec_names, max(1, args.days))
             chosen = pick(data["reports"], args.delete)
+            backup = None
             if args.apply:
-                apply_prune(api, website, chosen)
-            text = render_prune(website, data, chosen, args.apply)
-            payload = {"schema": SCHEMA, "website": website, "applied": args.apply,
+                backup = Path(args.backup) if args.backup else backup_path(website.get("domain"))
+                apply_prune(api, website, chosen, backup)
+            text = render_prune(website, data, chosen, args.apply) + ("\nbackup of the deleted definitions: " + str(backup) if backup else "")
+            payload = {"schema": SCHEMA, "website": website, "applied": args.apply, "backup": str(backup) if backup else None,
                        "delete": [c["id"] for c in chosen], **data}
         elif args.command == "sync":
             wanted = desired(load_spec(args.spec))
