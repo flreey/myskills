@@ -45,7 +45,7 @@ questions where the recommendation is decided, and why the winner wins.
 | --- | --- | --- |
 | `competitor_page` | a competitor's own page was opened and answers well | build only where the site's answer is better on the conditions (licence, format, set, loop) |
 | `constraint_unmet` | a competitor is recommended but fails a stated condition | **first in line**: a page whose title and first paragraph answer that condition |
-| `lists_forums` | the answer rests on rankings, articles or forum threads | off-site: enter those sources (site-offsite GEO mode) |
+| `lists_forums` | the answer rests on rankings, articles or forum threads | off-site: enter those sources (site-geo offsite-sources) |
 | `no_search` | no web search; the answer comes from the model's memory | long-term consensus; no page credit in the short term |
 | `own_recommended` | the site is recommended already | keep it; check whether a follow-up drops it |
 | `generic_rules` | no source is recommended; the answer explains licensing in general and asks back which service the user uses (the most common case) | the question names no service, so it cannot be won with a page alone: add the situation as a condition, or work the off-site sources |

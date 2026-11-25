@@ -1,6 +1,6 @@
 ---
 name: site-geo
-description: 已上线站点的 GEO（三种模式）：缺口扫描模式——只给网址，用公开来源（竞品页面结构、联想词、ChatGPT 回答）建需求池，按站型校准问法，经 Glasser 批量问 ChatGPT 网页版，判断每个需求卡在哪一关（不搜、没检索到、检索到没提、已赢），分五类给改法（查收录、改成用户说法、写清能力、补内容、补功能），按搜索量排序；检查模式——AI 爬虫（ChatGPT、Claude、Perplexity 等）能不能访问页面、llms.txt 是否与线上一致、ChatGPT 能否打开并引用页面、会不会为目标问题推荐这个站；持续优化模式——从真实来源（AI 爬虫抓取、AI 引荐落地页、站内/API/MCP 搜索落空、客服和社区原话、Bing AI Performance）找用户交给 AI 的任务，建限制条件矩阵和多轮对话，按问题类型选杠杆（站内、站外、文档、工具渠道），先测基线、做来源诊断，再用留出集、哨兵集和对照组做实验，看提及、首推、引用、准确率和 AI 引荐转化。site-kit 站和其他站都适用。Also for GEO 检查、AI 搜索可见度、ChatGPT 能不能访问、GPT 会不会推荐、llms.txt、AI 爬虫放行、AI 为什么推荐别人、GEO 持续优化、AI 引用占比、改哪个页、缺口扫描、AI 流量缺在哪、该补哪些长尾页或功能、只有网址怎么诊断。不用于：页面验收（site-check）、新想法的答案缺口验证（site-idea）、批量生成页面（site-batch）、找关键词（site-research）。
+description: 已上线站点的 GEO（三种模式）：缺口扫描模式——只给网址，用公开来源（竞品页面结构、联想词、ChatGPT 回答）建需求池，按站型校准问法，经 Glasser 批量问 ChatGPT 网页版，判断每个需求卡在哪一关（不搜、没检索到、检索到没提、已赢），分五类给改法（查收录、改成用户说法、写清能力、补内容、补功能），按搜索量排序；检查模式——AI 爬虫（ChatGPT、Claude、Perplexity 等）能不能访问页面、llms.txt 是否与线上一致、ChatGPT 能否打开并引用页面、会不会为目标问题推荐这个站；持续优化模式——从真实来源（AI 爬虫抓取、AI 引荐落地页、站内/API/MCP 搜索落空、客服和社区原话、Bing AI Performance）找用户交给 AI 的任务，建限制条件矩阵和多轮对话，按问题类型选杠杆（站内、站外、文档、工具渠道），先测基线、做来源诊断，再用留出集、哨兵集和对照组做实验，看提及、首推、引用、准确率和 AI 引荐转化。site-kit 站和其他站都适用。另有站外模式：进入 AI 回答实际引用的榜单、目录、社区和工具注册表（要投稿的来源进 bl 外链池）。Also for 让 AI 引用我们、进入 AI 引用的榜单、MCP 目录、插件商店上架、GEO 检查、AI 搜索可见度、ChatGPT 能不能访问、GPT 会不会推荐、llms.txt、AI 爬虫放行、AI 为什么推荐别人、GEO 持续优化、AI 引用占比、改哪个页、缺口扫描、AI 流量缺在哪、该补哪些长尾页或功能、只有网址怎么诊断。不用于：页面验收（site-check）、新想法的答案缺口验证（site-idea）、批量生成页面（site-batch）、找关键词（site-research）。
 ---
 
 # site-geo: GEO for a live site (check and optimize)
@@ -30,6 +30,7 @@ Optimize engine (Python stdlib), `python3 <skill-dir>/scripts/geo_optimize.py --
 | **Check** | A site or page should be reachable, quotable and recommended by AI assistants; before and after a launch | G1–G4 below |
 | **Optimize** | A live site wants more AI recommendations and citations over time: which tasks, why assistants pick others, what to change, did it work | G5 below, then the loop in [references/optimize.md](references/optimize.md) (O1–O8) |
 | **Retrofit** | Existing pages should become GEO pages without losing search traffic | [references/retrofit.md](references/retrofit.md): single pages step by step; families of similar pages through site-batch adopt mode, only after O4–O5 show the pages are the bottleneck |
+| **Off-site** | Assistants recommend from lists, directories, communities and docs where the product is absent: get into the sources they actually cite | [references/offsite-sources.md](references/offsite-sources.md), engine `scripts/cited_sources.py`; submissions and their records go through the bl pool (`bl guide`), not a separate ledger |
 
 Read the project's goal card (`geo-goal.md` at the project root, written by the `site` skill) first
 when it exists; when it does not, a check needs none, but optimize starts with the `site` skill's step

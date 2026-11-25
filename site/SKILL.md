@@ -65,7 +65,7 @@ Where the loss sends you (step 4, and step 4 of grow mode):
 
 | Lost at | Means | Next |
 | --- | --- | --- |
-| Never opened a page of ours | retrieval | indexing, rank under the queries it ran (`queries`), the lists in `read` (`site-offsite` GEO mode) |
+| Never opened a page of ours | retrieval | indexing, rank under the queries it ran (`queries`), the lists in `read` (`site-geo` offsite-sources) |
 | Opened our pages or named us, picked another; or dropped after the pick turn | selection | the pages it opened: conditions on the first screen, same as the card (`site-check --capabilities`); if the product itself loses on the condition, that is a product decision for the owner |
 | Answered without searching | consensus | off-site, long term; pages will not change it soon |
 | Picked, few referrals or no core action | landing | the landing page's first screen and next step (`site-measure`) |
@@ -81,7 +81,7 @@ winning its searches; that is when batch pages pay.
 | 0 | Where are we, and what result do we want? | Goal card (full template) with the current state | here ([references/goal-card.md](references/goal-card.md)) |
 | 1 | What are users trying to do, and how do they ask? | Demand map `needs.jsonl`, question bank | `site-idea` steps 0–1 |
 | 2 | Where is the opportunity? | Need × channel table: who wins, are we there, what only we have, how many pages | `site-idea` steps 2–7 |
-| 3 | Make a small batch of changes | Pages, off-site entries, or product and docs changes | `site-batch`, `site-offsite` GEO mode, the product's workflow; `site-kit` builds, `site-check` accepts |
+| 3 | Make a small batch of changes | Pages, off-site entries, or product and docs changes | `site-batch`, `site-geo` offsite-sources (submissions via `site-offsite` → bl), the product's workflow; `site-kit` builds, `site-check` accepts |
 | 4 | Did it work, and where did we lose? | Retest, crawl, index, AI referrals; the loss table above | `site-batch` review, `site-geo` (check and optimize), `site-measure` |
 
 Then back to 1 (new needs), 2 (same needs, new evidence) or, for a selection loss, 0 (the Capabilities
@@ -164,7 +164,7 @@ load the named skill.
 | `site-kit` | Build, check, release kit sites; batch pages land on its directory sites |
 | `site-check` | Pre-launch mode: the 7-item close-out for every new page. GEO mode: conditions on the first screen and matching the card (`--capabilities`), answer first, follow-ups visible, facts match; plus the mechanical sweep |
 | `site-geo` | Gap scan of a live site from its URL (scan mode); AI crawler access and llms.txt (check mode); continuous optimisation of a live site (optimize mode) |
-| `site-offsite` | GEO mode: get into the lists and sources assistants read and cite |
+| `site-offsite` | Backlinks: thin entry into the bl pool (`~/Projects/backlink`, `bl guide`); GEO sources live in `site-geo` offsite-sources |
 | `site-measure` | Umami: AI referrals, landing pages, core actions |
 | `site-stripe`, `site-adsense` | Payments; AdSense pre-check |
 
@@ -172,7 +172,7 @@ load the named skill.
 
 Goal card → this skill. Probes, demand map, question bank, task space, need × channel table and
 decision → site-idea (each GEO folder). Templates, page data, waves → site-batch. Live-site
-experiments → site-geo (`optimize/`). Off-site ledger → site-offsite. Traffic → site-measure.
+experiments → site-geo (`optimize/`). Off-site records → bl (via site-offsite). Traffic → site-measure.
 site-check owns no data.
 
 ## Premises

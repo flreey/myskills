@@ -1243,7 +1243,7 @@ def build_report(samples, runs, threshold):
         if presence["in_answer_share"] < 0.25 and presence["lever_hint"] in ("offsite", "consensus"):
             notes.append(f"own site in {presence['in_answer_share']:.0%} of answers and the answers rest on "
                          f"{presence['lever_hint']} sources: pages alone are unlikely to change who gets "
-                         "recommended; plan site-offsite (GEO mode) alongside or instead")
+                         "recommended; plan off-site work (site-geo offsite-sources) alongside or instead")
         elif presence["in_answer_share"] < 0.25 and presence.get("loss_hint") != "selection":
             notes.append(f"own site in {presence['in_answer_share']:.0%} of answers: a gap is an opening for "
                          "the content, not proof the assistant will find the pages; check the captured "
@@ -1292,7 +1292,7 @@ def loss_notes(p):
     elif hint == "retrieval":
         notes.append(f"{st.get('unseen', 0)} of {lost} runs without a first pick never opened a page of the site: "
                      "retrieval. Check where it ranks under the captured queries (`queries`), indexing, and the "
-                     "lists the assistant read (`read`; site-offsite cited_sources)")
+                     "lists the assistant read (`read`; site-geo cited_sources)")
     elif hint == "consensus":
         notes.append(f"{st.get('no_search', 0)} of {lost} runs without a first pick answered without searching: "
                      "only model memory and off-site consensus change these")
@@ -1881,7 +1881,7 @@ def cmd_queries(st, a):
         L.append(f"| {r['id']} | {r['n']} | {share} | {rank} | {rk.get('winners_kind') or '?'} | " + "; ".join(f"`{q}`" for q in r["examples"][:3]) + " |")
     L += ["", "## Named checks (the assistant's shortlist: who it already has in mind)", "",
           "When we are not on this list, the assistant answers from memory and checks others: lists, "
-          "communities and reviews (site-offsite GEO mode) change the shortlist; pages alone do not.", "",
+          "communities and reviews (site-geo offsite-sources) change the shortlist; pages alone do not.", "",
           "| Checked | Kind | Runs | Conversations | Example queries |", "| --- | --- | --- | --- | --- |"]
     for r in checks:
         L.append(f"| {r['label']} | {r['kind']} | {r['n']} | {r['conversations']} | "

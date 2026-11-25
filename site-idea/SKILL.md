@@ -200,7 +200,7 @@ space (above): sample and probe it (20–30 combinations are enough for one dime
   visits in 28 days, most landing on single-sound and family pages. Before reading low presence as
   absence, compare with AI-referred landings by page; they are the stronger picked evidence.
 - Read the notes first. A high gap with the site absent from most answers, and answers resting on
-  lists, forums or no search, means pages alone will not change who is recommended: plan site-offsite
+  lists, forums or no search, means pages alone will not change who is recommended: plan site-geo offsite work (references/offsite-sources.md)
   (GEO mode) with the pages, or instead of them.
 - `lever_hint` follows site-geo's source diagnosis: `onsite` when competitor pages win, `offsite` when
   lists and forums do, `consensus` when the assistant answers without searching.
@@ -227,7 +227,7 @@ Stage reached and files written → the demand map (needs, evidence, where asked
 (angles, evidence levels) → the space (generating dimensions, count) → gap and presence results with
 sample size, platforms and dates → lever hint and captured queries → signals coverage → the need ×
 channel table → the owner's decision, or the question waiting for it → next step per lever: pages to
-site-batch (assets, facts and templates, then a small first wave), off-site to site-offsite GEO mode,
+site-batch (assets, facts and templates, then a small first wave), off-site to site-geo (references/offsite-sources.md),
 product and docs to the product's own workflow → what this step dropped compared with the goal card.
 
 ## Premises

@@ -75,7 +75,7 @@ contract: [../site-idea/references/state.md](../site-idea/references/state.md). 
    dominate, whether the site is in the answers, the lever hint and the captured search queries),
    `geo/needs.md` and `geo/bank.md` when present, `geo/gap/samples.jsonl` (follow-ups, signals, what
    assistants recommend). When the report's notes say the answers rest on lists, forums or no search,
-   tell the owner the pages need site-offsite work beside them before planning a large wave.
+   tell the owner the pages need off-site work beside them (site-geo references/offsite-sources.md; submissions go through bl) before planning a large wave.
 2. **Assets.** For the subspace, list what can supply each answer: product capabilities, own tests or
    measurements, structured public data, tool outputs, files people can use. Generated outputs go
    under `geo/assets/`. Show which combinations have assets. Combinations with a real need but no asset

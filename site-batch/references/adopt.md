@@ -17,7 +17,7 @@ template's `diagnosis` (lint warns without it):
   them out of the candidate rows (the first run collided with a FAQ experiment on 544 of 716 pages).
 
 When the site is mostly absent from answers that rest on lists, forums or big libraries, adopting
-will not move recommendations; plan site-offsite (GEO mode) first, and new pages through site-idea.
+will not move recommendations; plan off-site work first (site-geo references/offsite-sources.md), and new pages through site-idea.
 
 Written after the first run (SFXMint, 2026-11-17): 20 family pages were retrofitted on a 40% gap share
 while the site appeared in 4 of 25 answers; the expected effect was small from the start. The family becomes an **adopt template**:

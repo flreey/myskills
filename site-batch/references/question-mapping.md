@@ -24,7 +24,7 @@ next.
 
 Recommendation openings ("best", "alternative to", "worth paying for") are won mostly by third-party
 consensus: the hub states plainly what the collection covers and how to choose, and the real work is
-site-offsite GEO mode. Do not build a page per "best X for Y" wording.
+site-geo off-site work (references/offsite-sources.md). Do not build a page per "best X for Y" wording.
 
 ## 2. Which section: route each turn by kind
 

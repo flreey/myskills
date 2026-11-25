@@ -49,7 +49,7 @@ credits): the missing capability dimension showed up in the counts.
 | Changes the result or the steps when swapped (different files, output, procedure) | a generating dimension, or a variant inside the main value | 1080p vs 4K; wooden vs metal door; iPhone vs computer |
 | True on every page | a fact every page states (facts.jsonl `scope: all`), not a dimension | free, CC0, no watermark |
 | Changes nothing when swapped | wording for titles and text only | online, best, 2026, AI |
-| A site or product name | the assistant's shortlist: site-offsite, not a dimension | Topaz, Freesound |
+| A site or product name | the assistant's shortlist: off-site work (site-geo offsite-sources), not a dimension | Topaz, Freesound |
 
 This is the `changes_answer` test, answered from real words instead of imagination.
 

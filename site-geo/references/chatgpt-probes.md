@@ -66,7 +66,7 @@ Any catches with that one? What do real users say about it, and is it safe to up
 ```
 
 A pick dropped on this turn points at reviews and forum threads, not our pages: note the sources it
-cites and hand them to site-offsite.
+cites and work them with [offsite-sources](offsite-sources.md).
 
 Record for every turn: is the site named, is it linked (a clickable link, not just the name), is it the
 first recommendation, what is said about it, which sites appear instead and why they were chosen. A

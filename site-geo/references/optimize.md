@@ -62,7 +62,7 @@ persona, conditions and follow-up order, wording close to real quotes. 3–5 per
 
 | `query_type` | Typical opening | `lever` |
 | --- | --- | --- |
-| `recommend` | "what's a good …", "alternative to …" | `offsite` (site-offsite GEO mode), page facts second |
+| `recommend` | "what's a good …", "alternative to …" | `offsite` ([offsite-sources](offsite-sources.md)), page facts second |
 | `problem` | "my players say … what should I do" | `onsite` |
 | `constraint` | "can I use … for …", "does … work offline" | `onsite` (fact pages: pricing, license, docs) |
 | `compare` | "A or B for …" | `onsite` comparison page + `offsite` reviews |
@@ -134,12 +134,12 @@ Then source diagnosis per cluster where competitors win:
 | Cited sources are mostly | Means | Move |
 | --- | --- | --- |
 | competitor sites | their page answers the task more directly | on-site: the cluster's page or a missing condition |
-| lists and reviews | the contest is in consensus | site-offsite GEO mode |
-| forums | word of mouth | site-offsite community work; check the product itself |
+| lists and reviews | the contest is in consensus | [offsite-sources](offsite-sources.md) |
+| forums | word of mouth | off-site community work ([offsite-sources](offsite-sources.md)); check the product itself |
 | nothing, or no web search | the model answers from its own knowledge | long-term consensus; do not credit pages short term |
 | our page, yet another product recommended | facts used, a condition failed or unclear | read the exclusion reason: wording or product |
 
-`python3 <site-offsite>/scripts/cited_sources.py --root <project> --own <domain>` lists the cited
+`python3 <site-geo>/scripts/cited_sources.py --root <project> --own <domain>` lists the cited
 domains across runs.
 
 ### O6 Change
@@ -176,10 +176,10 @@ own workflow and approvals; this skill writes only `geo/optimize/`.
 | Observed | Next |
 | --- | --- |
 | Page not crawled or not indexed | Technical fix first (site-check, G1); do not judge content this round |
-| Assistant states product facts wrongly | Fix the source of truth and every channel's wording (site-offsite for listings) |
+| Assistant states product facts wrongly | Fix the source of truth and every channel's wording (listings: [offsite-sources](offsite-sources.md), records in bl) |
 | Excluded for an untrue reason | State that condition plainly on the main page and fact pages |
 | Excluded for a true reason | `NOT_FIT`, or a product request to the owner |
-| Our page cited, another product recommended | Off-site: the consensus is lost (site-offsite GEO mode) |
+| Our page cited, another product recommended | Off-site: the consensus is lost ([offsite-sources](offsite-sources.md)) |
 | Listed in the opening, dropped after a follow-up | Answer that follow-up on the pages it opened in that turn (often pricing or FAQ) |
 | Absent, but it opened our pages (`own_read`) | Selection loss: compare those pages with the goal card's Capabilities and state the conditions it checks on their first screen (site-check 1G, verification pages); not a new page |
 | Never present in answers without web search | Long-term consensus work; not a page problem |
