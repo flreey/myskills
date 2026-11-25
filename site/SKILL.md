@@ -86,6 +86,19 @@ unapproved templates, `check` warns when the goal card is missing or project.jso
    question with what it gives up, never bundled into "as recommended". Numbers that drive such a
    choice are checked at the method, not only the total, before they are relayed.
 
+## Before building a page: three questions
+
+Every new page, single or long-tail, passes these before any work starts. One "no" means no new page.
+
+1. **Real demand.** At least one piece of evidence: a tracked need (MissedByAI, `gap/`), GSC queries,
+   search volume, or people's own words. "Someone might search this" is not evidence.
+2. **No existing page can answer it.** If a paragraph or an FAQ entry on a page we have covers it,
+   change that page instead.
+3. **Something only this page has.** A real output sample, screenshot, comparison table or a product
+   behaviour specific to the task. A new introduction around the same tool is not enough.
+
+When the page is built, `site-check` pre-launch mode is the last step before release.
+
 ## Find the step
 
 Read only what exists under the project root. The goal card is one per site; GEO folders may be
@@ -122,7 +135,7 @@ and follow it; its own rules and approvals apply.
 | Skill | GEO use |
 | --- | --- |
 | `site-kit` | Build, check, release and upgrade kit sites; GEO batch pages land on its directory sites |
-| `site-check` | GEO mode: answer first, constraints written out, follow-ups visible, numbers match the facts; plus the mechanical sweep (status, canonical, server rendering, FAQ in HTML) |
+| `site-check` | Pre-launch mode: the 7-item close-out for every new page. GEO mode: answer first, constraints written out, follow-ups visible, numbers match the facts; plus the mechanical sweep (status, canonical, server rendering, FAQ in HTML) |
 | `site-offsite` | GEO mode: get into the sources assistants cite |
 | `site-measure` | Umami: AI referrals, landing pages, downloads and other conversions |
 | `site-adsense` | AdSense pre-check |

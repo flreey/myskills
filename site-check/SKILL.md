@@ -1,6 +1,6 @@
 ---
 name: site-check
-description: 页面验收（SEO 和 GEO 两种模式）：网站或页面上线前后要验收时用——全站扫 sitemap 找机械问题（状态码、noindex、canonical、只在 JS 里的内容、FAQ 答案不在 HTML、标题与 H1 不一致、缺 alt、面包屑不符、过时文案、占位和测试文字、链到 noindex 页），找模板级问题（重复标题和 FAQ、近似重复页、枢纽页内链弱、缺 sameAs），再抽页检查：SEO 模式看文案是否围绕目标关键词，GEO 模式看答案是否在前、限制条件是否逐条写明、追问是否可见、数字是否与事实库一致；两种模式都查 FAQ、服务端渲染、可收录和结构化数据。site-kit 站和其他站都适用。Also for 全站 SEO 检查、页面验收、上线前检查、关键词文案检查、GEO 页面验收、批量页面抽检、FAQ 检查、服务端渲染、内链检查、模板页重复。不用于：AI 爬虫、llms.txt、ChatGPT 推荐（site-geo），找词（site-research），决定建哪些页（site-plan、site-batch），kit 构建门槛（site-kit 的 npm run check）。
+description: 页面验收（SEO 和 GEO 两种模式，另有新页面上线前收尾的 7 项清单）：网站或页面上线前后要验收时用——全站扫 sitemap 找机械问题（状态码、noindex、canonical、只在 JS 里的内容、FAQ 答案不在 HTML、标题与 H1 不一致、缺 alt、面包屑不符、过时文案、占位和测试文字、链到 noindex 页），找模板级问题（重复标题和 FAQ、近似重复页、枢纽页内链弱、缺 sameAs），再抽页检查：SEO 模式看文案是否围绕目标关键词，GEO 模式看答案是否在前、限制条件是否逐条写明、追问是否可见、数字是否与事实库一致；两种模式都查 FAQ、服务端渲染、可收录和结构化数据。site-kit 站和其他站都适用。Also for 新页面上线前收尾、长尾页会不会单薄、全站 SEO 检查、页面验收、上线前检查、关键词文案检查、GEO 页面验收、批量页面抽检、FAQ 检查、服务端渲染、内链检查、模板页重复。不用于：AI 爬虫、llms.txt、ChatGPT 推荐（site-geo），找词（site-research），决定建哪些页（site-plan、site-batch），kit 构建门槛（site-kit 的 npm run check）。
 ---
 
 # site-check: page and site acceptance (SEO and GEO modes)
@@ -35,6 +35,37 @@ Engine (Python stdlib, read-only), `python3 <skill-dir>/scripts/page_check.py`:
 
 Both take `--format json`. `--retired` lists product names and positioning the site no longer uses
 (after a pivot or rename); the sweep finds every page that still says them.
+
+## Pre-launch mode: closing out new pages
+
+The default for "is this new page ready / is it thin". Run it on every new or rewritten page before
+release, on the local build (`--base`) or the live URL, then fix and re-run. It assumes the page passed
+the three questions in `site` (demand, no existing page answers it, something only this page has).
+
+Commands: `page_check.py --url <page>` for each page; `--sitemap <file> --base <origin>` once for the
+batch with its sibling pages (near duplicates, repeated H2s and FAQs, inlinks).
+
+Which pages: only the new and changed ones, never the whole site. Kit sites: site-kit Release step 0
+derives them from `.sitekit/` and runs this mode before every deploy. Other sites, in this order: the
+URLs the owner names; else the build's sitemap minus the live sitemap (new), plus the pages whose
+source files changed since the last release tag or deploy commit (`git diff --name-only <last>..HEAD`,
+mapped to URLs through the router or the build output); else ask. The sweep still covers the whole
+sitemap, since duplicates and inlinks need the siblings, but the report lists only these URLs. Before a
+release on a non-kit site, run this mode on them unless the owner says to skip it.
+
+| # | Check | Pass when | Evidence |
+| --- | --- | --- | --- |
+| 1 | First sentence answers the task | The sentence right under the H1 says whether the task can be done here, how, and the conditions people choose by: free or paid, limits (length, size, count), upload or not, signup. It still makes sense when quoted alone. Assistants quote passages and filter by these conditions | read the page |
+| 2 | Something of its own | A real sample, screenshot, table or task-specific behaviour; shares at most ~35% of its main text with any sibling page (`near_duplicates`) | sweep + read |
+| 3 | Claims are true | Every limit, format, price and privacy statement matches the code or the product in use | code or browser |
+| 4 | FAQ belongs to this page | Questions people ask about this task, answered in the first sentence; none repeated word for word on 3+ pages (`templated_questions`, `same_answer_pages`) | sweep + read |
+| 5 | No competing page | Its title's lead phrase is not another page's lead phrase; it is not the same need as an existing page | sweep titles |
+| 6 | Technical | 200, indexable, self canonical, content and FAQ answers in the raw HTML, own `og:image`, visible breadcrumb = `BreadcrumbList`, in sitemap and llms.txt, linked from at least two pages' main content | `--url` issues + sweep inlinks; llms.txt by hand |
+| 7 | Title, description, headings | Title: the target phrase in people's words, about 60 characters or less, lead words kept by the H1 (`title_h1_drift`). Description: the phrase plus what it does and the key conditions, about 155 characters or less, not a copy of the first paragraph. One H1 naming the task. H2s name topics in the searcher's words: no labels like Questions or Features (`label_heading`), none repeated across pages (`templated_headings`). og:title and og:description match | `--url` + sweep + read |
+
+Report one table per page (check, pass / fix, evidence, fix), then fixes in order. About four weeks
+after release, check once more: indexed (GSC), impressions, named by assistants (MissedByAI retest or
+site-geo). A page with none of the three is merged into another page or retired.
 
 ## Modes
 
