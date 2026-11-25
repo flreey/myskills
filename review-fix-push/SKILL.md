@@ -8,6 +8,7 @@ description: "Use when the user asks to review current code changes, fix any cle
 ## Premises
 
 - Default target: current branch, regular `git push`, no PR.
+- Main-only repos (`git config wt.mainOnly true`, shown by the preflight as "Push mode: main-only"): work branches are never pushed. Land them with `wt-finish` (step 8), which rebases onto local main, runs the gate, fast-forwards main and pushes main. A global pre-push hook refuses every other push. Updated 2026-11-24 for T3 worktree sessions sharing one local main.
 - Reusable across projects. Project-specific verification commands must come from the target repo's manifests, CI, instructions, or existing scripts.
 - Checked on 2026-07-06 against the user's repeated preference: real diff review first, fix concrete issues, fresh verification, then commit and push.
 - Superpowers `requesting-code-review` and `receiving-code-review` may be used when available for independent review and feedback handling, but this skill owns the working-tree audit, fix loop, commit, and push safety.
@@ -39,7 +40,11 @@ Review all changes that would be committed or pushed:
 
 If there is no dirty working tree and no unpushed commit, stop with "nothing to commit or push."
 
-If there are unpushed commits not created in this task, still review them because `git push` will publish them. If ownership is unclear or the branch contains unrelated work, ask before pushing.
+Review in layers, by where a commit already is:
+
+- **This task's changes and the commits only on this branch** (preflight: "Commits Only On This Branch"): full review below.
+- **Commits already on local main but not pushed** (preflight: "Already On Local main, Not Yet Pushed"): other sessions landed them after their own review and gate. Do not re-review them line by line and do not stop to ask about each one; list them in the final report. Still stop when the preflight lists a suspicious file among them (it scans every path changed since `origin/<default>`), or when one of them is not a normal landed change (a revert of someone else's work, a merge of an unknown branch).
+- On a branch that is not main-only and has no such split, unpushed commits not created in this task are still reviewed because `git push` will publish them; if ownership is unclear or the branch contains unrelated work, ask before pushing.
 
 ### 2. Review First
 
@@ -104,7 +109,7 @@ Use commands from the target repo, in this priority order:
 4. manifest scripts (`npm test`, `npm run build`, `pytest`, `cargo test`, `go test ./...`, etc.)
 5. fallback hygiene (`git diff --check`)
 
-If code changed after a verification run, rerun the affected verification before committing. Never push with stale verification evidence.
+If code changed after a verification run, rerun the affected verification before committing. Never push with stale verification evidence. A result for the same commit tree counts: do not rerun the gate when nothing changed since it passed (`wt-finish` records passed trees and skips them itself).
 
 If verification cannot run because dependencies or credentials are missing, report the blocker and ask before committing unless the user explicitly allowed best-effort commits.
 
@@ -142,7 +147,14 @@ If there are no staged changes after review/fix, do not create an empty commit.
 
 ### 8. Push
 
-Push the current branch with a regular push:
+Main-only repo (`wt.mainOnly`):
+
+- On a work branch (a T3 worktree): run `wt-finish` in the worktree. It stops without touching main on a rebase conflict, a failed gate (`wt.check`), uncommitted changes in the main checkout, or an `origin/main` that is ahead; report its message and stop. The rebase it does is part of this flow and needs no extra approval.
+- On main: `wt-finish` (or `git push origin main`).
+- After it succeeds: settle the T3 thread (`t3_thread_organize` with `settle`) so T3 removes the worktree; deploy, when the project deploys, from the main checkout the script names.
+- Never `git push origin <branch>`, `HEAD:main` or `--no-verify`.
+
+Other repos: push the current branch with a regular push:
 
 ```bash
 git push
@@ -164,7 +176,7 @@ Final response must include:
 - files committed
 - verification commands and pass/fail summary
 - commit SHA
-- push remote and branch
+- push remote and branch (main-only: the main commit `wt-finish` landed, and the earlier landed commits it pushed along)
 - any skipped or deferred issues
 
 If blocked before commit/push, include:
@@ -190,7 +202,7 @@ Stop and ask before commit or push when:
 - branch contains unrelated or unclear unpushed commits
 - verification fails and no deterministic fix remains
 - a reviewer finding requires product, API, migration, or risk judgment
-- push would require force, rebase, merge, pull, or auth changes
+- push would require force, rebase, merge, pull, or auth changes (except the rebase and fast-forward `wt-finish` does in a main-only repo)
 - target branch is main/master/default and the repo convention is unclear
 
 ## Recovery

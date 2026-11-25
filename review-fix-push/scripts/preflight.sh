@@ -47,6 +47,11 @@ if [ -n "$remote_url" ]; then
   echo "- Remote URL: \`$remote_url\`"
 fi
 echo "- Origin default branch guess: \`$default_remote_head\`"
+main_only="$(git config --bool wt.mainOnly 2>/dev/null || echo false)"
+if [ "$main_only" = "true" ]; then
+  echo "- Push mode: main-only (\`wt.mainOnly\`): land with \`wt-finish\`; the pre-push hook refuses any other push"
+  if [ -n "$(git config wt.check 2>/dev/null)" ]; then echo "- Gate (\`wt.check\`): \`$(git config wt.check)\`"; fi
+fi
 echo
 
 echo "## Git Status"
@@ -111,8 +116,27 @@ else
 fi
 echo
 
+if [ "$branch" != "$default_remote_head" ] && git rev-parse --verify --quiet "refs/heads/$default_remote_head" >/dev/null; then
+  echo "## Commits Only On This Branch (not yet in local \`$default_remote_head\`)"
+  own="$(git log --oneline "refs/heads/${default_remote_head}..HEAD" 2>/dev/null)"
+  if [ -n "$own" ]; then printf '%s\n' "$own" | sed 's/^/- /'; else echo "- none"; fi
+  echo
+fi
+if git rev-parse --verify --quiet "refs/remotes/origin/$default_remote_head" >/dev/null && git rev-parse --verify --quiet "refs/heads/$default_remote_head" >/dev/null; then
+  landed="$(git rev-list --count "refs/remotes/origin/${default_remote_head}..refs/heads/${default_remote_head}" 2>/dev/null || echo 0)"
+  echo "## Already On Local \`$default_remote_head\`, Not Yet Pushed: $landed commits"
+  if [ "$landed" != "0" ]; then
+    git log --format='- %h %ad %s' --date=short "refs/remotes/origin/${default_remote_head}..refs/heads/${default_remote_head}" | head -60
+  fi
+  echo
+fi
+
 echo "## Suspicious Files To Review Before Staging"
-all_paths="$(printf '%s\n%s\n%s\n' "$staged" "$unstaged" "$untracked" | sed '/^$/d' | sort -u)"
+committed_paths=""
+if git rev-parse --verify --quiet "refs/remotes/origin/$default_remote_head" >/dev/null; then
+  committed_paths="$(git diff --name-only "refs/remotes/origin/${default_remote_head}...HEAD" 2>/dev/null || true)"
+fi
+all_paths="$(printf '%s\n%s\n%s\n%s\n' "$staged" "$unstaged" "$untracked" "$committed_paths" | sed '/^$/d' | sort -u)"
 if [ -z "$all_paths" ]; then
   echo "- none"
 else
