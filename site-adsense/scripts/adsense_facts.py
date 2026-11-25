@@ -58,18 +58,26 @@ PRIVACY_TERMS = {
     "consent": r"\bconsent\b",
     "eea_uk_gdpr": r"\bEEA\b|\bGDPR\b|European Economic Area|United Kingdom|\bUK\b",
 }
+# Words a reviewer or brand-safety system may read as violent, adult or gambling content when they sit on every page.
+SENSITIVE = re.compile(r"\b(guns?|shotguns?|rifles?|pistols?|gunshots?|knife|knives|stab\w*|kill\w*|murder\w*|blood\w*|gore|scream\w*|"
+                       r"porn\w*|sex\w*|nude\w*|xxx|casino\w*|betting|gambl\w*|drugs?|cocaine|weed)\b", re.I)
+# Wording on policy pages that reads as unfinished or as a changelog: "we plan to show ads", "what changed on", dated exceptions.
+POLICY_HISTORY = re.compile(r"\b(?:we )?plan to\b|\bwill (?:soon )?show (?:display )?ads\b|\bwhat changed\b|\bno longer (?:offered|sold|used)\b|"
+                            r"\bretired\b|\bcoming soon\b|\bbefore (?:\d{4}-\d{2}-\d{2}|[A-Z][a-z]+ \d{1,2},? \d{4})|"
+                            r"without (?:a )?(?:prior )?(?:cookie[- ])?consent", re.I)
+LOCALE_SEGMENT = re.compile(r"^(?:[a-z]{2}|[a-z]{2}-[a-z]{2})$", re.I)
 FILE_LINK = re.compile(r"\.(wav|mp3|ogg|flac|zip|pdf|exe|dmg|apk)(\?|$)", re.I)
 
 
-def fetch(url: str, timeout: int, method: str = "GET") -> dict:
-    req = urllib.request.Request(url, method=method, headers={"User-Agent": UA, "Accept-Encoding": "gzip"})
+def fetch(url: str, timeout: int, method: str = "GET", ua: str = UA) -> dict:
+    req = urllib.request.Request(url, method=method, headers={"User-Agent": ua, "Accept-Encoding": "gzip"})
     try:
         resp = urllib.request.urlopen(req, timeout=timeout)
         status = resp.status
     except urllib.error.HTTPError as err:
         resp, status = err, err.code
     except Exception as err:  # network failures are facts too
-        return {"url": url, "status": None, "error": str(err)[:160], "text": "", "final_url": url, "type": ""}
+        return {"url": url, "status": None, "error": str(err)[:160], "text": "", "final_url": url, "type": "", "mitigated": None}
     body = b"" if method == "HEAD" else resp.read(MAX_BYTES)
     if body[:2] == b"\x1f\x8b":
         try:
@@ -77,7 +85,7 @@ def fetch(url: str, timeout: int, method: str = "GET") -> dict:
         except OSError:
             pass
     return {"url": url, "status": status, "final_url": resp.geturl(), "type": resp.headers.get("Content-Type", ""),
-            "text": body.decode("utf-8", "replace")}
+            "mitigated": resp.headers.get("cf-mitigated"), "text": body.decode("utf-8", "replace")}
 
 
 def visible_text(page: str) -> str:
@@ -131,6 +139,86 @@ def controls(page: str, base: str, limit: int = 30) -> list[dict]:
         if len(out) >= limit:
             break
     return out
+
+
+def footer_html(page: str) -> str | None:
+    """The page's last <footer>: the block repeated on every page."""
+    found = re.findall(r"<footer\b.*?</footer>", page, flags=re.S | re.I)
+    return found[-1] if found else None
+
+
+def footer_facts(page: str, base: str) -> dict | None:
+    """Links, words and outside domains in the footer: a long footer of item links counts as boilerplate on every page."""
+    foot = footer_html(page)
+    if foot is None:
+        return None
+    host = urllib.parse.urlsplit(base).hostname
+    found = links(foot, base)
+    outside = sorted({urllib.parse.urlsplit(l["href"]).hostname for l in found if urllib.parse.urlsplit(l["href"]).hostname not in (None, host)})
+    return {"links": len(found), "words": word_count(visible_text(foot)), "outside_domains": outside}
+
+
+def sensitive_terms(text: str) -> dict:
+    counts: dict[str, int] = {}
+    for word in SENSITIVE.findall(text):
+        counts[word.lower()] = counts.get(word.lower(), 0) + 1
+    return dict(sorted(counts.items(), key=lambda kv: -kv[1]))
+
+
+def policy_history(text: str) -> list[str]:
+    """Phrases on a policy page that read as plans, retired features or a changelog, each with a little context."""
+    out = []
+    for m in POLICY_HISTORY.finditer(text):
+        out.append(text[max(0, m.start() - 40):m.end() + 40].strip())
+    return out[:8]
+
+
+def sentences(text: str) -> list[str]:
+    return [s.strip() for s in re.split(r"(?<=[.!?])\s+|\s{2,}|\n", text) if word_count(s) >= 5]
+
+
+def template_share(pages: list[str]) -> list[float]:
+    """For each page's main text, the share of its words in sentences found on at least half the pages: the repeated template."""
+    if len(pages) < 4:
+        return []
+    per = [sentences(p) for p in pages]
+    seen: dict[str, int] = {}
+    for ss in per:
+        for s in set(ss):
+            seen[s] = seen.get(s, 0) + 1
+    shares = []
+    for ss in per:
+        total = sum(word_count(s) for s in ss)
+        shares.append(round(sum(word_count(s) for s in ss if seen[s] >= len(pages) / 2) / total, 2) if total else 0.0)
+    return shares
+
+
+def sections(urls: list[str]) -> dict:
+    """Sitemap URLs by first path segment, and the language prefixes (/es/, /pt-br/) with their counts."""
+    by: dict[str, int] = {}
+    for u in urls:
+        first = urllib.parse.urlsplit(u).path.strip("/").split("/", 1)[0] or "(home)"
+        by[first] = by.get(first, 0) + 1
+    ordered = dict(sorted(by.items(), key=lambda kv: -kv[1]))
+    return {"by_section": dict(list(ordered.items())[:15]), "locales": {k: v for k, v in ordered.items() if LOCALE_SEGMENT.match(k)}}
+
+
+def domain_age(host: str, timeout: int) -> dict:
+    """Registration date from RDAP (rdap.org redirects to the registry). A subdomain is looked up by its last two labels."""
+    domain = ".".join(host.split(".")[-2:])
+    got = fetch(f"https://rdap.org/domain/{domain}", timeout)
+    try:
+        events = json.loads(got["text"]).get("events", [])
+    except ValueError:
+        return {"domain": domain, "registered": None, "days": None, "status": got["status"]}
+    reg = next((e.get("eventDate") for e in events if e.get("eventAction") == "registration"), None)
+    days = None
+    if reg:
+        try:
+            days = (dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(reg.replace("Z", "+00:00"))).days
+        except ValueError:
+            pass
+    return {"domain": domain, "registered": reg, "days": days, "status": got["status"]}
 
 
 def ad_state(page: str) -> dict:
@@ -222,6 +310,17 @@ def canonical_of(page: str, base: str) -> str | None:
     return None
 
 
+CRAWLERS = {
+    "Mediapartners-Google": "Mediapartners-Google",
+    "Googlebot": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+}
+
+
+def redirect_variants(host: str) -> dict:
+    bare = host[4:] if host.startswith("www.") else host
+    return {"http": f"http://{bare}/", "http_www": f"http://www.{bare}/", "https_www": f"https://www.{bare}/"} if bare else {}
+
+
 def page_facts(url: str, timeout: int) -> dict:
     got = fetch(url, timeout)
     text = visible_text(got["text"])
@@ -277,6 +376,35 @@ def build_flags(r: dict) -> list[str]:
                   and not p["robots_disallowed"] and (not p["canonical"] or p["canonical"] == p["url"])]
     if open_query:
         flags.append(f"{len(open_query)} sampled query URLs are indexable, with no noindex, robots rule or other canonical: {', '.join(open_query[:5])}")
+    foot = r["footer"]
+    if foot and (foot["links"] > 60 or foot["words"] > 300):
+        flags.append(f"footer has {foot['links']} links and {foot['words']} words on every page; check how much of a thin page it makes up")
+    shared = sorted(set.intersection(*[set(f["outside_domains"]) for f in r["footer_share_domains"]])) if r["footer_share_domains"] else []
+    if shared:
+        flags.append(f"every sampled page's footer links outside domains: {', '.join(shared[:6])}")
+    if r["sensitive_terms"]["shared"]:
+        flags.append(f"words that may read as violent, adult or gambling content in the home page or footer: {', '.join(list(r['sensitive_terms']['shared'])[:8])}")
+    shares = r["template"]["shares"]
+    if shares and sorted(shares)[len(shares) // 2] >= 0.3:
+        flags.append(f"median sampled page has {sorted(shares)[len(shares) // 2]:.0%} of its main text in sentences repeated on half the sample")
+    big = max(r["sitemap_sections"]["by_section"].values(), default=0)
+    if r["sitemap"]["total_urls"] >= 50 and big / r["sitemap"]["total_urls"] >= 0.7:
+        top = next(iter(r["sitemap_sections"]["by_section"]))
+        flags.append(f"{big / r['sitemap']['total_urls']:.0%} of sitemap URLs are under /{top}/; compare with the share of editorial pages")
+    for loc, n in r["sitemap_sections"]["locales"].items():
+        if n < max(10, r["sitemap"]["total_urls"] * 0.05):
+            flags.append(f"language section /{loc}/ has only {n} sitemap URLs; a thin translation can look unfinished")
+    for name, hits in r["policy_history"].items():
+        if hits:
+            flags.append(f"{name} page has {len(hits)} plan, retired or dated-history phrases (e.g. {hits[0][:90]!r})")
+    age = r["domain"]["days"]
+    if age is not None and age < 180:
+        flags.append(f"domain registered {age} days ago; some regions require 6 months and a new site has little history")
+    for name, c in r["crawlers"].items():
+        if c["status"] != 200 or c["mitigated"]:
+            flags.append(f"home answers {c['status']} to {name}{' (Cloudflare challenge)' if c['mitigated'] else ''}")
+    if r["ads"]["state"] == "verification-only":
+        flags.append("only the google-adsense-account meta is present, no adsbygoogle.js; add the loader if the account asks for the code snippet")
     dead = [d["url"] for d in r["file_links"] if d["status"] not in (200, 206, 301, 302, 303, 307, 308)]
     if dead:
         flags.append(f"{len(dead)} file links did not answer OK: {', '.join(dead[:5])}")
@@ -340,6 +468,17 @@ def run(site: str, samples: int, timeout: int) -> dict:
                     file_urls.append(l["href"])
         file_raw = list(pool.map(lambda u: fetch(u, timeout, "HEAD"), file_urls[:6]))
 
+    with cf.ThreadPoolExecutor(4) as pool:
+        crawler_got = {name: pool.submit(fetch, home_got["final_url"], timeout, "GET", agent) for name, agent in CRAWLERS.items()}
+        age_job = pool.submit(domain_age, final.hostname or "", timeout)
+        variants = {label: pool.submit(fetch, url, timeout, "HEAD") for label, url in redirect_variants(final.hostname or "").items()}
+        crawlers = {n: {"status": f.result()["status"], "mitigated": f.result()["mitigated"]} for n, f in crawler_got.items()}
+        age = age_job.result()
+        redirects = {label: {"status": f.result()["status"], "final_url": f.result()["final_url"]} for label, f in variants.items()}
+    mains = [visible_text(main_html(p["html"]) or "") for p in sampled_raw if p["status"] == 200]
+    footer = footer_facts(page, origin)
+    sampled_footer = [footer_facts(p["html"], p["final_url"]) for p in sampled_raw if p["status"] == 200]
+    foot_text = visible_text(footer_html(page) or "")
     privacy_text = (trust_raw.get("privacy") or {}).get("text", "")
     last_updated = re.search(r"(?:last (?:updated|modified)|effective(?: date)?)[:\s]+([A-Z][a-z]+ \d{1,2},? \d{4}|\d{1,2} [A-Z][a-z]+ \d{4}|\d{4}-\d{2}-\d{2})", privacy_text, flags=re.I)
     raw_lower = page.lower()
@@ -362,6 +501,17 @@ def run(site: str, samples: int, timeout: int) -> dict:
         "off_sitemap_pages": [{k: p[k] for k in ("url", "status", "words", "main_words", "robots", "canonical")} for p in off_raw],
         "query_pages": [{**{k: p[k] for k in ("url", "status", "words", "robots", "canonical")}, "robots_disallowed": robots_disallows(robots_text, p["url"])} for p in query_raw],
         "file_links": [{"url": f["url"], "status": f["status"], "type": f["type"]} for f in file_raw],
+        "crawlers": crawlers,
+        "redirects": redirects,
+        "domain": age,
+        "footer": footer,
+        "footer_share": [{"url": p["url"], "footer_words": f["words"], "page_words": p["words"], "share": round(f["words"] / p["words"], 2) if p["words"] else None}
+                         for p, f in zip([p for p in sampled_raw if p["status"] == 200], sampled_footer) if f],
+        "footer_share_domains": [{"url": p["url"], "outside_domains": f["outside_domains"]} for p, f in zip([p for p in sampled_raw if p["status"] == 200], sampled_footer) if f],
+        "template": {"shares": template_share(mains), "note": "per sampled page: share of main-text words in sentences found on half the sample or more"},
+        "sitemap_sections": sections(sitemap["urls"]),
+        "sensitive_terms": {"shared": sensitive_terms(text[:3000] + " " + foot_text), "note": "home page start and footer; whether they matter depends on the site's topic"},
+        "policy_history": {n: policy_history(r["text"]) for n, r in trust_raw.items() if r},
     }
     report["flags"] = build_flags(report)
     return report

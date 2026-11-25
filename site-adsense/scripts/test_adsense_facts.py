@@ -2,7 +2,8 @@
 """Offline checks for the parts that past reports got wrong: python3 -m unittest test_adsense_facts (from scripts/)."""
 import unittest
 
-from adsense_facts import ad_state, canonical_of, main_html, parse_sitemap, robots_blocks_google, robots_disallows, word_count
+from adsense_facts import (ad_state, canonical_of, footer_facts, main_html, parse_sitemap, policy_history, robots_blocks_google, robots_disallows,
+                           sections, sensitive_terms, template_share, word_count)
 
 
 class AdState(unittest.TestCase):
@@ -71,6 +72,35 @@ class Words(unittest.TestCase):
     def test_latin_and_cjk(self):
         self.assertEqual(word_count("free sound effects"), 3)
         self.assertEqual(word_count("免费音效"), 2)
+
+
+class Boilerplate(unittest.TestCase):
+    def test_footer_counts_links_and_outside_domains(self):
+        page = '<main>x</main><footer><a href="/a">A</a><a href="/b">B</a><a href="https://other.test/">Other</a></footer>'
+        self.assertEqual(footer_facts(page, "https://a.test/"), {"links": 3, "words": 3, "outside_domains": ["other.test"]})
+        self.assertIsNone(footer_facts("<main>x</main>", "https://a.test/"))
+
+    def test_template_share_finds_the_repeated_sentence(self):
+        same = "Free to use in games and apps without credit. "
+        pages = [same + f"Page {i} has its own long description of a sound." for i in range(4)]
+        self.assertEqual(template_share(pages), [0.47, 0.47, 0.47, 0.47])
+        self.assertEqual(template_share(pages[:3]), [], "too few pages to tell")
+
+
+class Signals(unittest.TestCase):
+    def test_sections_and_language_prefixes(self):
+        urls = ["https://a.test/sounds/x", "https://a.test/sounds/y", "https://a.test/es/sounds/x", "https://a.test/pt-br/", "https://a.test/"]
+        got = sections(urls)
+        self.assertEqual(got["by_section"]["sounds"], 2)
+        self.assertEqual(got["locales"], {"es": 1, "pt-br": 1})
+
+    def test_sensitive_terms_are_whole_words(self):
+        self.assertEqual(sensitive_terms("Gun shot, shotgun and a Knife; begun skill"), {"gun": 1, "shotgun": 1, "knife": 1})
+
+    def test_policy_history_phrases(self):
+        text = "We plan to show display ads. What changed on November 15, 2026. Bought before 2026-10-24. It loads without a prior cookie-consent dialog."
+        self.assertEqual(len(policy_history(text)), 4)
+        self.assertEqual(policy_history("We use Google AdSense to show ads."), [])
 
 
 if __name__ == "__main__":
