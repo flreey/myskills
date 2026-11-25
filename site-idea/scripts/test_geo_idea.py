@@ -580,6 +580,49 @@ class DemandAndBankTest(unittest.TestCase):
         self.assertIn("own_opening must be one of", out)
         self.assertIn("own_read is a list of URLs", out)
 
+    def test_pilot_samples_for_a_new_product(self):
+        (self.root / "geo/dimensions.json").unlink()
+        pilot = self.root / "pilot.txt"
+        pilot.write_text("# tool-seeking questions\nfree site to upscale 480p to 1080p? || is it really free with no watermark\n"
+                         "app to fix blurry whatsapp video\n\n")
+        code, out = run(self.root, "sample", "--pilot", str(pilot))
+        self.assertEqual(code, 0)
+        self.assertIn("1 questions have no condition", out)
+        rows = gi.read_jsonl(self.root / "geo/gap/samples.jsonl")
+        self.assertEqual([r["combo_id"] for r in rows], ["p01", "p02"])
+        self.assertEqual(rows[0]["follow_ups"][0],
+                         {"q": "Which one would you pick for me, and is it really free with no watermark?", "kind": "pick", "adds": []})
+        self.assertEqual(rows[0]["angle"], "recommend")
+        run(self.root, "probes")
+        sheet = (self.root / "geo/gap/probes.md").read_text()
+        self.assertIn("p01--chatgpt--1.md`, `geo/gap/raw/p01--chatgpt--2.md`, `geo/gap/raw/p01--chatgpt--3.md", sheet)
+        raw = self.root / "geo/gap/raw"
+        raw.mkdir(parents=True, exist_ok=True)
+        (raw / "p01.md").write_text("=== STREAM URLS ===\nhttps://list.example/best?utm_source=chatgpt.com\n")
+        base = {"platform": "ChatGPT", "date": "2026-11-19", "mode": "browser", "web_search": True}
+        gi.write_jsonl(self.root / "geo/gap/runs.jsonl", [
+            {**base, "combo_id": "p01", "gap": "good", "recommended": ["A"], "raw": "geo/gap/raw/p01.md"},
+            {**base, "combo_id": "p02", "own": "absent", "recommended": ["B"]}])
+        proj = json.loads((self.root / "geo/project.json").read_text())
+        proj.pop("site", None)
+        (self.root / "geo/project.json").write_text(json.dumps(proj))
+        code, out = run(self.root, "reads")
+        self.assertEqual(code, 0)
+        self.assertIn("filled `read` only", out)
+        r1 = gi.read_jsonl(self.root / "geo/gap/runs.jsonl")[0]
+        self.assertEqual(r1["read"], ["https://list.example/best"])
+        self.assertNotIn("own_read", r1)
+        code, out = run(self.root, "report")
+        self.assertEqual(code, 0)
+        self.assertIn("not used in new-product mode", out)
+        self.assertFalse((self.root / "geo/gap/channels.md").exists())
+        code, out = run(self.root, "check")
+        self.assertEqual(code, 0, out)
+        self.assertIn("1 runs have own or recommended but no gap (runs:2)", out)
+        self.assertNotIn("`pick` follow-up", out)
+        code, _ = run(self.root, "sample", "--pilot", str(pilot))
+        self.assertEqual(code, 2)
+
     def test_low_presence_note_when_lever_is_offsite(self):
         gi.write_jsonl(self.root / "geo/needs.jsonl", NEEDS)
         gi.write_jsonl(self.root / "geo/questions.jsonl", BANK)

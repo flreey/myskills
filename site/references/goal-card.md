@@ -12,12 +12,54 @@ when they differ.
 
 1. Ask the owner for the goal in their words, and what they would count as success. Fill the rest
    from the project's files and data; ask only for what is missing and changes the work.
-2. Fill "Current state" from facts, each with a source and date: existing pages and their traffic by
+2. Grow mode: fill "Current state" from facts, each with a source and date: existing pages and their traffic by
    channel, AI referrals, agent/API/MCP usage, what assistants say today (if probes exist), and
    experiments still running (their pages, window and read date). Missing data is written as missing.
 3. Show the card to the owner and get a yes before step 1. A card the owner has not seen is a draft.
 
-## Template
+Two templates. **New product** mode (the site skill's four steps) uses the short card below; it has
+the sections those steps fill and nothing else. **Grow** mode (a live site with AI traffic or many
+pages) uses the full template after it. A new product moves to the full card when it switches to grow
+mode; keep its sections and add the rest.
+
+## Template: new product
+
+```markdown
+# Goal card: <product>
+
+Mode: new product · Updated <date> · confirmed by owner <date>
+
+## Goal
+<who should be recommended by which assistants, for what, in the owner's words>
+
+## Main bet
+<e.g. "a free in-browser upscaler with no upload and no length limit wins 'free website' questions">
+Stop or change it when: <result and date>
+
+## North star
+<e.g. AI-referred visits that finish the core action, per week>
+
+## Battlefield (step 1)
+Pilot: <n> tool-seeking questions, each with a pick turn, <runs> runs each, <platform, model, date>
+(`<geo-dir>/gap/`). Assistant searched in <x>/<n>.
+| Question group | Who wins | The conditions the assistant gave as reasons | Our edge (step 2) |
+
+## Capabilities (step 2)
+| Capability | Conditions met | Proof (test, date) | Where stated publicly (URLs) |
+Edge: <the one condition we beat the winner on, in one sentence>. Without one, change the battlefield;
+do not build.
+
+## Retest (step 4)
+| Date | Runs | Picked / named / opened, not named / never opened / no search | Dropped after follow-up | AI referrals, core actions | Next |
+
+## Constraints
+<budget, accounts, rules>
+
+## Changes
+- <date>: <what changed, why, owner's yes>
+```
+
+## Template: grow
 
 ```markdown
 # Goal card: <project>

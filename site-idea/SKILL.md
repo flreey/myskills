@@ -94,7 +94,10 @@ the shape decides how the pages are cut. A site can hold both, one GEO folder ea
    same site, which then reads that folder's `needs.jsonl` instead of copying it). Copy `audience`,
    `market`, `platforms` and `north_star` into `project.json` from the goal card; the card wins. Then
    collect first-party and off-site evidence, group it into needs and write `geo/needs.jsonl`
-   ([references/demand-map.md](references/demand-map.md)); `needs` checks it and writes
+   ([references/demand-map.md](references/demand-map.md)). With little first-party data, add the
+   public sources from site-geo's gap-scan.md step 2 (competitors' category and tool page slugs,
+   Google and YouTube autocomplete, the item lists in assistants' answers to scene questions;
+   `gap_scan.py pool`): a public-only scan found half of SFXMint's real gaps; `needs` checks it and writes
    `geo/needs.md`. Show the owner the map (needs, counts, where each is asked) and agree which needs
    and audiences to serve.
 1. **Question bank.** Expand each chosen need into questions from several angles, with evidence on
@@ -104,7 +107,8 @@ the shape decides how the pages are cut. A site can hold both, one GEO folder ea
 2. **Task space.** Pick the shape first (above): on a live product whose AI landings are people
    looking for a tool, file or service, start with capability × condition. Find the dimensions in
    real searches, not in a plan: run `slots --from <site search export>` (it also reads the runs'
-   captured searches and the demand map's searches and quotes), sort each frequent word as a
+   captured searches and the demand map's searches and quotes; the assistant's own searches mostly
+   repeat the question plus conditions and brand names, so they add wording, not new values), sort each frequent word as a
    dimension, a variant, a fact every page states, wording or a name, and test each candidate
    ([references/dimensions.md](references/dimensions.md)). Write `geo/dimensions.json`
    (shape in references/state.md) from the needs: capability, entity, task and constraint dimensions
@@ -125,13 +129,21 @@ the shape decides how the pages are cut. A site can hold both, one GEO folder ea
    tiers). Combinations come marked with an `angle`: `recommend` (the opening asks for a tool, site or
    app) or `problem`; about two thirds `recommend` in a capability space, a third otherwise. Fill `persona`, `opening`, `follow_ups` and `signals` where empty, following
    [references/conversations.md](references/conversations.md). Then `probes` renders the sheet.
+   New-product mode (site skill) skips the demand map and the task space: `sample --pilot <file>`
+   takes tool-seeking questions, one per line as `question || hardest condition`, and adds the pick
+   turn to each.
 4. **Probe.** Per rule 3: give the user `geo/gap/probes.md` (one new chat per conversation, each
    target platform, paste the whole answer into the named file), or run it the way they approved.
-   Browser runs follow [references/probe-runs.md](references/probe-runs.md): a page script in a
-   logged-in browser tab first, in ego-browser by default (it also captures the assistant's search
-   queries); a Grok Bot via `gbot` only as a fallback. The one-hour tool rule (site skill rule 5) applies to both. Save every answer under `geo/gap/raw/` and add a row to
-   `geo/gap/runs.jsonl` with `gap: null`. Recommend conversations end with a `pick` turn and run
-   3 times each in fresh chats; problem conversations once.
+   Batch runs go through Glasser's ChatGPT LLM Scraper (`site-geo/scripts/gap_scan.py probe`,
+   `force_web_search=false`, $0.004 a call; it matched a Pro account on retrieval and naming, see
+   site-geo's gap-scan.md): one turn per conversation, so single-turn questions only. Pick turns and a
+   few spot checks run in the owner's logged-in browser as
+   [references/probe-runs.md](references/probe-runs.md) says (ego-browser by default; automated runs
+   there got the account logged out, so keep them small); a Grok Bot via `gbot` only as a fallback. The one-hour tool rule (site skill rule 6) applies to both. Save every answer under `geo/gap/raw/` and add a row to
+   `geo/gap/runs.jsonl` with `gap: null`. Category conversations (who wins “best X”) end with a `pick`
+   turn and run 3 times each in fresh chats; long-tail questions (one specific file or task) need no
+   pick turn: one run each, a second run for those about to get pages. Phrasing decides whether the
+   assistant searches at all, so calibrate it per site type first (gap-scan.md “Probe styles”).
 5. **Judge.** Label every run with [references/gap-rubric.md](references/gap-rubric.md): `gap`,
    `gap_note`, `own` (at the end) and `own_opening` (in the first answer), `cited`, `recommended`,
    `search_queries`, and `outcome` for competitor probes. Run `reads`: it fills `own_read` (our pages
@@ -141,9 +153,9 @@ the shape decides how the pages are cut. A site can hold both, one GEO folder ea
 6. **Other channels.** Probes cover assistant chat. For the same needs, collect what is cheap and
    real: search engines — run `queries`: it splits the captured queries into **find searches**
    (generic: the assistant looks for candidates), grouped into clusters, and **named checks** (a site
-   or product it already has in mind: its shortlist). Fill `rank` per find cluster (Bing first, as
-   ChatGPT search leans on it; Google SERP or Search Console when Bing is not available, said so):
-   whether our pages rank there decides whether they can be picked. Note whether the winners are pages made for that search
+   or product it already has in mind: its shortlist). Fill `rank` per find cluster (Bing, Google SERP or
+   Search Console, said which) as context only: in 2026-11 tests ChatGPT retrieved pages that were not in Bing's top 30 and skipped
+   pages Bing had indexed, so Bing rank does not decide whether a page is picked; the probe does. Note whether the winners are pages made for that search
    (`winners_kind: dedicated`) or broad tool and home pages (`general`): site-batch makes a combination
    a page of its own only for the first. When most queries are named checks
    and we are not on the shortlist, the assistant answers from memory: that cell's lever is off-site
@@ -153,7 +165,7 @@ the shape decides how the pages are cut. A site can hold both, one GEO folder ea
    cell with evidence or `not measured`, in two parts: `picked:` (whether the assistant finds and
    chooses us: probe presence, its fetches, landings, who wins) and `after landing:` (take rate,
    downloads), and propose a Lever per need. Page levers rest on the picked part (site rule 2); a
-   proposal that leaves the goal card's main bet without work is asked on its own (site rule 7). Show it with `gap/report.md`: the share of high-opportunity combinations or
+   proposal that leaves the goal card's main bet without work is asked on its own (site rule 8). Show it with `gap/report.md`: the share of high-opportunity combinations or
    questions, where gaps concentrate (by value, need, angle, stratum), whether the site is in the
    answers, the sources behind answers without it and the lever hint, the captured queries, and the
    notes. Offer `go` (whole space), `narrow` (the subspace of strong values), `stop` (or change the idea

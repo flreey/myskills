@@ -12,6 +12,7 @@ Commands
   sample   --n 40 [--seed 1] [--force]      stratified sample of combinations -> geo/gap/samples.jsonl
            [--from-questions [--include-hypothesis]]   ... or of question-bank rows, spread over needs and angles
            [--pool FILE]                    ... or of candidate rows (existing pages), spread over their strata
+           [--pilot FILE]                   ... or new-product pilot questions (`question || condition`), each with a pick turn
   probes                                    render geo/gap/probes.md from filled samples
   report   [--threshold 0.33] [--where KEY=VALUE]... [--include-extra]
                                             aggregate judged runs -> geo/gap/report.json + report.md;
@@ -906,7 +907,40 @@ def sample_from_pool(st, a, dims):
                       "strata": dict(Counter(r["stratum"] for r in rows))}, ensure_ascii=False, indent=2))
 
 
+def sample_pilot(st, a):
+    """New-product mode (site skill): tool-seeking questions from a text file, each ending with a `pick`
+    turn. No demand map or dimensions needed; one line = `question || hardest condition`."""
+    rows, missing = [], []
+    for line in Path(a.pilot).read_text(encoding="utf-8").splitlines():
+        q, _, cond = (x.strip() for x in line.partition("||"))
+        if not q or q.startswith("#"):
+            continue
+        cid = f"p{len(rows) + 1:02d}"
+        pick = (f"Which one would you pick for me, and {cond.rstrip('?')}?" if cond
+                else "Which one would you pick for me, and why?")
+        if not cond:
+            missing.append(cid)
+        rows.append({"combo_id": cid, "combo": {}, "pilot": True, "angle": "recommend", "persona": "",
+                     "opening": q, "opening_scope": None,
+                     "follow_ups": [{"q": pick, "kind": "pick", "adds": []}], "signals": []})
+    if not rows:
+        die(f"no questions in {a.pilot}: one per line, `question || hardest condition`")
+    write_jsonl(st.samples, rows)
+    out = {"samples": len(rows), "file": str(st.samples), "from": "pilot",
+           "next": "probes, then run each conversation 3 times (references/probe-runs.md), judge, reads, report"}
+    if missing:
+        out["warning"] = (f"{len(missing)} questions have no condition after `||` ({', '.join(missing[:5])}): the pick "
+                          "turn then asks only 'why'; name the condition the person cares most about")
+    print(json.dumps(out, ensure_ascii=False, indent=2))
+
+
 def cmd_sample(st, a):
+    if a.pilot:
+        if a.from_questions or a.pool:
+            die("--pilot takes its own questions file: drop --from-questions / --pool")
+        if st.samples.exists() and read_jsonl(st.samples) and not a.force:
+            die(f"{st.samples} has rows; --force replaces it")
+        return sample_pilot(st, a)
     dims = read_json(st.dimensions, {"dimensions": []} if a.from_questions else None)
     if (a.append or a.ids or a.origin or a.weight) and not a.from_questions:
         die("--append, --ids, --origin and --weight work with --from-questions")
@@ -990,7 +1024,10 @@ def cmd_probes(st, a):
         for i, f in enumerate(r.get("follow_ups", []), 1):
             f = f.get("q", "") if isinstance(f, dict) else f
             lines += [f"Follow-up {i}: {f}", ""]
-        files = ", ".join(f"`{st.rel}/gap/raw/{r['combo_id']}--{slug(p)}--1.md`" for p in platforms)
+        runs = range(1, REPEATS + 1) if r.get("angle") == "recommend" else (1,)
+        files = ", ".join(f"`{st.rel}/gap/raw/{r['combo_id']}--{slug(p)}--{n}.md`" for p in platforms for n in runs)
+        if len(runs) > 1:
+            lines += [f"Run it {REPEATS} times, each in a new chat:", ""]
         lines += [f"Save as: {files}", ""]
     st.probes.write_text("\n".join(lines))
     print(json.dumps({"file": str(st.probes), "conversations": len(rows), "platforms": platforms}, ensure_ascii=False))
@@ -1081,15 +1118,18 @@ def cmd_reads(st, a):
     proj = read_json(st.project)
     sets = [st.runs] + list(st.extra_runs)
     hosts = own_hosts(proj, [r for p in sets for r in read_jsonl(p)], a.own)
+    # Before the product has a domain (new-product step 1), only the pages it read are filled.
+    out = {"own": sorted(hosts) or None, "filled": 0, "kept": 0, "no_stream": 0, "no_raw": 0}
     if not hosts:
-        die("no own domain: pass --own example.com, or set own_domains or site.origin in project.json")
-    out = {"own": sorted(hosts), "filled": 0, "kept": 0, "no_stream": 0, "no_raw": 0}
+        out["note"] = "no own domain (--own, own_domains or site.origin): filled `read` only, own_read left unset"
+
     stages = Counter()
     for p in sets:
         rows, changed = read_jsonl(p), False
         for r in rows:
             raw = r.get("raw")
-            if isinstance(r.get("own_read"), list) and not a.force:
+            done = isinstance(r.get("own_read"), list) if hosts else isinstance(r.get("read"), list)
+            if done and not a.force:
                 out["kept"] += 1
             elif not raw or not (st.root / raw).exists():
                 out["no_raw"] += 1
@@ -1098,8 +1138,9 @@ def cmd_reads(st, a):
                 if urls is None:
                     out["no_stream"] += 1
                 else:
-                    r["own_read"] = [u for u in urls if is_own(u, hosts)]
-                    r["read"] = [u for u in urls if not is_own(u, hosts)]
+                    if hosts:
+                        r["own_read"] = [u for u in urls if is_own(u, hosts)]
+                    r["read"] = [u for u in urls if not hosts or not is_own(u, hosts)]
                     out["filled"] += 1
                     changed = True
             stages[own_stage(r)] += 1
@@ -1450,10 +1491,12 @@ def cmd_report(st, a):
     if rep["probed"]:
         set_stage(proj, "gap", f"gap report: {rep['high']}/{rep['probed']} high, hint {rep['hint']}")
         write_json(st.project, proj)
-    if not st.channels.exists():
+    pilot = bool(samples) and all(s.get("pilot") for s in samples)
+    if not st.channels.exists() and not pilot:
         write_channels(st, proj, rep)
     out = {k: rep[k] for k in ("probed", "high", "share_high", "hint", "strong_values", "notes")}
-    out["channels"] = str(st.channels)
+    out["channels"] = ("not used in new-product mode: battlefield and edge go on the goal card" if pilot
+                       else str(st.channels))
     out.update({k: rep["presence"][k] for k in ("in_answer_share", "first_share", "lever_hint", "queries_captured",
                                                 "stages", "loss_hint")})
     print(json.dumps(out, ensure_ascii=False, indent=2))
@@ -2041,7 +2084,8 @@ def cmd_check(st, a):
     dims = read_json(st.dimensions, {"dimensions": [], "exclude": []})
     # Before the task space exists (demand map and question bank only), empty dimensions are fine;
     # so is a project that sampled its question bank instead of combinations (the bank route).
-    bank_route = st.bank.exists() and any(s.get("question_id") for s in read_jsonl(st.samples))
+    bank_route = (st.bank.exists() and any(s.get("question_id") for s in read_jsonl(st.samples))) \
+        or any(s.get("pilot") for s in read_jsonl(st.samples))
     if dims.get("dimensions") or (proj.get("stage") not in ("idea", "needs") and not bank_route):
         derr, _ = validate_dimensions(dims)
         errs += [f"dimensions.json: {e}" for e in derr]
@@ -2114,6 +2158,11 @@ def cmd_check(st, a):
         if row.get("kind") == "find":
             errs += rank_errors(row.get("rank"), f"queries:{row.get('id', i)}")
     warns = goal_warnings(st, proj)
+    ungapped = [f"{n.removesuffix('.jsonl')}:{i}" for n, rows in run_sets for i, r in enumerate(rows, 1)
+                if r.get("gap") is None and (r.get("own") is not None or r.get("recommended"))]
+    if ungapped:
+        warns.append(f"{len(ungapped)} runs have own or recommended but no gap ({', '.join(ungapped[:4])}): report "
+                     "counts only runs with a gap label, so these are left out; label gap (gap-rubric.md)")
     unread = [r.get("combo_id") for _, rows in run_sets for r in rows
               if r.get("own") == "absent" and r.get("own_read") is None and r.get("raw")
               and (st.root / r["raw"]).exists() and stream_urls(st.root / r["raw"]) is not None]
@@ -2194,6 +2243,8 @@ def main(argv=None):
     s.add_argument("--weight", action="append", metavar="NEED=W",
                    help="with --from-questions: share of seats per need (repeatable; unnamed needs weigh 1)")
     s.add_argument("--append", action="store_true", help="add to samples.jsonl, skipping questions already in it")
+    s.add_argument("--pilot", help="new-product mode: text file, one tool-seeking question per line, "
+                                   "`question || hardest condition`; each sample ends with a pick turn")
     s.add_argument("--pool", help="JSONL of candidate rows {combo, url?, stratum?}: sample them, spread over strata")
     s.add_argument("--tool-share", type=float, default=None,
                    help="combinations: share of samples whose opening asks for a tool, site or app (angle recommend); "

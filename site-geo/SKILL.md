@@ -1,6 +1,6 @@
 ---
 name: site-geo
-description: 已上线站点的 GEO（两种模式）：检查模式——AI 爬虫（ChatGPT、Claude、Perplexity 等）能不能访问页面、llms.txt 是否与线上一致、ChatGPT 能否打开并引用页面、会不会为目标问题推荐这个站；持续优化模式——从真实来源（AI 爬虫抓取、AI 引荐落地页、站内/API/MCP 搜索落空、客服和社区原话、Bing AI Performance）找用户交给 AI 的任务，建限制条件矩阵和多轮对话，按问题类型选杠杆（站内、站外、文档、工具渠道），先测基线、做来源诊断，再用留出集、哨兵集和对照组做实验，看提及、首推、引用、准确率和 AI 引荐转化。site-kit 站和其他站都适用。Also for GEO 检查、AI 搜索可见度、ChatGPT 能不能访问、GPT 会不会推荐、llms.txt、AI 爬虫放行、AI 为什么推荐别人、GEO 持续优化、AI 引用占比、改哪个页。不用于：页面验收（site-check）、新想法的答案缺口验证（site-idea）、批量生成页面（site-batch）、找关键词（site-research）。
+description: 已上线站点的 GEO（三种模式）：缺口扫描模式——只给网址，用公开来源（竞品页面结构、联想词、ChatGPT 回答）建需求池，按站型校准问法，经 Glasser 批量问 ChatGPT 网页版，判断每个需求卡在哪一关（不搜、没检索到、检索到没提、已赢），分五类给改法（查收录、改成用户说法、写清能力、补内容、补功能），按搜索量排序；检查模式——AI 爬虫（ChatGPT、Claude、Perplexity 等）能不能访问页面、llms.txt 是否与线上一致、ChatGPT 能否打开并引用页面、会不会为目标问题推荐这个站；持续优化模式——从真实来源（AI 爬虫抓取、AI 引荐落地页、站内/API/MCP 搜索落空、客服和社区原话、Bing AI Performance）找用户交给 AI 的任务，建限制条件矩阵和多轮对话，按问题类型选杠杆（站内、站外、文档、工具渠道），先测基线、做来源诊断，再用留出集、哨兵集和对照组做实验，看提及、首推、引用、准确率和 AI 引荐转化。site-kit 站和其他站都适用。Also for GEO 检查、AI 搜索可见度、ChatGPT 能不能访问、GPT 会不会推荐、llms.txt、AI 爬虫放行、AI 为什么推荐别人、GEO 持续优化、AI 引用占比、改哪个页、缺口扫描、AI 流量缺在哪、该补哪些长尾页或功能、只有网址怎么诊断。不用于：页面验收（site-check）、新想法的答案缺口验证（site-idea）、批量生成页面（site-batch）、找关键词（site-research）。
 ---
 
 # site-geo: GEO for a live site (check and optimize)
@@ -26,6 +26,7 @@ Optimize engine (Python stdlib), `python3 <skill-dir>/scripts/geo_optimize.py --
 
 | Mode | When | Path |
 | --- | --- | --- |
+| **Scan** | A live site wants more AI visits and the question is what to change: which needs it loses, at which gate, and which kind of fix (index, retitle, first screen, content, capability). Works from the URL alone | [references/gap-scan.md](references/gap-scan.md), engine `scripts/gap_scan.py`; Glasser calls are paid, name the price first |
 | **Check** | A site or page should be reachable, quotable and recommended by AI assistants; before and after a launch | G1–G4 below |
 | **Optimize** | A live site wants more AI recommendations and citations over time: which tasks, why assistants pick others, what to change, did it work | G5 below, then the loop in [references/optimize.md](references/optimize.md) (O1–O8) |
 | **Retrofit** | Existing pages should become GEO pages without losing search traffic | [references/retrofit.md](references/retrofit.md): single pages step by step; families of similar pages through site-batch adopt mode, only after O4–O5 show the pages are the bottleneck |
@@ -44,7 +45,9 @@ same sources again.
 2. **ChatGPT answers are samples, not measurements.** Record the date, model, mode and full prompt;
    repeat in fresh chats; never report one answer as a fact about ranking or traffic.
 3. **Using the user's ChatGPT account needs their go-ahead** in chat. Otherwise hand them the
-   prompts and read back what they paste.
+   prompts and read back what they paste. Batch probes go through Glasser's ChatGPT LLM Scraper with
+   `force_web_search=false` (gap-scan.md, “Checks against reality”); the account is for a few spot
+   checks and pick turns: automated runs got it logged out.
 4. **Training is the owner's choice.** Blocking a training crawler (GPTBot, ClaudeBot,
    Google-Extended) is a decision, not a defect; blocking a search or user crawler is a fix unless
    the owner chose it.

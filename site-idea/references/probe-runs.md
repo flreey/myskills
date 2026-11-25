@@ -1,5 +1,12 @@
 # Running approved probes in the user's browser
 
+**Batch probes no longer run here.** Since 2026-11-20 single-turn batches go through Glasser's
+ChatGPT LLM Scraper (`site-geo/scripts/gap_scan.py probe`, `force_web_search=false`): it matched a Pro
+account on retrieval and naming, costs $0.004 a call and uses no account (site-geo
+`references/gap-scan.md`). Driving the owner's logged-in ChatGPT got the account logged out three
+times in one day, the last after 4 conversations. Use this file only for pick turns, the
+name-versus-URL check and a few spot checks, with the owner's go-ahead.
+
 Applies whenever probes run in the user's logged-in assistant (site-idea step 4, site-geo probes
 A–E and the optimize baseline). Handing the user `probes.md` costs no tokens and stays the default.
 When the user has approved driving their browser, every browser step is a model call that re-reads
