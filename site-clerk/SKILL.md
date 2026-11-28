@@ -23,8 +23,8 @@ description: 站长自己的 Clerk 上线标准：site-kit app 站的登录从�
 | DNS | Clerk 给的 5 个 CNAME + `_dmarc`，**DNS only（不代理）** | Cloudflare Domain Connect，或 Domains → Download zone file → Cloudflare DNS Import（关掉 Proxy imported records）→ Verify |
 | 会话令牌 | `"email": "{{user.primary_email_address}}"` | Sessions → Customize session token。克隆时会带过来，核对一下 |
 | Google 登录 | **自己的 OAuth 客户端**（开发实例用的是 Clerk 共享凭据，生产不能用） | Google Cloud 新项目 → Google Auth Platform：Branding（应用名、支持邮箱、首页、`/privacy`、`/terms`、授权域名 `<apex>`；不放 logo，放了要审核）→ Audience External → **Publish app**（In production）→ Clients → Web application，回调 `https://clerk.<apex>/v1/oauth_callback` → 把 Client ID / Secret 填进 Clerk SSO connections → Google。scope 只要 openid、email、profile |
-| 人机检查 | Bot sign-up protection **开**；Protect → Protections 里 **“Challenge suspicious sign-ups” 和 “Require Device Intelligence checks” 两项都关** | 只关一项仍会卡。开着时注册要过 Clerk Protect 脚本（`cdn/specter/client.protect.clerk.com`，端口 8443/18443/2082/992），VPN、代理、拦截插件会挡；还会把用户送到托管门户做检查，回跳地址丢失、落到首页 |
-| 登录注册页 | Paths 里 sign-in、sign-up 指向站点自己的 `https://<apex>/sign-in`、`/sign-up`（application domain），不用 Account Portal（`accounts.<apex>`） | Configure → Paths |
+| 人机检查 | Protect → Protections 里 **“Challenge suspicious sign-ups” 和 “Require Device Intelligence checks” 两项都关**（2026-11 的后台已没有单独的 “Bot sign-up protection” 开关；“Require a minimum ClerkJS version”、Sign-in security 里的 Device Trust、失败锁定、防枚举保持开） | 只关一项仍会卡。开着时注册要过 Clerk Protect 脚本（`cdn/specter/client.protect.clerk.com`，端口 8443/18443/2082/992），VPN、代理、拦截插件会挡；还会把用户送到托管门户做检查，回跳地址丢失、落到首页 |
+| 登录注册页 | Paths 里 `<SignIn />`、`<SignUp />` 指向站点自己的 `https://<apex>/sign-in`、`/sign-up`（application domain），不用 Account Portal（`accounts.<apex>`）；Account Portal → Redirects 的 after sign-in / sign-up fallback 填 `https://<apex>/app` | Configure → Paths；Account Portal → Redirects（克隆出来的生产实例默认都是 Account Portal） |
 | 站点配置 | `modules.app.clerkPublishableKey: 'pk_live_…'`（公开值，可提交） | 改 `site.config.ts` |
 | Worker | `CLERK_JWT_KEY` = 生产 JWKS 转 PEM；`CLERK_AUTHORIZED_PARTIES` 不设（默认根域） | 见下面的命令；`wrangler secret bulk` 写入（需授权） |
 
@@ -45,7 +45,7 @@ curl -s https://<apex>/ | grep -o 'pk_live_[A-Za-z0-9]*'   # 必须是 pk_live_
 ## 验收（每次切生产或改 Protect / Paths 之后）
 
 1. 已登录账号：`/api/app/me` 200；令牌里 `azp` 是 `https://<apex>`，带 `email`。
-2. **全新 Google 账号（站长操作）**：定价页点付费按钮 → 登录页 → Google → 应在 10 秒内直接到 `checkout.stripe.com`，中间不出现 “Verifying your request” 或 `accounts.<apex>`，不回首页。
+2. **全新 Google 账号（站长操作）**：定价页点付费按钮 → 本页登录弹窗 → Google → 应在约 10 秒内直接到 `checkout.stripe.com`（RemoveVocals 修好后老账号实测 10.6 秒，其中 `/app/billing` → Stripe 约 5 秒），中间不出现 “Verifying your request” 或 `accounts.<apex>`，不回首页。
 3. 失败时先清 `<apex>` 和 `clerk.<apex>` 的站点数据再测：开着检查时开始的注册会被 Clerk 的 client cookie 一直续上。
 
 ## 常见坑
