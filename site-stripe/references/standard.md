@@ -18,11 +18,11 @@
 | 行业 | Software |
 | 业务描述 | 写真实业务：卖什么、怎么交付、怎么收费（例句见 [activation.md](activation.md)） |
 | 网站 | `https://<apex>`，提交前站点必须能打开，定价、条款、隐私、退款页都在线 |
-| 公开商家名 | 站名（`site.name`）。激活提交后在 Settings → Business details → Public details → Edit 填：Public business name、Support email、Customer support URL `https://<apex>/support`、Privacy `/privacy`、Terms `/terms`；同一表单里的 `company[name]` 和地址属于共享主体，不要动 |
+| 公开商家名 | 站名（`site.name`）。激活提交后在 Settings → Business details → Public details → Edit 填：Public business name、Support email、Customer support URL `https://<apex>/support`、Privacy `/privacy`、Terms `/terms`；**Customer support address 清空，不公开**（表单会预填共享主体的地址，保存时一起存进去就会公开显示；站长 2026-11-28 定不公开）；同一表单里的 `company[name]` 和法律主体地址属于共享主体，不要动 |
 | 客服邮箱 | 站点的联系邮箱 `hello@<apex>`（先配好 Email Routing 转发） |
 | 客服电话 | 沿用共享主体的电话（向导预填）；「Show phone number on receipts and invoices」关闭（ToHD） |
 | 账单显示名 | 域名大写，例如 `TOHD.VIDEO`、`MISSEDBYAI.COM`（≤22 字符）；缩写（2–10 字符）用站名大写，如 `MISSEDBYAI`；站名超过 10 字符时去掉元音缩短（RemoveVocals → `RMVOCALS`），AI 直接填好保存。SFXMint 现在是 `SFXMINT`，属于旧值 |
-| 品牌 | Settings → Branding（测试和正式共用）：图标用站点 `public/favicon.svg` 转 512px PNG（`magick -background none -density 600 favicon.svg -resize 512x512 icon.png`），品牌色和强调色都用站点按钮色（`theme.css` 的 `--action`），点 Save changes |
+| 品牌 | Settings → Branding（测试和正式共用）：图标用站点 `public/favicon.svg` 转 512px PNG（`magick -background none -density 600 favicon.svg -resize 512x512 icon.png`），品牌色和强调色都用站点按钮色（`theme.css` 的 `--action`，没有就用 `site.config.ts` 的 `theme.accent`），点 Save changes。AI 直接做 |
 | Radar | Radar Lite（免费档），付费档要问站长 |
 | Stripe Climate | 不开 |
 | Stripe Tax 订阅 / Tax Complete | 不订；激活向导的 Tax 一步选 Skip for now |

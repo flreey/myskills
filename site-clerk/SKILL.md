@@ -9,6 +9,8 @@ description: 站长自己的 Clerk 上线标准：site-kit app 站的登录从�
 
 ## 分工
 
+和 site-stripe 一样（站长 2026-11-28）：整个流程由 AI 执行，参数取下表，不再逐项问；只在站长必须亲手操作的那一步停下；做完给站长验收清单，站长验收通过才算完成。
+
 | 谁 | 做什么 |
 |---|---|
 | **只能站长** | Google / Clerk 账号的密码和二次验证；用一个**全新** Google 账号做注册实测 |
@@ -24,6 +26,7 @@ description: 站长自己的 Clerk 上线标准：site-kit app 站的登录从�
 | 会话令牌 | `"email": "{{user.primary_email_address}}"` | Sessions → Customize session token。克隆时会带过来，核对一下 |
 | Google 登录 | **自己的 OAuth 客户端**（开发实例用的是 Clerk 共享凭据，生产不能用） | Google Cloud 新项目 → Google Auth Platform：Branding（应用名、支持邮箱、首页、`/privacy`、`/terms`、授权域名 `<apex>`；不放 logo，放了要审核）→ Audience External → **Publish app**（In production）→ Clients → Web application，回调 `https://clerk.<apex>/v1/oauth_callback` → 把 Client ID / Secret 填进 Clerk SSO connections → Google。scope 只要 openid、email、profile |
 | 人机检查 | Protect → Protections 里 **“Challenge suspicious sign-ups” 和 “Require Device Intelligence checks” 两项都关**（2026-11 的后台已没有单独的 “Bot sign-up protection” 开关；“Require a minimum ClerkJS version”、Sign-in security 里的 Device Trust、失败锁定、防枚举保持开） | 只关一项仍会卡。开着时注册要过 Clerk Protect 脚本（`cdn/specter/client.protect.clerk.com`，端口 8443/18443/2082/992），VPN、代理、拦截插件会挡；还会把用户送到托管门户做检查，回跳地址丢失、落到首页 |
+| 退出登录 | Paths 里 Signing Out 指向 `https://<apex>/`（application domain）；OAuth consent、device verification 保持 Account Portal（kit 没有对应页面） | Configure → Paths |
 | 登录注册页 | Paths 里 `<SignIn />`、`<SignUp />` 指向站点自己的 `https://<apex>/sign-in`、`/sign-up`（application domain），不用 Account Portal（`accounts.<apex>`）；Account Portal → Redirects 的 after sign-in / sign-up fallback 填 `https://<apex>/app` | Configure → Paths；Account Portal → Redirects（克隆出来的生产实例默认都是 Account Portal） |
 | 站点配置 | `modules.app.clerkPublishableKey: 'pk_live_…'`（公开值，可提交） | 改 `site.config.ts` |
 | Worker | `CLERK_JWT_KEY` = 生产 JWKS 转 PEM；`CLERK_AUTHORIZED_PARTIES` 不设（默认根域） | 见下面的命令；`wrangler secret bulk` 写入（需授权） |
