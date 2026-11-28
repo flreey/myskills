@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Stripe sandbox / live setup for a site, run by the site OWNER in their own terminal.
+"""Stripe sandbox / live setup for a site, run by the owner in their own terminal, or by the AI with the owner's
+go-ahead in chat (--key-file, a 600 file outside the repo, deleted afterwards).
 
-The secret key is typed at a hidden prompt and only lives in this process: it is never printed,
+The secret key is typed at a hidden prompt (or read from --key-file) and only lives in this process: it is never printed,
 never written to disk (except into the Worker through `wrangler secret bulk`, or an env file the
 owner asked for), and never passed on a command line. Re-running is safe.
 
@@ -9,6 +10,8 @@ What it does (generalised from tohd.video cloud/launch-secrets.sh and cloud/stri
   1. prices   one active Price per lookup key with the catalog amount, currency, interval and
               tax_behavior; a wrong or missing one gets a new Price on the existing product,
               and transfer_lookup_key moves the key over. Products get the tax code if given.
+  1b. portal  the default customer-portal configuration (created or updated to the owner's standard), then
+              opened once with a throwaway customer to prove it works (--no-portal skips).
   2. webhook  endpoints with the same URL are deleted and one is created (Stripe shows the
               signing secret only at creation).
   3. secrets  STRIPE_SECRET_KEY + STRIPE_WEBHOOK_SECRET onto the Worker with `wrangler secret bulk`
@@ -173,13 +176,20 @@ def products_from_prices(specs: list[str], currency: str) -> list[dict]:
 
 # ---------- key prompt ----------
 
-def ask_key(mode: str) -> str:
+def ask_key(mode: str, key_file: str | None = None) -> str:
     want = "sk_live_…" if mode == "live" else "sk_test_…"
     label = "正式（LIVE）" if mode == "live" else "沙盒（test）"
-    try:
-        raw = getpass.getpass(f"粘贴 Stripe {label} Secret key（{want}，输入不显示）：")
-    except (EOFError, KeyboardInterrupt):
-        die("没有读到密钥（要在自己的终端里交互运行）")
+    if key_file:
+        # AI runs (owner's go-ahead in chat): the key sits in a file only the owner can read, never on the command line.
+        try:
+            raw = open(os.path.expanduser(key_file), encoding="utf-8").read()
+        except OSError as e:
+            die(f"读不到 --key-file：{e}")
+    else:
+        try:
+            raw = getpass.getpass(f"粘贴 Stripe {label} Secret key（{want}，输入不显示）：")
+        except (EOFError, KeyboardInterrupt):
+            die("没有读到密钥（要在自己的终端里交互运行，或用 --key-file）")
     key = "".join(raw.split())  # pasted keys often carry spaces or a line break
     other = "test" if mode == "live" else "live"
     if key.startswith(("pk_live_", "pk_test_")):
@@ -330,10 +340,67 @@ def write_secrets(values: dict, a) -> None:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+# ---------- customer portal ----------
+
+PORTAL_REASONS = ["too_expensive", "missing_features", "switched_service", "unused", "low_quality", "other"]
+
+
+def sync_portal(st: "Stripe", items: list[dict], origin: str, name: str, check: bool) -> None:
+    """New accounts have no portal configuration in either mode, so Manage billing fails and nobody can cancel.
+    Owner's standard (standard.md 客户门户): cancel at period end without proration, collect the reason; switch between
+    every subscription price (always_invoice, downgrades and shorter intervals at period end); invoices, card, email and
+    address; headline, privacy, terms and the billing page as the return URL. The first configuration is the default."""
+    existing = st.get("/billing_portal/configurations", [("limit", "10")]).get("data", [])
+    default = next((c for c in existing if c.get("is_default")), existing[0] if existing else None)
+    if check:
+        print(f"  门户：{default['id'] if default else '没有（Manage billing 会报错）'}")
+        return
+    if not origin:
+        print("  跳过门户：不知道站点地址（传 --origin）")
+        return
+    subs = [it for it in items if it.get("kind") == "subscription"]
+    prices = st.get("/prices", [("lookup_keys[]", it["lookupKey"]) for it in subs] + [("active", "true"), ("limit", "100")]).get("data", []) if subs else []
+    by_product: dict[str, list[str]] = {}
+    for p in prices:
+        by_product.setdefault(p["product"], []).append(p["id"])
+    params = [("business_profile[headline]", f"{name or 'Your account'}: manage your plan, payment method and invoices"),
+              ("business_profile[privacy_policy_url]", origin + "/privacy"),
+              ("business_profile[terms_of_service_url]", origin + "/terms"),
+              ("default_return_url", origin + "/app/billing"),
+              ("features[customer_update][enabled]", "true"),
+              ("features[customer_update][allowed_updates][]", "email"), ("features[customer_update][allowed_updates][]", "address"),
+              ("features[invoice_history][enabled]", "true"),
+              ("features[payment_method_update][enabled]", "true"),
+              ("features[subscription_cancel][enabled]", "true"), ("features[subscription_cancel][mode]", "at_period_end"),
+              ("features[subscription_cancel][proration_behavior]", "none"),
+              ("features[subscription_cancel][cancellation_reason][enabled]", "true")]
+    params += [("features[subscription_cancel][cancellation_reason][options][]", r) for r in PORTAL_REASONS]
+    if by_product:
+        params += [("features[subscription_update][enabled]", "true"),
+                   ("features[subscription_update][default_allowed_updates][]", "price"),
+                   ("features[subscription_update][proration_behavior]", "always_invoice"),
+                   ("features[subscription_update][schedule_at_period_end][conditions][0][type]", "decreasing_item_amount"),
+                   ("features[subscription_update][schedule_at_period_end][conditions][1][type]", "shortening_interval")]
+        for i, (prod, ids) in enumerate(by_product.items()):
+            params.append((f"features[subscription_update][products][{i}][product]", prod))
+            params += [(f"features[subscription_update][products][{i}][prices][]", pid) for pid in ids]
+    else:
+        params.append(("features[subscription_update][enabled]", "false"))
+    conf = st.post(f"/billing_portal/configurations/{default['id']}" if default else "/billing_portal/configurations", params)
+    print(f"  门户：{'已更新' if default else '已新建'} {conf.get('id')}（默认：{conf.get('is_default')}）")
+    # Prove it opens: a throwaway customer, one session, then delete the customer.
+    cu = st.post("/customers", [("description", "stripe-launch portal check (temporary)")])
+    try:
+        sess = st.post("/billing_portal/sessions", [("customer", cu["id"]), ("return_url", origin + "/app/billing")])
+        print("  门户核对：" + ("能打开" if sess.get("url") else "没有返回地址"))
+    finally:
+        st.call("DELETE", f"/customers/{cu['id']}")
+
+
 # ---------- main ----------
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Stripe 沙盒/正式收款配置（站长在自己的终端运行，密钥不经过 AI）")
+    ap = argparse.ArgumentParser(description="Stripe 沙盒/正式收款配置：价格、客户门户、webhook、密钥（站长在终端运行，或经站长同意由 AI 用 --key-file 运行）")
     ap.add_argument("--mode", choices=["test", "live"], required=True)
     ap.add_argument("--site", help="site-kit 站点目录（有 site.config.ts、src/site/pricing.ts、wrangler.jsonc）")
     ap.add_argument("--catalog", help="pricing.ts 路径（默认 <site>/src/site/pricing.ts）")
@@ -352,6 +419,8 @@ def main() -> None:
     ap.add_argument("--no-secrets", action="store_true", help="只处理价格和 webhook，不写密钥（webhook 也不重建）")
     ap.add_argument("--check", action="store_true", help="只读：报告价格和 webhook 状态，什么都不改")
     ap.add_argument("--yes", action="store_true", help="写 Worker 前不再询问")
+    ap.add_argument("--key-file", help="从文件读 Secret key（权限 600，例如 .sitekit/secrets.env 之外的临时文件）；不传就在终端里隐藏输入")
+    ap.add_argument("--no-portal", action="store_true", help="不建或更新客户门户配置")
     ap.add_argument("--include-unoffered", action="store_true", help="目录里 offered=false 的产品也建价格（先上线不卖时用）")
     a = ap.parse_args()
 
@@ -414,7 +483,7 @@ def main() -> None:
     if catalog and a.tax_behavior and a.mode == "test" and not a.check:
         print("  提示：沙盒里缺 tax_behavior 的旧价格会被新价格替换（lookup key 转移），否则 kit 结账返回 503 price_not_configured")
 
-    key = ask_key(a.mode)
+    key = ask_key(a.mode, a.key_file)
     st = Stripe(key)
     acct = st.get("/account")
     name = (acct.get("settings", {}).get("dashboard", {}) or {}).get("display_name") or (acct.get("business_profile") or {}).get("name") or ""
@@ -424,6 +493,12 @@ def main() -> None:
 
     print("== 1. 价格")
     problems = sync_prices(st, items, a, a.check)
+
+    print("== 1b. 客户门户")
+    if not a.no_portal:
+        sync_portal(st, items, origin, name, a.check)
+    else:
+        print("  跳过（--no-portal）")
 
     print("== 2. Webhook")
     if a.check:

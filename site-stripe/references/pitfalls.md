@@ -16,3 +16,13 @@
 | 所有买家都走了 MP、都被收 3.5% | 后台 Managed Payments 的「Enable by default」被打开了。关掉它，让 Worker 按国家决定 |
 | 站点上写的经营主体名称和 Stripe 不一样 | 条款、隐私页、页脚的主体名要和 Stripe 登记的法律主体一致（ToHD 还没改，列为待办）。改站点文案要走正常的提交和部署 |
 | 想看买家看到的账单名 | 激活时设置的 statement descriptor（例如 `TOHD.VIDEO`）；走 MP 的订单显示 `LINK.COM* …` |
+| 新账户激活后又被要求补身份证件、打款暂停 | 建账户时没选 Use existing account information，主体是单独录入的（RemoveVocals 2026-11-27）。只能补证件；以后建账户按 standard.md「账户」一节走 |
+| 添加银行账户：点 Add bank account 先弹 Verification required | 先发验证邮件（AI 点 Send verification，在 Gmail 只搜 Stripe 那封打开链接，弹窗不要关），之后还要登录密码或验证器 6 位码，由站长输 |
+| 添加 USD 银行账户时没有 USD 选项 | 先在 Settlement and transfer rules → Add settlement currency 加 USD |
+| 最低余额填 50 变成 HK$50 | 默认结算币种还是 HKD。先把 USD 设为默认再填 |
+| 缩写显示名报 Too long | 上限 10 字符：去元音缩短（`RMVOCALS`） |
+| Managed Payments 开通后退款是 “Refund without emailing me” | 向导里没有这一项，开通后在设置页改成 Email me for approval |
+| AI 在没有终端的环境跑脚本卡在密钥提示 | 用 `--key-file`（600 权限的临时文件），不要用管道喂 getpass |
+| `.sitekit/stripe-sandbox.env` 出现在 git status 里 | kit 的 gitignore 只忽略 `.sitekit/secrets.env`：沙盒密钥并进 `.dev.vars` 后删掉这个文件 |
+| 先上线不卖时 `kit:secrets` / 部署预检要求 Stripe 密钥 | 有商品 `offered` 就要求。写占位值，见 standard.md「上线顺序」第 2 步 |
+| 正式 key 写进了 `.env` | `.env` 会被 Astro 构建读取，而且容易混进部署。移到 `.sitekit/secrets.env`（600，git 忽略），从 `.env` 删掉 |

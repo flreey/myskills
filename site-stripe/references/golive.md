@@ -5,7 +5,7 @@
 ## 沙盒
 
 1. 在 Stripe 建一个沙盒（Sandbox），比如「<站名> sandbox」，以后一直留作测试。
-2. 交给站长运行（kit 站）：
+2. 运行（kit 站；AI 用 `--key-file` 直接跑，或交给站长在终端跑）：
    ```bash
    python3 ~/.agents/skills/site-stripe/scripts/stripe_launch.py --mode test --site ~/Projects/<站>/site --product-prefix <站名>
    ```
@@ -42,7 +42,7 @@
 - 定价页：价格旁边有 “Prices exclude tax; tax is added at checkout.”（不含税时），不再出现测试模式标记；点购买跳到的 Checkout 顶部没有 Sandbox / Test mode 横条。
 - `npm run kit:smoke`。如果本机网络连不上 Cloudflare 网页统计脚本，加 `--no-shots`（ToHD 就是这样）。
 - 后台 Workbench → Webhooks：正式模式下的 endpoint 已启用，地址和事件正确。
-- 用 `stripe_launch.py --mode live --check` 复核价格和 webhook（站长运行）。
+- 用 `stripe_launch.py --mode live --check` 复核价格、门户和 webhook。
 
 ## 真实付款实测（站长）
 
